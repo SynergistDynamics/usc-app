@@ -1,0 +1,331 @@
+// src/App.jsx
+import { useState, useEffect, useCallback } from 'react';
+import { supabase, C } from './lib/supabase';
+import { AuthProvider, useAuth, LoginPage, LoadingScreen, BlockedScreen } from './components/Auth';
+import { Spinner, Button } from './components/UI';
+import PricingTool           from './modules/PricingTool';
+import MaterialPriceManager  from './modules/MaterialPriceManager';
+import QuantityTableEditor   from './modules/QuantityTableEditor';
+import AdminPanel            from './modules/AdminPanel';
+import PackageManager        from './modules/PackageManager';
+import AffiliateResources    from './modules/AffiliateResources';
+import Blueprints            from './modules/Blueprints';
+import ConfiguratorPricing   from './modules/ConfiguratorPricing';
+import Financing             from './modules/Financing';
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <style>{globalStyles}</style>
+      <AppShell />
+    </AuthProvider>
+  );
+}
+
+function AppShell() {
+  const { session, profile, signOut } = useAuth();
+  if (session === undefined || (session && !profile)) return <LoadingScreen />;
+  if (!session) return <LoginPage />;
+  if (profile?.role === 'blocked') return <BlockedScreen onSignOut={signOut} />;
+  return <AppInner />;
+}
+
+// ── NAV CONSTANTS ─────────────────────────────────────────────
+// indices: 0=Calculator, 1=MatPrices, 2=QtyTables, 3=Packages,
+//          4=Affiliate, 5=Admin, 6=Blueprints, 8=ConfiguratorPricing, 9=Financing
+
+const SETTINGS_MODULES_ALL = [
+  { icon:'📋', label:'Material Prices',       idx:1, adminOnly:false },
+  { icon:'📊', label:'Quantity Tables',       idx:2, adminOnly:false },
+  { icon:'📦', label:'Packages',              idx:3, adminOnly:true  },
+];
+
+// ── NAV COMPONENTS (outside AppInner to prevent re-creation) ──
+function NavBtn({ idx, icon, label, activeModule, setActiveModule, sidebarOpen }) {
+  const active = activeModule === idx;
+  return (
+    <button onClick={() => setActiveModule(idx)} style={{
+      display:'flex', alignItems:'center', gap:12, width:'100%',
+      padding: sidebarOpen ? '10px 20px' : '10px',
+      border:'none', cursor:'pointer',
+      background: active ? C.sage : 'transparent',
+      color: active ? '#fff' : 'rgba(255,255,255,0.55)',
+      fontFamily:'DM Sans', fontSize:13, fontWeight: active ? 600 : 400,
+      textAlign:'left', transition:'all 0.15s', flexShrink:0,
+    }}>
+      <span style={{ fontSize:15, flexShrink:0 }}>{icon}</span>
+      {sidebarOpen && <span>{label}</span>}
+    </button>
+  );
+}
+
+function ExtLink({ href, icon, label, sidebarOpen }) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer" style={{
+      display:'flex', alignItems:'center', gap:12, width:'100%',
+      padding: sidebarOpen ? '10px 20px' : '10px',
+      textDecoration:'none', color:'rgba(255,255,255,0.45)',
+      fontFamily:'DM Sans', fontSize:13, fontWeight:400, transition:'all 0.15s',
+    }}>
+      <span style={{ fontSize:15, flexShrink:0 }}>{icon}</span>
+      {sidebarOpen && <span>{label}</span>}
+    </a>
+  );
+}
+
+function AppInner() {
+  const { profile, signOut } = useAuth();
+  const isAdmin = profile?.role === 'admin';
+
+  const [activeModule, setActiveModule] = useState(0);
+  const [sidebarOpen,  setSidebarOpen]  = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isMobile,     setIsMobile]     = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  // Track viewport size
+  useEffect(() => {
+    function onResize() {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      if (!mobile) setMobileNavOpen(false);
+    }
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // Close mobile nav when a module is selected
+  function selectModule(idx) {
+    setActiveModule(idx);
+    if (isMobile) setMobileNavOpen(false);
+  }
+
+  const [materials,     setMaterials]     = useState([]);
+  const [overrides,     setOverrides]     = useState({});
+  const [quantities,    setQuantities]    = useState([]);
+  const [packages,      setPackages]      = useState([]);
+  const [pkgMaterials,  setPkgMaterials]  = useState([]);
+  const [pkgQuantities, setPkgQuantities] = useState([]);
+  const [styles,        setStyles]        = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [dbError,       setDbError]       = useState('');
+
+  const loadData = useCallback(async () => {
+    setLoading(true); setDbError('');
+    const [mats, ovs, qtys, pkgs, pkgMats, pkgQtys, stylesRes] = await Promise.all([
+      supabase.from('materials').select('*').order('sort_order'),
+      supabase.from('material_overrides').select('*').eq('user_id', profile.id),
+      supabase.from('quantities').select('*').range(0, 9999),
+      supabase.from('packages').select('*').order('sort_order'),
+      supabase.from('package_materials').select('*'),
+      supabase.from('package_quantities').select('*'),
+      supabase.from('styles').select('*').order('sort_order'),
+    ]);
+    if (mats.error) { setDbError(mats.error.message); setLoading(false); return; }
+    setMaterials(mats.data || []);
+    setOverrides(Object.fromEntries((ovs.data || []).map(o => [o.material_id, o])));
+    setQuantities(qtys.data || []);
+    setPackages(pkgs.data || []);
+    setPkgMaterials(pkgMats.data || []);
+    setPkgQuantities(pkgQtys.data || []);
+    setStyles(stylesRes.data || []);
+    setLoading(false);
+  }, [profile?.id]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    if ([1,2,3].includes(activeModule)) setSettingsOpen(true);
+  }, [activeModule]);
+
+  const settingsModules = SETTINGS_MODULES_ALL.filter(m => !m.adminOnly || isAdmin);
+  const isSettingsActive = [1,2,3].includes(activeModule);
+
+  // On mobile: sidebar is an overlay drawer, always full-width when open
+  const sidebarExpanded = isMobile ? true : sidebarOpen;
+  const sw = isMobile ? 260 : (sidebarOpen ? 240 : 64);
+
+  // Sidebar visibility: on desktop always shown; on mobile shown only when mobileNavOpen
+  const showSidebar = !isMobile || mobileNavOpen;
+
+  return (
+    <div style={{ display:'flex', minHeight:'100vh', background:C.linen }}>
+
+      {/* ── Mobile top bar ── */}
+      {isMobile && (
+        <div style={{ position:'fixed', top:0, left:0, right:0, height:56, background:'#1A1510', display:'flex', alignItems:'center', padding:'0 16px', zIndex:200, boxShadow:'0 2px 8px rgba(0,0,0,0.2)' }}>
+          <button onClick={() => setMobileNavOpen(p=>!p)} aria-label="Menu" style={{ background:'transparent', border:'none', cursor:'pointer', padding:8, display:'flex', flexDirection:'column', gap:4, marginRight:14 }}>
+            <span style={{ width:22, height:2, background:'#fff', borderRadius:2, transition:'all 0.2s', transform: mobileNavOpen ? 'rotate(45deg) translate(5px,5px)' : 'none' }} />
+            <span style={{ width:22, height:2, background:'#fff', borderRadius:2, opacity: mobileNavOpen ? 0 : 1 }} />
+            <span style={{ width:22, height:2, background:'#fff', borderRadius:2, transition:'all 0.2s', transform: mobileNavOpen ? 'rotate(-45deg) translate(5px,-5px)' : 'none' }} />
+          </button>
+          <div style={{ fontFamily:'Cormorant Garamond, serif', fontSize:18, fontWeight:700, color:'#fff' }}>Urban Sheds Collective</div>
+        </div>
+      )}
+
+      {/* ── Mobile backdrop ── */}
+      {isMobile && mobileNavOpen && (
+        <div onClick={() => setMobileNavOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:250 }} />
+      )}
+
+      {/* ── Sidebar ── */}
+      {showSidebar && (
+      <div style={{
+        width:sw, minHeight:'100vh', background:'#1A1510', display:'flex', flexDirection:'column',
+        transition:'width 0.2s', flexShrink:0,
+        position: isMobile ? 'fixed' : 'sticky',
+        top:0, height:'100vh', zIndex: isMobile ? 300 : 1,
+        boxShadow: isMobile ? '2px 0 16px rgba(0,0,0,0.3)' : 'none',
+      }}>
+
+        {/* Logo */}
+        <div style={{ padding: sidebarExpanded ? '24px 20px 18px' : '20px 12px', borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0 }}>
+          {sidebarExpanded ? (
+            <>
+              <div style={{ fontFamily:'Cormorant Garamond, serif', fontSize:19, fontWeight:700, color:'#fff', lineHeight:1.25 }}>Urban Sheds<br/>Collective</div>
+              <div style={{ fontFamily:'DM Sans', fontSize:10, color:'#B8986A', marginTop:6, letterSpacing:'0.06em', fontStyle:'italic' }}>Give homeowners something worth having.</div>
+            </>
+          ) : (
+            <div style={{ fontFamily:'Cormorant Garamond, serif', fontSize:16, fontWeight:700, color:'#fff', textAlign:'center' }}>USC</div>
+          )}
+        </div>
+
+        {/* Nav */}
+        <nav style={{ flex:1, overflowY:'auto', overflowX:'hidden', padding:'8px 0' }}>
+
+          {/* Main tools */}
+          <NavBtn idx={0} icon="⚡" label="Materials Calculator"   activeModule={activeModule} setActiveModule={selectModule} sidebarOpen={sidebarExpanded} />
+          <NavBtn idx={8} icon="💲" label="Configurator Pricing"   activeModule={activeModule} setActiveModule={selectModule} sidebarOpen={sidebarExpanded} />
+
+          {/* Calculator Settings — collapsible submenu */}
+          <button onClick={() => setSettingsOpen(p=>!p)} style={{ display:'flex', alignItems:'center', gap:12, width:'100%', padding: sidebarExpanded ? '10px 20px' : '10px', border:'none', cursor:'pointer', background:'transparent', color: isSettingsActive ? C.sageLight : 'rgba(255,255,255,0.4)', fontFamily:'DM Sans', fontSize:12, fontWeight: isSettingsActive ? 600 : 400, textAlign:'left', transition:'all 0.15s' }}>
+            <span style={{ fontSize:14, flexShrink:0 }}>⚙</span>
+            {sidebarExpanded && <><span style={{ flex:1 }}>Calculator Settings</span><span style={{ fontSize:10, opacity:0.6 }}>{settingsOpen ? '▲' : '▼'}</span></>}
+          </button>
+          {settingsOpen && settingsModules.map(m => (
+            <button key={m.idx} onClick={() => selectModule(m.idx)} style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding: sidebarExpanded ? '8px 20px 8px 36px' : '8px 10px', border:'none', cursor:'pointer', background: activeModule===m.idx ? 'rgba(184,152,106,0.15)' : 'transparent', color: activeModule===m.idx ? '#B8986A' : 'rgba(255,255,255,0.35)', fontFamily:'DM Sans', fontSize:12, fontWeight: activeModule===m.idx ? 600 : 400, textAlign:'left', transition:'all 0.15s' }}>
+              <span style={{ fontSize:12, flexShrink:0 }}>{m.icon}</span>
+              {sidebarExpanded && <span>{m.label}</span>}
+            </button>
+          ))}
+
+          <div style={{ margin:'10px 16px', borderTop:'1px solid rgba(255,255,255,0.07)' }} />
+
+          {/* Other pages */}
+          <NavBtn idx={4} icon="🔗" label="Affiliate Resources" activeModule={activeModule} setActiveModule={selectModule} sidebarOpen={sidebarExpanded} />
+          <NavBtn idx={6} icon="📐" label="Blueprints"          activeModule={activeModule} setActiveModule={selectModule} sidebarOpen={sidebarExpanded} />
+          <NavBtn idx={9} icon="💰" label="Financing"           activeModule={activeModule} setActiveModule={selectModule} sidebarOpen={sidebarExpanded} />
+
+          <div style={{ margin:'10px 16px', borderTop:'1px solid rgba(255,255,255,0.07)' }} />
+
+          {/* External links */}
+          <ExtLink href="https://www.urban-sheds.com/"                                        icon="🌐" label="urban-sheds.com"   sidebarOpen={sidebarExpanded} />
+          <ExtLink href="https://urbansheds.shedpro.co/wp-login.php"                          icon="🏠" label="ShedPro Backend"   sidebarOpen={sidebarExpanded} />
+          <ExtLink href="https://urbansheds.shedpro.co/"                                      icon="🧊" label="3D Configurator"   sidebarOpen={sidebarExpanded} />
+          <ExtLink href="https://app.velocity360crm.com/"                                     icon="📊" label="Velocity CRM"      sidebarOpen={sidebarExpanded} />
+
+          {isAdmin && <div style={{ margin:'10px 16px', borderTop:'1px solid rgba(255,255,255,0.07)' }} />}
+          {isAdmin && <NavBtn idx={5} icon="🛠" label="Admin" activeModule={activeModule} setActiveModule={selectModule} sidebarOpen={sidebarExpanded} />}
+          {isAdmin && <ExtLink href="https://supabase.com/dashboard/project/ywboyreznmuaddprkycm" icon="🗄" label="Supabase" sidebarOpen={sidebarExpanded} />}
+          {isAdmin && <ExtLink href="https://app.netlify.com/projects/delightful-souffle-129a04/overview" icon="🚀" label="Netlify" sidebarOpen={sidebarExpanded} />}
+
+        </nav>
+
+        {/* User + sign out */}
+        <div style={{ padding: sidebarExpanded ? '14px 20px' : '14px 8px', borderTop:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
+          {sidebarExpanded && (
+            <div style={{ marginBottom:8 }}>
+              <div style={{ fontFamily:'DM Sans', fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.8)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{profile?.full_name || profile?.email}</div>
+              {profile?.market && <div style={{ fontFamily:'DM Sans', fontSize:10, color:C.sageLight, marginTop:2 }}>{profile.market}</div>}
+            </div>
+          )}
+          <button onClick={signOut} style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding: sidebarExpanded ? '6px 0' : '6px', border:'none', cursor:'pointer', background:'transparent', color:'rgba(255,255,255,0.35)', fontFamily:'DM Sans', fontSize:11, justifyContent: sidebarExpanded ? 'flex-start' : 'center' }}>
+            <span>↩</span>{sidebarExpanded && <span>Sign out</span>}
+          </button>
+        </div>
+
+        {!isMobile && (
+          <button onClick={() => setSidebarOpen(p=>!p)} style={{ padding:'7px', border:'none', background:'transparent', color:'rgba(255,255,255,0.2)', cursor:'pointer', fontSize:11, fontFamily:'DM Sans', textAlign: sidebarOpen ? 'right' : 'center', paddingRight: sidebarOpen ? 14 : 7, flexShrink:0 }}>
+            {sidebarOpen ? '← hide' : '→'}
+          </button>
+        )}
+      </div>
+      )}
+
+      {/* ── Main content ── */}
+      <div style={{ flex:1, padding: isMobile ? '72px 16px 32px' : '36px 40px', maxWidth: isMobile ? '100%' : 1300, width:'100%', overflowX:'hidden', background:'#F7F3EC' }}>
+        {loading ? (
+          <div style={{ display:'flex', justifyContent:'center', paddingTop:80 }}><Spinner size={32} /></div>
+        ) : dbError ? (
+          <div style={{ fontFamily:'DM Sans', fontSize:14, color:C.error, padding:40, textAlign:'center' }}>
+            Failed to load data: {dbError}<br/>
+            <Button variant="secondary" onClick={loadData} style={{ marginTop:12 }}>Retry</Button>
+          </div>
+        ) : (
+          <>
+            {activeModule === 0 && <PricingTool materials={materials} overrides={overrides} quantities={quantities} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styles={styles} />}
+            {activeModule === 1 && <MaterialPriceManager materials={materials} overrides={overrides} setOverrides={setOverrides} onMasterUpdated={loadData} />}
+            {activeModule === 2 && <QuantityTableEditor materials={materials} overrides={overrides} quantities={quantities} setQuantities={setQuantities} onRefresh={loadData} />}
+            {activeModule === 3 && isAdmin && <PackageManager materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} onRefresh={loadData} />}
+            {activeModule === 4 && <AffiliateResources />}
+            {activeModule === 5 && isAdmin && <AdminPanel />}
+            {activeModule === 6 && <Blueprints />}
+            {activeModule === 9 && <Financing />}
+            {activeModule === 8 && <ConfiguratorPricing materials={materials} overrides={overrides} quantities={quantities} styles={styles} setStyles={setStyles} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} />}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const globalStyles = `
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin:0; font-family:'DM Sans',sans-serif; background:#F7F3EC; color:#1A1A1A; -webkit-font-smoothing:antialiased; }
+  input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  select:focus, input:focus { outline:none; border-color:#7A9B76 !important; box-shadow:0 0 0 2px #7A9B7622; }
+  nav::-webkit-scrollbar { width: 4px; }
+  nav::-webkit-scrollbar-track { background: transparent; }
+  nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+  a { color: #7A9B76; }
+
+  /* ── Mobile responsiveness ── */
+  @media (max-width: 768px) {
+    /* Two-column grids stack to one column */
+    div[style*="gridTemplateColumns: '1fr 1fr'"],
+    div[style*="grid-template-columns: 1fr 1fr"],
+    div[style*="gridTemplateColumns:'1fr 1fr'"] {
+      grid-template-columns: 1fr !important;
+    }
+    /* Config/output split layouts stack */
+    div[style*="gridTemplateColumns:'280px 1fr'"],
+    div[style*="gridTemplateColumns: '280px 1fr'"] {
+      grid-template-columns: 1fr !important;
+    }
+    /* Sticky config panels become static on mobile */
+    div[style*="position:'sticky'"][style*="top:16"],
+    div[style*="position: sticky"][style*="top: 16"] {
+      position: static !important;
+    }
+    /* Headings scale down */
+    h1 { font-size: 26px !important; }
+    h2 { font-size: 22px !important; }
+    h3 { font-size: 18px !important; }
+  }
+
+  /* ── Make all tables horizontally scrollable on touch devices ── */
+  .usc-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .usc-table-scroll::-webkit-scrollbar { height: 8px; }
+  .usc-table-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.04); border-radius: 4px; }
+  .usc-table-scroll::-webkit-scrollbar-thumb { background: rgba(122,155,118,0.4); border-radius: 4px; }
+
+  /* Tables inside scroll containers keep their min-width so columns don't crush */
+  @media (max-width: 768px) {
+    .usc-table-scroll table { min-width: 600px; }
+  }
+`;
