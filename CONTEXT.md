@@ -41,7 +41,7 @@ src/
     MaterialPriceManager.jsx — Material Prices (idx 1) — local price overrides + sales tax input
     PackageManager.jsx       — Packages (idx 3, admin only) — 4 tabs: Shed Styles, Siding, Fixed, Size-Variable
     AffiliateResources.jsx   — Affiliate Resources (idx 4) — 3 tabs
-    AdminPanel.jsx           — Admin (idx 5, admin only) — user management
+    AdminPanel.jsx           — Admin (idx 5, admin only) — Users tab; Tech Stack tab (super admin only)
     Blueprints.jsx           — Blueprints (idx 6)
     ConfiguratorPricing.jsx  — Configurator Pricing (idx 8) — 4 tabs (Base/Siding/Fixed/Variable)
     Financing.jsx            — Financing (idx 9)
@@ -69,8 +69,13 @@ Note: module index 2 (Quantity Tables) and index 7 are unused/removed.
   (3000+ rows); App.jsx loads it via **pagination** (see gotcha below), not a single `.range()`.
 - `style_multipliers` — **per-builder** multiplier for a style package (user_id + package_id, unique). A builder's
   value overrides the style package's default `multiplier`. Managed on Configurator Pricing → Base Pricing.
-- `profiles` — users (id, email, role: admin|builder|blocked, full_name, market, multiplier, sales_tax).
+- `profiles` — users (id, email, role: admin|builder|blocked, full_name, market, multiplier, sales_tax,
+  **is_super_admin**). `is_super_admin` is a flag layered on top of role=admin (NOT a new role value, so
+  normal admin access is unaffected); it gates the Admin → Tech Stack tab.
   `profiles.multiplier` is now legacy (seed source for style_multipliers); no longer used directly in pricing.
+- `tech_stack` — super-admin-only list of the software this app runs on (name, url, username/signup email,
+  sort_order). RLS restricts all access to super admins. Managed in Admin → Tech Stack. The old sidebar
+  Supabase/Netlify links were moved here. See `MIGRATION_super_admin_tech_stack.sql`.
 - `referrals` — builder referrals (name, email, market, status, referred_by, notes)
 - LEGACY (kept as backup, no longer read by the app): `quantities` (old global base/add-on quantities),
   `styles` (old shed styles with markup %). Safe to drop once the migration is verified.

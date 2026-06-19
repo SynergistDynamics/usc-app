@@ -19,6 +19,8 @@ export default function AdminPanel() {
   const [inviting,     setInviting]     = useState(false);
   const [error,        setError]        = useState('');
   const [success,      setSuccess]      = useState('');
+  const [activeTab,    setActiveTab]    = useState('users');
+  const isSuperAdmin = profile?.is_super_admin === true;
 
   useEffect(() => { load(); }, []);
 
@@ -113,8 +115,6 @@ export default function AdminPanel() {
     load();
   }
 
-  if (loading) return <div style={{ display:'flex', justifyContent:'center', padding:40 }}><Spinner size={28} /></div>;
-
   return (
     <div>
       <SectionHeader sub="Manage builders, invitations, and roles.">
@@ -124,6 +124,21 @@ export default function AdminPanel() {
       {error   && <ErrorBanner onDismiss={() => setError('')}>{error}</ErrorBanner>}
       {success && <SuccessBanner>{success}</SuccessBanner>}
 
+      {/* Tabs — Tech Stack only visible to super admins */}
+      {isSuperAdmin && (
+        <div className="usc-table-scroll" style={{ display:'flex', gap:0, marginBottom:24, borderBottom:`2px solid ${C.linenDarker}` }}>
+          {[['users','Users'],['tech','Tech Stack']].map(([key,label]) => (
+            <button key={key} onClick={() => setActiveTab(key)} style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, padding:'10px 20px', border:'none', cursor:'pointer', background:'transparent', color:activeTab===key?C.sage:'#aaa', borderBottom:activeTab===key?`2px solid ${C.sage}`:'2px solid transparent', marginBottom:-2, transition:'all 0.15s' }}>{label}</button>
+          ))}
+        </div>
+      )}
+
+      {isSuperAdmin && activeTab === 'tech' && <TechStackTab isSuperAdmin={isSuperAdmin} />}
+
+      {activeTab === 'users' && (loading ? (
+        <div style={{ display:'flex', justifyContent:'center', padding:40 }}><Spinner size={28} /></div>
+      ) : (
+      <>
       {/* ── Builders ── */}
       <Card style={{ marginBottom:24 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
@@ -208,6 +223,163 @@ export default function AdminPanel() {
             <Button onClick={sendInvite} loading={inviting} disabled={!invEmail.trim()}>
               Record Invitation
             </Button>
+          </div>
+        </Modal>
+      )}
+      </>
+      ))}
+    </div>
+  );
+}
+
+// ── Tech Stack tab (super admin only) ─────────────────────────
+function TechStackTab() {
+  const [items,   setItems]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState('');
+  const [success, setSuccess] = useState('');
+  const [saving,  setSaving]  = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form,    setForm]    = useState({ name:'', url:'', username:'' });
+  const [editId,  setEditId]  = useState(null);
+  const [editForm,setEditForm]= useState({ name:'', url:'', username:'' });
+  const [deleteId,setDeleteId]= useState(null);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const { data, error: e } = await supabase.from('tech_stack').select('*').order('sort_order').order('name');
+    if (e) setError(e.message);
+    setItems(data || []);
+    setLoading(false);
+  }
+
+  async function addItem() {
+    if (!form.name.trim()) { setError('Name is required.'); return; }
+    setSaving(true); setError('');
+    const maxOrder = Math.max(0, ...items.map(i => i.sort_order || 0));
+    const { error: e } = await supabase.from('tech_stack').insert({
+      name: form.name.trim(),
+      url: form.url.trim() || null,
+      username: form.username.trim() || null,
+      sort_order: maxOrder + 1,
+    });
+    setSaving(false);
+    if (e) { setError(e.message); return; }
+    setShowAdd(false); setForm({ name:'', url:'', username:'' });
+    setSuccess('Added.'); load();
+  }
+
+  async function saveEdit(id) {
+    if (!editForm.name.trim()) { setError('Name is required.'); return; }
+    setSaving(true); setError('');
+    const { error: e } = await supabase.from('tech_stack').update({
+      name: editForm.name.trim(),
+      url: editForm.url.trim() || null,
+      username: editForm.username.trim() || null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+    setSaving(false);
+    if (e) { setError(e.message); return; }
+    setEditId(null); setSuccess('Saved.'); load();
+  }
+
+  async function removeItem(id) {
+    setSaving(true);
+    const { error: e } = await supabase.from('tech_stack').delete().eq('id', id);
+    setSaving(false); setDeleteId(null);
+    if (e) { setError(e.message); return; }
+    setSuccess('Removed.'); load();
+  }
+
+  return (
+    <div>
+      {error   && <ErrorBanner onDismiss={() => setError('')}>{error}</ErrorBanner>}
+      {success && <SuccessBanner>{success}</SuccessBanner>}
+
+      <Card>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+          <h3 style={sh3}>Tech Stack</h3>
+          <Button size="sm" onClick={() => { setShowAdd(true); setError(''); }}>+ Add Tool</Button>
+        </div>
+        <p style={{ fontFamily:'DM Sans', fontSize:12, color:'#888', margin:'0 0 16px' }}>
+          The software this app runs on, with the account you signed up with. Visible only to super admins.
+        </p>
+
+        {loading ? (
+          <div style={{ display:'flex', justifyContent:'center', padding:30 }}><Spinner size={24} /></div>
+        ) : items.length === 0 ? (
+          <p style={{ fontFamily:'DM Sans', fontSize:13, color:'#aaa', margin:0 }}>No tools yet. Add your first one.</p>
+        ) : (
+          <div className="usc-table-scroll" style={{ overflow:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', minWidth:600 }}>
+            <thead>
+              <tr style={{ borderBottom:`2px solid ${C.linenDarker}` }}>
+                {['Name','Link','Username / Email',''].map(h=>(
+                  <th key={h} style={{ padding:'8px 12px', fontFamily:'DM Sans', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'#888', textAlign:'left' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.map(item => editId === item.id ? (
+                <tr key={item.id} style={{ borderBottom:`1px solid ${C.linen}`, background:C.linen }}>
+                  <td style={td}><Input value={editForm.name} onChange={v=>setEditForm(p=>({...p,name:v}))} /></td>
+                  <td style={td}><Input value={editForm.url} onChange={v=>setEditForm(p=>({...p,url:v}))} placeholder="https://" /></td>
+                  <td style={td}><Input value={editForm.username} onChange={v=>setEditForm(p=>({...p,username:v}))} /></td>
+                  <td style={{ ...td, whiteSpace:'nowrap' }}>
+                    <Button size="sm" onClick={() => saveEdit(item.id)} loading={saving}>Save</Button>{' '}
+                    <Button size="sm" variant="ghost" onClick={() => setEditId(null)}>Cancel</Button>
+                  </td>
+                </tr>
+              ) : (
+                <tr key={item.id} style={{ borderBottom:`1px solid ${C.linen}` }}>
+                  <td style={{ ...td, fontWeight:600 }}>{item.name}</td>
+                  <td style={td}>
+                    {item.url
+                      ? <a href={item.url} target="_blank" rel="noreferrer" style={{ color:C.sage, fontSize:13 }}>{item.url}</a>
+                      : <span style={{ color:'#ccc' }}>—</span>}
+                  </td>
+                  <td style={{ ...td, color:'#666' }}>{item.username || <span style={{ color:'#ccc' }}>—</span>}</td>
+                  <td style={{ ...td, whiteSpace:'nowrap' }}>
+                    <Button size="sm" variant="secondary" onClick={() => { setEditId(item.id); setEditForm({ name:item.name, url:item.url||'', username:item.username||'' }); }}>Edit</Button>{' '}
+                    <Button size="sm" variant="danger" onClick={() => setDeleteId(item.id)}>✕</Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
+      </Card>
+
+      {showAdd && (
+        <Modal title="Add Tool" onClose={() => { setShowAdd(false); setForm({ name:'', url:'', username:'' }); }}>
+          {error && <ErrorBanner onDismiss={() => setError('')}>{error}</ErrorBanner>}
+          <FormField label="Name *">
+            <Input value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="e.g. Supabase" autoFocus />
+          </FormField>
+          <FormField label="URL (optional)">
+            <Input value={form.url} onChange={v=>setForm(p=>({...p,url:v}))} placeholder="https://..." />
+          </FormField>
+          <FormField label="Username / email used to sign up (optional)">
+            <Input value={form.username} onChange={v=>setForm(p=>({...p,username:v}))} placeholder="you@example.com" />
+          </FormField>
+          <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:8 }}>
+            <Button variant="ghost" onClick={() => { setShowAdd(false); setForm({ name:'', url:'', username:'' }); }}>Cancel</Button>
+            <Button onClick={addItem} loading={saving} disabled={!form.name.trim()}>Add</Button>
+          </div>
+        </Modal>
+      )}
+
+      {deleteId && (
+        <Modal title="Remove Tool" onClose={() => setDeleteId(null)} width={400}>
+          <p style={{ fontFamily:'DM Sans', fontSize:14, color:C.charcoal, margin:'0 0 20px', lineHeight:1.6 }}>
+            Remove this tool from your tech stack? This cannot be undone.
+          </p>
+          <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+            <Button variant="ghost" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="danger" onClick={() => removeItem(deleteId)} loading={saving}>Remove</Button>
           </div>
         </Modal>
       )}

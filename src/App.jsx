@@ -238,8 +238,7 @@ function AppInner() {
 
           {isAdmin && <div style={{ margin:'10px 16px', borderTop:'1px solid rgba(255,255,255,0.07)' }} />}
           {isAdmin && <NavBtn idx={5} icon="🛠" label="Admin" activeModule={activeModule} setActiveModule={selectModule} sidebarOpen={sidebarExpanded} />}
-          {isAdmin && <ExtLink href="https://supabase.com/dashboard/project/ywboyreznmuaddprkycm" icon="🗄" label="Supabase" sidebarOpen={sidebarExpanded} />}
-          {isAdmin && <ExtLink href="https://app.netlify.com/projects/delightful-souffle-129a04/overview" icon="🚀" label="Netlify" sidebarOpen={sidebarExpanded} />}
+          {/* Supabase / Netlify links moved into Admin → Tech Stack (super admin only) */}
 
         </nav>
 
