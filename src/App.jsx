@@ -110,12 +110,28 @@ function AppInner() {
 
   const loadData = useCallback(async () => {
     setLoading(true); setDbError('');
+    // package_quantities can exceed the PostgREST max-rows cap (default 1000), and
+    // `.range()` cannot exceed that cap — so page through it to get every row.
+    async function fetchAllPackageQuantities() {
+      const pageSize = 1000;
+      let from = 0, all = [];
+      for (;;) {
+        const { data, error } = await supabase
+          .from('package_quantities').select('*')
+          .order('package_id').range(from, from + pageSize - 1);
+        if (error) return { data: all, error };
+        all = all.concat(data || []);
+        if (!data || data.length < pageSize) break;
+        from += pageSize;
+      }
+      return { data: all, error: null };
+    }
     const [mats, ovs, pkgs, pkgMats, pkgQtys, styleMultRes] = await Promise.all([
       supabase.from('materials').select('*').order('sort_order'),
       supabase.from('material_overrides').select('*').eq('user_id', profile.id),
       supabase.from('packages').select('*').order('sort_order'),
-      supabase.from('package_materials').select('*'),
-      supabase.from('package_quantities').select('*').range(0, 9999),
+      supabase.from('package_materials').select('*').range(0, 9999),
+      fetchAllPackageQuantities(),
       supabase.from('style_multipliers').select('*').eq('user_id', profile.id),
     ]);
     if (mats.error) { setDbError(mats.error.message); setLoading(false); return; }
