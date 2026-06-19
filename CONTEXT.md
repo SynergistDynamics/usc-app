@@ -1,6 +1,8 @@
 # USC Materials & Pricing Manager — Developer Context
 
 > Read this file at the start of any session before making changes.
+> And KEEP IT CURRENT: whenever code, schema, structure, or gotchas change, update this file (and
+> `README.md` / `CLAUDE.md` as needed) in the same session so the docs never drift from the app.
 
 ## What this app is
 A React + Vite web app for **Urban Sheds Collective (USC)** — a network of licensed shed

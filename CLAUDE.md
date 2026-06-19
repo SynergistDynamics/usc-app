@@ -1,5 +1,10 @@
 # Claude Code Instructions — USC Materials & Pricing Manager
 
+> ⚠️ ALWAYS KEEP THE DOCS UP TO DATE. Whenever you change code, schema, structure, conventions,
+> or discover a new gotcha, update the markdown files (`CONTEXT.md`, `CLAUDE.md`, `README.md`) in the
+> SAME session — without being asked — so they never drift from reality. Stale docs caused real bugs
+> here. Treat a doc update as part of the change, not an optional extra.
+
 ## At the start of every session
 1. Read `CONTEXT.md` in full before making any changes. It contains the architecture, the
    Supabase schema, critical gotchas, and pricing logic for this app.
@@ -20,8 +25,11 @@
 
 ## At the end of every session where code changed
 1. Run `npm run build` and confirm it passes with no errors.
-2. If structural changes, new features, new gotchas, or schema changes were made, UPDATE
-   `CONTEXT.md` so it stays accurate for the next session. Do this without being asked.
+2. UPDATE the markdown docs so they stay accurate for the next session — do this without being asked:
+   - `CONTEXT.md` for any structural change, new feature, new gotcha, or schema change;
+   - `README.md` if setup/structure/notes changed;
+   - `CLAUDE.md` if a workflow/convention changed.
+   If nothing doc-worthy changed, say so explicitly. Never leave the docs describing old behavior.
 3. Commit the changes with a clear message describing what changed.
 4. Since deployment is currently manual: build and create a downloadable zip of the `dist/`
    folder contents (with `_redirects` included) so it can be uploaded to Netlify. Remind
