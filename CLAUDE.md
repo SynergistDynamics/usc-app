@@ -31,9 +31,10 @@
    - `CLAUDE.md` if a workflow/convention changed.
    If nothing doc-worthy changed, say so explicitly. Never leave the docs describing old behavior.
 3. Commit the changes with a clear message describing what changed.
-4. Since deployment is currently manual: build and create a downloadable zip of the `dist/`
-   folder contents (with `_redirects` included) so it can be uploaded to Netlify. Remind
-   Jeremy to deploy it.
+4. **Deployment is automatic via Netlify** (connected to GitHub). Do your work on a feature branch and
+   push it; it goes live when the branch is **merged into `main`** (Netlify auto-builds `npm run build`
+   and publishes `dist/`). Don't push to `main` without Jeremy's explicit OK. No manual zip uploads are
+   needed anymore — only fall back to building a `dist/` zip if Netlify is ever disconnected.
 
 ## Database changes
 If a change requires a Supabase schema change (new column, new constraint value, new table,
@@ -41,6 +42,10 @@ RLS policy), DO NOT assume it's been done. Clearly state the exact SQL Jeremy ne
 the Supabase SQL Editor, and confirm it's been run before relying on it.
 
 ## Deployment
-- Build command: `npm run build` (outputs to `dist/`)
-- `public/_redirects` (`/* /index.html 200`) must end up in `dist/` for SPA routing.
-- Netlify auto-deploy is not yet connected; deployment is manual via zip upload for now.
+- Netlify is connected to GitHub for **continuous deployment**: every push to `main` auto-builds
+  (`npm run build`) and publishes `dist/`. To ship work: push your feature branch, then merge it into
+  `main` (with Jeremy's OK) and Netlify deploys it.
+- Build command: `npm run build` (outputs to `dist/`); publish directory: `dist`.
+- Supabase env vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) are configured in Netlify's
+  Environment variables, so builds always have them.
+- `public/_redirects` (`/* /index.html 200`) is copied into `dist/` automatically for SPA routing.

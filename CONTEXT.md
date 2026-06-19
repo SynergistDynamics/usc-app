@@ -15,10 +15,13 @@ resources, and financing info.
 - **Backend/Auth/DB:** Supabase (project ID `ywboyreznmuaddprkycm`)
 - **Hosting:** Netlify (static) at https://urban-sheds.co
 - **Build:** `npm run build` → outputs to `dist/`
-- **Deploy:** drag `dist/` contents to Netlify, OR connect repo for auto-deploy.
-  The `public/_redirects` file (`/* /index.html 200`) handles SPA routing and must end up in `dist/`.
-- **Env:** requires `.env` with `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (see `.env.example`).
-  `.env` is gitignored — recreate it locally/in the environment, never commit it.
+- **Deploy:** Netlify is connected to GitHub for **continuous deployment** — every push to `main`
+  auto-builds (`npm run build`) and publishes `dist/`. Workflow: do work on a feature branch, push it,
+  then **merge into `main` to go live** (no more manual zip uploads). The Supabase env vars are set in
+  Netlify (Site configuration → Environment variables), so builds always have them.
+  The `public/_redirects` file (`/* /index.html 200`) handles SPA routing and is copied into `dist/` automatically.
+- **Env:** requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. In Netlify these live in the site's
+  Environment variables; for local dev put them in `.env` (see `.env.example`). `.env` is gitignored — never commit it.
 
 ## Source Structure
 ```

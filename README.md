@@ -36,8 +36,10 @@ npm run build
 The production build is output to `dist/`. For Netlify, the `public/_redirects` file
 (`/* /index.html 200`) handles SPA routing and is copied into `dist/` automatically.
 
-To deploy: drag the contents of `dist/` to Netlify, or connect the repo for automatic
-deploys (build command `npm run build`, publish directory `dist`).
+**Deployment is automatic.** Netlify is connected to this GitHub repo: every push to `main`
+auto-builds (`npm run build`) and publishes `dist/`. Day-to-day flow: work on a feature branch,
+push it, then merge into `main` to go live. The Supabase env vars are set in Netlify's site
+Environment variables, so cloud builds always have them (no `.env` needed for Netlify).
 
 ## Project Structure
 
