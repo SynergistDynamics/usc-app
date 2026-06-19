@@ -60,7 +60,8 @@ Note: module index 2 (Quantity Tables) and index 7 are unused/removed.
   - `is_style = true` → a **shed style** package (always size_variable; holds every base material per size).
   - `siding_type` set → siding package; otherwise a regular option package (add-ons live here now).
 - `package_materials` — components per package (fixed_quantity for non-size-variable; null for size-variable)
-- `package_quantities` — per-size quantities for size-variable packages (incl. styles & add-ons). App loads with `.range(0,9999)`.
+- `package_quantities` — per-size quantities for size-variable packages (incl. styles & add-ons). Large table
+  (3000+ rows); App.jsx loads it via **pagination** (see gotcha below), not a single `.range()`.
 - `style_multipliers` — **per-builder** multiplier for a style package (user_id + package_id, unique). A builder's
   value overrides the style package's default `multiplier`. Managed on Configurator Pricing → Base Pricing.
 - `profiles` — users (id, email, role: admin|builder|blocked, full_name, market, multiplier, sales_tax).
@@ -70,8 +71,11 @@ Note: module index 2 (Quantity Tables) and index 7 are unused/removed.
   `styles` (old shed styles with markup %). Safe to drop once the migration is verified.
 
 ## CRITICAL Supabase / React gotchas
-- **1000-row limit:** Supabase silently caps SELECTs at 1000 rows. `package_quantities` is now the big
-  table (styles + add-ons have per-size grids), so its fetch in App.jsx loadData MUST use `.range(0, 9999)`.
+- **1000-row API cap — `.range()` does NOT bypass it.** Supabase's PostgREST `max-rows` (default 1000)
+  caps every REST SELECT, and a `.range(0, 9999)` request is still clamped to that cap (this was a wrong
+  assumption in earlier notes). `package_quantities` exceeds 1000 rows, so App.jsx loadData fetches it by
+  **paging in 1000-row chunks** (`fetchAllPackageQuantities`, ordered by package_id, loop until a short page).
+  Use the same pattern for any other table that can grow past 1000 rows.
 - **Upserts need a unique constraint** on the conflict columns, not just a PK.
   - package_quantities conflict: `package_id,material_id,shed_size`
   - style_multipliers conflict: `user_id,package_id`
@@ -113,7 +117,11 @@ no separate Quantity Tables, and no style markup.
 table, turns each old `styles` row into a style package seeded from the old base `quantities`, seeds
 each builder's per-style multiplier = `builder.multiplier × (1 + markup%)`, and converts add-on
 materials into packages. Must be run once in the Supabase SQL Editor. Confirm it ran before relying
-on the new tables.
+on the new tables. (Applied to the live project on 2026-06-19.)
+
+`MIGRATION_reseed_style_quantities.sql` (repo root) is an **idempotent** helper that re-fills every
+style package's base components + per-size quantities from the legacy `quantities` table. Safe to run
+anytime a style grid looks empty/partial.
 
 ## Conventions
 - Colors: `C` object in supabase.js — sage #7A9B76, sand #B8986A, charcoal #1A1510, linen #FFFDF9
