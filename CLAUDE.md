@@ -9,7 +9,7 @@
 - This is a React + Vite app deployed to Netlify, backed by Supabase. The admin (Jeremy) is
   not a professional developer — keep explanations clear and avoid unnecessary jargon.
 - Respect the conventions and gotchas documented in `CONTEXT.md`, especially:
-  - All `quantities` fetches use `.range(0, 9999)` (Supabase silently caps at 1000 rows).
+  - All `package_quantities` fetches use `.range(0, 9999)` (Supabase silently caps at 1000 rows).
   - No IIFEs inside JSX conditionals — use named helper functions.
   - NavBtn/ExtLink stay defined outside AppInner in App.jsx.
   - Mobile responsiveness uses JS `isMobile` state, not CSS attribute selectors.

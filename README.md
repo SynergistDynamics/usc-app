@@ -52,8 +52,7 @@ src/
   modules/
     PricingTool.jsx          — Materials List Generator
     MaterialPriceManager.jsx — Material Prices (with local price overrides + sales tax)
-    QuantityTableEditor.jsx  — Quantity Tables (per-cell autosave)
-    PackageManager.jsx       — Packages (admin)
+    PackageManager.jsx       — Packages (admin) — Shed Styles, Siding, Fixed, Size-Variable tabs
     ConfiguratorPricing.jsx  — Configurator Pricing (4 tabs)
     AffiliateResources.jsx   — Affiliate Resources (3 tabs)
     AdminPanel.jsx           — Admin (user management)
@@ -63,6 +62,10 @@ src/
 ```
 
 ## Notes
-- Supabase queries on the `quantities` table use `.range(0, 9999)` to bypass the default 1000-row limit.
-- Per-builder settings (multiplier, sales tax, price overrides) are stored on the `profiles` table.
+- Shed styles, siding, add-ons and other options are all modelled as **packages**. Shed styles are
+  size-variable packages (`packages.is_style`) whose per-size quantities live in `package_quantities`.
+- Supabase queries on `package_quantities` use `.range(0, 9999)` to bypass the default 1000-row limit.
+- Style multipliers are per-builder (`style_multipliers` table); other package multipliers are admin-set
+  and global. Per-builder sales tax and price overrides are stored on `profiles` / `material_overrides`.
 - The app is fully mobile-responsive with a hamburger menu and horizontally-scrollable tables.
+- See `CONTEXT.md` for full architecture and `MIGRATION_styles_as_packages.sql` for the one-time DB migration.
