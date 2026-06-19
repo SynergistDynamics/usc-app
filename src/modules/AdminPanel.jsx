@@ -84,6 +84,16 @@ export default function AdminPanel() {
     load();
   }
 
+  async function updateSuperAdmin(userId, value) {
+    // Super admin features live inside the admin-only page, so granting it also
+    // promotes the user to admin (otherwise the flag would be unreachable).
+    const patch = value ? { is_super_admin: true, role: 'admin' } : { is_super_admin: false };
+    const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
+    if (error) { setError(error.message); return; }
+    setSuccess(value ? 'Super admin granted (also set to admin).' : 'Super admin removed.');
+    load();
+  }
+
   async function revokeInvite(id) {
     await supabase.from('invitations').delete().eq('id', id);
     load();
@@ -126,7 +136,7 @@ export default function AdminPanel() {
 
       {/* Tabs — Tech Stack only visible to super admins */}
       {isSuperAdmin && (
-        <div className="usc-table-scroll" style={{ display:'flex', gap:0, marginBottom:24, borderBottom:`2px solid ${C.linenDarker}` }}>
+        <div style={{ display:'flex', flexWrap:'wrap', gap:0, marginBottom:24, borderBottom:`2px solid ${C.linenDarker}` }}>
           {[['users','Users'],['tech','Tech Stack']].map(([key,label]) => (
             <button key={key} onClick={() => setActiveTab(key)} style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, padding:'10px 20px', border:'none', cursor:'pointer', background:'transparent', color:activeTab===key?C.sage:'#aaa', borderBottom:activeTab===key?`2px solid ${C.sage}`:'2px solid transparent', marginBottom:-2, transition:'all 0.15s' }}>{label}</button>
           ))}
@@ -150,7 +160,7 @@ export default function AdminPanel() {
         <table style={{ width:'100%', borderCollapse:'collapse', minWidth:600 }}>
           <thead>
             <tr style={{ borderBottom:`2px solid ${C.linenDarker}` }}>
-              {['Name','Email','Role','Market','Joined',''].map(h=>(
+              {['Name','Email','Role','Market', ...(isSuperAdmin ? ['Super Admin'] : []), 'Joined',''].map(h=>(
                 <th key={h} style={{ padding:'8px 12px', fontFamily:'DM Sans', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'#888', textAlign:'left' }}>{h}</th>
               ))}
             </tr>
@@ -162,12 +172,13 @@ export default function AdminPanel() {
               <td style={td}>{profile?.email}</td>
               <td style={td}><Badge color="blue">admin</Badge></td>
               <td style={td}>{profile?.market || '—'}</td>
+              {isSuperAdmin && <td style={td}><Badge color="sand">Super admin</Badge></td>}
               <td style={td}>{profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : '—'}</td>
               <td style={td} />
             </tr>
 
             {builders.map(b => (
-              <BuilderRow key={b.id} builder={b} onRoleChange={updateRole} onMarketChange={updateMarket} onDelete={deleteUser} />
+              <BuilderRow key={b.id} builder={b} isSuperAdmin={isSuperAdmin} onRoleChange={updateRole} onMarketChange={updateMarket} onSuperAdminChange={updateSuperAdmin} onDelete={deleteUser} />
             ))}
           </tbody>
         </table>
@@ -387,7 +398,7 @@ function TechStackTab() {
   );
 }
 
-function BuilderRow({ builder, onRoleChange, onMarketChange, onDelete }) {
+function BuilderRow({ builder, isSuperAdmin, onRoleChange, onMarketChange, onSuperAdminChange, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [market,  setMarket]  = useState(builder.market || '');
 
@@ -424,6 +435,16 @@ function BuilderRow({ builder, onRoleChange, onMarketChange, onDelete }) {
           </span>
         )}
       </td>
+      {isSuperAdmin && (
+        <td style={td}>
+          <label style={{ display:'inline-flex', alignItems:'center', gap:6, cursor:'pointer', fontFamily:'DM Sans', fontSize:12, color:'#666' }}>
+            <input type="checkbox" checked={builder.is_super_admin === true}
+              onChange={e => onSuperAdminChange(builder.id, e.target.checked)}
+              style={{ accentColor:C.sage, width:14, height:14 }} />
+            {builder.is_super_admin ? <Badge color="sand">Super</Badge> : 'No'}
+          </label>
+        </td>
+      )}
       <td style={{ ...td, fontSize:11, color:'#aaa' }}>{new Date(builder.created_at).toLocaleDateString()}</td>
       <td style={td}>
         <Button size="sm" variant="danger" onClick={() => onDelete(builder.id, builder.email)}>Delete</Button>

@@ -71,7 +71,8 @@ Note: module index 2 (Quantity Tables) and index 7 are unused/removed.
   value overrides the style package's default `multiplier`. Managed on Configurator Pricing → Base Pricing.
 - `profiles` — users (id, email, role: admin|builder|blocked, full_name, market, multiplier, sales_tax,
   **is_super_admin**). `is_super_admin` is a flag layered on top of role=admin (NOT a new role value, so
-  normal admin access is unaffected); it gates the Admin → Tech Stack tab.
+  normal admin access is unaffected); it gates the Admin → Tech Stack tab. Super admins can grant/revoke
+  it on other users via a toggle in the Admin → Users tab (granting also promotes the user to admin).
   `profiles.multiplier` is now legacy (seed source for style_multipliers); no longer used directly in pricing.
 - `tech_stack` — super-admin-only list of the software this app runs on (name, url, username/signup email,
   sort_order). RLS restricts all access to super admins. Managed in Admin → Tech Stack. The old sidebar
