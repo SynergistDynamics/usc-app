@@ -5,7 +5,6 @@ import { AuthProvider, useAuth, LoginPage, LoadingScreen, BlockedScreen } from '
 import { Spinner, Button } from './components/UI';
 import PricingTool           from './modules/PricingTool';
 import MaterialPriceManager  from './modules/MaterialPriceManager';
-import QuantityTableEditor   from './modules/QuantityTableEditor';
 import AdminPanel            from './modules/AdminPanel';
 import PackageManager        from './modules/PackageManager';
 import AffiliateResources    from './modules/AffiliateResources';
@@ -31,12 +30,12 @@ function AppShell() {
 }
 
 // ── NAV CONSTANTS ─────────────────────────────────────────────
-// indices: 0=Calculator, 1=MatPrices, 2=QtyTables, 3=Packages,
+// indices: 0=Calculator, 1=MatPrices, 3=Packages,
 //          4=Affiliate, 5=Admin, 6=Blueprints, 8=ConfiguratorPricing, 9=Financing
+// (idx 2 / Quantity Tables removed — quantities now live inside packages)
 
 const SETTINGS_MODULES_ALL = [
   { icon:'📋', label:'Material Prices',       idx:1, adminOnly:false },
-  { icon:'📊', label:'Quantity Tables',       idx:2, adminOnly:false },
   { icon:'📦', label:'Packages',              idx:3, adminOnly:true  },
 ];
 
@@ -100,45 +99,43 @@ function AppInner() {
     if (isMobile) setMobileNavOpen(false);
   }
 
-  const [materials,     setMaterials]     = useState([]);
-  const [overrides,     setOverrides]     = useState({});
-  const [quantities,    setQuantities]    = useState([]);
-  const [packages,      setPackages]      = useState([]);
-  const [pkgMaterials,  setPkgMaterials]  = useState([]);
-  const [pkgQuantities, setPkgQuantities] = useState([]);
-  const [styles,        setStyles]        = useState([]);
-  const [loading,       setLoading]       = useState(true);
-  const [dbError,       setDbError]       = useState('');
+  const [materials,      setMaterials]      = useState([]);
+  const [overrides,      setOverrides]      = useState({});
+  const [packages,       setPackages]       = useState([]);
+  const [pkgMaterials,   setPkgMaterials]   = useState([]);
+  const [pkgQuantities,  setPkgQuantities]  = useState([]);
+  const [styleMults,     setStyleMults]     = useState({}); // current user's per-style multipliers, keyed by package_id
+  const [loading,        setLoading]        = useState(true);
+  const [dbError,        setDbError]        = useState('');
 
   const loadData = useCallback(async () => {
     setLoading(true); setDbError('');
-    const [mats, ovs, qtys, pkgs, pkgMats, pkgQtys, stylesRes] = await Promise.all([
+    const [mats, ovs, pkgs, pkgMats, pkgQtys, styleMultRes] = await Promise.all([
       supabase.from('materials').select('*').order('sort_order'),
       supabase.from('material_overrides').select('*').eq('user_id', profile.id),
-      supabase.from('quantities').select('*').range(0, 9999),
       supabase.from('packages').select('*').order('sort_order'),
       supabase.from('package_materials').select('*'),
-      supabase.from('package_quantities').select('*'),
-      supabase.from('styles').select('*').order('sort_order'),
+      supabase.from('package_quantities').select('*').range(0, 9999),
+      supabase.from('style_multipliers').select('*').eq('user_id', profile.id),
     ]);
     if (mats.error) { setDbError(mats.error.message); setLoading(false); return; }
     setMaterials(mats.data || []);
     setOverrides(Object.fromEntries((ovs.data || []).map(o => [o.material_id, o])));
-    setQuantities(qtys.data || []);
     setPackages(pkgs.data || []);
     setPkgMaterials(pkgMats.data || []);
     setPkgQuantities(pkgQtys.data || []);
-    setStyles(stylesRes.data || []);
+    // style_multipliers may not exist yet (before the migration SQL is run) — fail soft.
+    setStyleMults(Object.fromEntries((styleMultRes.data || []).map(s => [s.package_id, s.multiplier])));
     setLoading(false);
   }, [profile?.id]);
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => {
-    if ([1,2,3].includes(activeModule)) setSettingsOpen(true);
+    if ([1,3].includes(activeModule)) setSettingsOpen(true);
   }, [activeModule]);
 
   const settingsModules = SETTINGS_MODULES_ALL.filter(m => !m.adminOnly || isAdmin);
-  const isSettingsActive = [1,2,3].includes(activeModule);
+  const isSettingsActive = [1,3].includes(activeModule);
 
   // On mobile: sidebar is an overlay drawer, always full-width when open
   const sidebarExpanded = isMobile ? true : sidebarOpen;
@@ -262,15 +259,14 @@ function AppInner() {
           </div>
         ) : (
           <>
-            {activeModule === 0 && <PricingTool materials={materials} overrides={overrides} quantities={quantities} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styles={styles} />}
+            {activeModule === 0 && <PricingTool materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styleMults={styleMults} />}
             {activeModule === 1 && <MaterialPriceManager materials={materials} overrides={overrides} setOverrides={setOverrides} onMasterUpdated={loadData} />}
-            {activeModule === 2 && <QuantityTableEditor materials={materials} overrides={overrides} quantities={quantities} setQuantities={setQuantities} onRefresh={loadData} />}
             {activeModule === 3 && isAdmin && <PackageManager materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} onRefresh={loadData} />}
             {activeModule === 4 && <AffiliateResources />}
             {activeModule === 5 && isAdmin && <AdminPanel />}
             {activeModule === 6 && <Blueprints />}
             {activeModule === 9 && <Financing />}
-            {activeModule === 8 && <ConfiguratorPricing materials={materials} overrides={overrides} quantities={quantities} styles={styles} setStyles={setStyles} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} />}
+            {activeModule === 8 && <ConfiguratorPricing materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styleMults={styleMults} onRefresh={loadData} />}
           </>
         )}
       </div>

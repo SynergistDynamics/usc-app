@@ -21,7 +21,21 @@ function calcPackagePrice(pkg, pkgMaterials, pkgQuantities, matById, size) {
   return total * (pkg.multiplier ?? 1);
 }
 
-const EMPTY_PKG = { name:'', description:'', multiplier:'1.0', flat_rate:'', size_variable:false, siding_type:'', allow_quantity:false };
+const EMPTY_PKG = { name:'', description:'', multiplier:'1.0', flat_rate:'', size_variable:false, siding_type:'', allow_quantity:false, is_style:false };
+
+const TABS = [
+  ['style',    'Shed Styles'],
+  ['siding',   'Siding'],
+  ['fixed',    'Fixed Price Packages'],
+  ['variable', 'Size-Variable Packages'],
+];
+
+// Which tab a package belongs to.
+function pkgTab(p) {
+  if (p.is_style)    return 'style';
+  if (p.siding_type) return 'siding';
+  return p.size_variable ? 'variable' : 'fixed';
+}
 
 export default function PackageManager({ materials, overrides, packages, pkgMaterials, pkgQuantities, onRefresh }) {
   const [error,       setError]       = useState('');
@@ -41,7 +55,7 @@ export default function PackageManager({ materials, overrides, packages, pkgMate
   // Size-variable quantity grid
   const [editingQtyGrid,    setEditingQtyGrid]    = useState(null);  // pkg id
   const [qtyGridEdits,      setQtyGridEdits]      = useState({});    // `matId|size` -> val
-  const [activeTab,         setActiveTab]         = useState('siding');
+  const [activeTab,         setActiveTab]         = useState('style');
 
   const salesTax = localStorage.getItem('usc_sales_tax') || '0';
   const taxMult  = 1 + (parseFloat(salesTax) || 0) / 100;
@@ -73,10 +87,12 @@ export default function PackageManager({ materials, overrides, packages, pkgMate
       name: newPkg.name.trim(),
       description: newPkg.description.trim() || null,
       multiplier: mult,
-      flat_rate: isNaN(flatRate) ? null : flatRate,
-      size_variable: newPkg.size_variable,
-      siding_type: newPkg.siding_type || null,
-      allow_quantity: newPkg.allow_quantity || false,
+      // Shed styles always use a per-size quantity grid and are never siding/flat-rate.
+      flat_rate: newPkg.is_style ? null : (isNaN(flatRate) ? null : flatRate),
+      size_variable: newPkg.is_style ? true : newPkg.size_variable,
+      siding_type: newPkg.is_style ? null : (newPkg.siding_type || null),
+      allow_quantity: newPkg.is_style ? false : (newPkg.allow_quantity || false),
+      is_style: newPkg.is_style || false,
       sort_order: maxOrder + 1,
       updated_at: new Date().toISOString(),
     }).select().single();
@@ -99,10 +115,11 @@ export default function PackageManager({ materials, overrides, packages, pkgMate
       name: editPkg.name,
       description: editPkg.description || null,
       multiplier: mult,
-      flat_rate: isNaN(flatRate) ? null : flatRate,
-      size_variable: editPkg.size_variable,
-      siding_type: editPkg.siding_type || null,
-      allow_quantity: editPkg.allow_quantity || false,
+      flat_rate: editPkg.is_style ? null : (isNaN(flatRate) ? null : flatRate),
+      size_variable: editPkg.is_style ? true : editPkg.size_variable,
+      siding_type: editPkg.is_style ? null : (editPkg.siding_type || null),
+      allow_quantity: editPkg.is_style ? false : (editPkg.allow_quantity || false),
+      is_style: editPkg.is_style || false,
       updated_at: new Date().toISOString(),
     }).eq('id', pkg.id);
     if (e) { setError(e.message); setSaving(false); return; }
@@ -211,25 +228,30 @@ export default function PackageManager({ materials, overrides, packages, pkgMate
 
   return (
     <div>
-      <SectionHeader sub="Create packages (door kits, window kits, etc.) that appear as options in the calculator.">
+      <SectionHeader sub="Manage shed styles and packages. Quantities live inside each package's per-size grid.">
         Package Manager
       </SectionHeader>
 
       {error   && <ErrorBanner onDismiss={() => setError('')}>{error}</ErrorBanner>}
       {success && <SuccessBanner>{success}</SuccessBanner>}
 
+      {activeTab === 'style' && (
+        <WarningBanner>
+          Shed styles are size-variable packages holding every base material per size. The multiplier set here is the
+          default — each builder sets their own per-style multiplier on the Configurator Pricing page.
+        </WarningBanner>
+      )}
+
       <div style={{ marginBottom:20 }}>
-        <Button onClick={() => { setShowCreate(true); setError(''); }}>+ New Package</Button>
+        <Button onClick={() => { setNewPkg({ ...EMPTY_PKG, is_style: activeTab === 'style', size_variable: activeTab === 'style' || activeTab === 'variable', siding_type: '' }); setShowCreate(true); setError(''); }}>
+          {activeTab === 'style' ? '+ New Shed Style' : '+ New Package'}
+        </Button>
       </div>
 
       {/* Tabs */}
       <div className="usc-table-scroll" style={{ display:'flex', gap:0, marginBottom:24, borderBottom:`2px solid ${C.linenDarker}`, flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: isMobile ? 'auto' : 'visible' }}>
-        {[['siding','Siding'],['fixed','Fixed Price Packages'],['variable','Size-Variable Packages']].map(([key,label]) => {
-          const count = packages.filter(p =>
-            key === 'siding'    ? !!p.siding_type :
-            key === 'fixed'     ? (!p.siding_type && !p.size_variable) :
-                                  (!p.siding_type && p.size_variable)
-          ).length;
+        {TABS.map(([key,label]) => {
+          const count = packages.filter(p => pkgTab(p) === key).length;
           return (
             <button key={key} onClick={() => setActiveTab(key)} style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, padding: isMobile ? '10px 14px' : '10px 20px', border:'none', cursor:'pointer', background:'transparent', color:activeTab===key?C.sage:'#aaa', borderBottom:activeTab===key?`2px solid ${C.sage}`:'2px solid transparent', marginBottom:-2, transition:'all 0.15s', whiteSpace:'nowrap', flexShrink:0 }}>
               {label}
@@ -240,15 +262,11 @@ export default function PackageManager({ materials, overrides, packages, pkgMate
       </div>
 
       {(() => {
-        const filtered = packages.filter(p =>
-          activeTab === 'siding'    ? !!p.siding_type :
-          activeTab === 'fixed'     ? (!p.siding_type && !p.size_variable) :
-                                      (!p.siding_type && p.size_variable)
-        );
+        const filtered = packages.filter(p => pkgTab(p) === activeTab);
         if (filtered.length === 0) return (
           <Card>
             <p style={{ fontFamily:'DM Sans', fontSize:14, color:'#aaa', textAlign:'center', margin:0 }}>
-              No {activeTab === 'siding' ? 'siding' : activeTab === 'fixed' ? 'fixed price' : 'size-variable'} packages yet.
+              No {TABS.find(([k]) => k === activeTab)?.[1].toLowerCase()} yet.
             </p>
           </Card>
         );
@@ -271,45 +289,53 @@ export default function PackageManager({ materials, overrides, packages, pkgMate
                     <FormField label="Description">
                       <Input value={editPkg.description||''} onChange={v => setEditPkg(p=>({...p,description:v}))} placeholder="Optional" />
                     </FormField>
-                    <FormField label="Multiplier">
+                    <FormField label={editPkg.is_style ? 'Default multiplier (builders override their own)' : 'Multiplier'}>
                       <Input type="number" value={editPkg.multiplier} onChange={v => setEditPkg(p=>({...p,multiplier:v}))} />
                     </FormField>
-                    <FormField label="Flat Rate Override (leave blank to use calculated)">
-                      <Input type="number" value={editPkg.flat_rate||''} onChange={v => setEditPkg(p=>({...p,flat_rate:v}))} placeholder="e.g. 185.07" />
-                    </FormField>
-                    <FormField label="Quantities vary by shed size?">
-                      <label style={{ display:'flex', alignItems:'center', gap:8, fontFamily:'DM Sans', fontSize:13, cursor:'pointer' }}>
-                        <input type="checkbox" checked={editPkg.size_variable}
-                          onChange={e => setEditPkg(p=>({...p,size_variable:e.target.checked}))}
-                          style={{ accentColor:C.sage, width:15, height:15 }} />
-                        Yes — use per-size quantity grid
-                      </label>
-                    </FormField>
-                    <FormField label="Allow multiple quantities?">
-                      <label style={{ display:'flex', alignItems:'center', gap:8, fontFamily:'DM Sans', fontSize:13, cursor:'pointer' }}>
-                        <input type="checkbox" checked={editPkg.allow_quantity||false}
-                          onChange={e => setEditPkg(p=>({...p,allow_quantity:e.target.checked}))}
-                          style={{ accentColor:C.sage, width:15, height:15 }} />
-                        Yes — show quantity ticker in calculator
-                      </label>
-                    </FormField>
-                    <FormField label="Link to siding option">
-                      <select value={editPkg.siding_type||''} onChange={e=>setEditPkg(p=>({...p,siding_type:e.target.value}))}
-                        style={{ width:'100%', padding:'8px 12px', border:`1.5px solid ${C.sage}`, borderRadius:4, fontFamily:'DM Sans', fontSize:14, background:C.linen, color:C.charcoal }}>
-                        <option value="">— Not a siding package —</option>
-                        <option value="t111">T1-11 Siding</option>
-                        <option value="clapboard">Clapboard Siding</option>
-                        <option value="bAndB">B&B Siding</option>
-                      </select>
-                    </FormField>
+                    {!editPkg.is_style && (
+                      <FormField label="Flat Rate Override (leave blank to use calculated)">
+                        <Input type="number" value={editPkg.flat_rate||''} onChange={v => setEditPkg(p=>({...p,flat_rate:v}))} placeholder="e.g. 185.07" />
+                      </FormField>
+                    )}
+                    {!editPkg.is_style && (
+                      <FormField label="Quantities vary by shed size?">
+                        <label style={{ display:'flex', alignItems:'center', gap:8, fontFamily:'DM Sans', fontSize:13, cursor:'pointer' }}>
+                          <input type="checkbox" checked={editPkg.size_variable}
+                            onChange={e => setEditPkg(p=>({...p,size_variable:e.target.checked}))}
+                            style={{ accentColor:C.sage, width:15, height:15 }} />
+                          Yes — use per-size quantity grid
+                        </label>
+                      </FormField>
+                    )}
+                    {!editPkg.is_style && (
+                      <FormField label="Allow multiple quantities?">
+                        <label style={{ display:'flex', alignItems:'center', gap:8, fontFamily:'DM Sans', fontSize:13, cursor:'pointer' }}>
+                          <input type="checkbox" checked={editPkg.allow_quantity||false}
+                            onChange={e => setEditPkg(p=>({...p,allow_quantity:e.target.checked}))}
+                            style={{ accentColor:C.sage, width:15, height:15 }} />
+                          Yes — show quantity ticker in calculator
+                        </label>
+                      </FormField>
+                    )}
+                    {!editPkg.is_style && (
+                      <FormField label="Link to siding option">
+                        <select value={editPkg.siding_type||''} onChange={e=>setEditPkg(p=>({...p,siding_type:e.target.value}))}
+                          style={{ width:'100%', padding:'8px 12px', border:`1.5px solid ${C.sage}`, borderRadius:4, fontFamily:'DM Sans', fontSize:14, background:C.linen, color:C.charcoal }}>
+                          <option value="">— Not a siding package —</option>
+                          <option value="t111">T1-11 Siding</option>
+                          <option value="clapboard">Clapboard Siding</option>
+                          <option value="bAndB">B&B Siding</option>
+                        </select>
+                      </FormField>
+                    )}
                   </div>
                 ) : (
                   <div>
                     <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4 }}>
                       <span style={{ fontFamily:'Cormorant Garamond, serif', fontSize:20, fontWeight:600, color:C.charcoal }}>{pkg.name}</span>
-                      <Badge color={pkg.size_variable ? 'blue' : 'ghost'}>
-                        {pkg.size_variable ? 'Size-variable' : 'Fixed qty'}
-                      </Badge>
+                      {pkg.is_style
+                        ? <Badge color="sand">Shed Style</Badge>
+                        : <Badge color={pkg.size_variable ? 'blue' : 'ghost'}>{pkg.size_variable ? 'Size-variable' : 'Fixed qty'}</Badge>}
                       {pkg.siding_type && <Badge color="green">{pkg.siding_type === 't111' ? 'T1-11 Siding' : pkg.siding_type === 'clapboard' ? 'Clapboard Siding' : 'B&B Siding'}</Badge>}
                       {pkg.allow_quantity && <Badge color="blue">Countable</Badge>}
                       {pkg.flat_rate != null && <Badge color="sand">Flat rate: {fmt(pkg.flat_rate)}</Badge>}
@@ -319,7 +345,7 @@ export default function PackageManager({ materials, overrides, packages, pkgMate
                     )}
                     <div style={{ display:'flex', gap:16, marginTop:6, flexWrap:'wrap', alignItems:'center' }}>
                       <span style={{ fontFamily:'DM Sans', fontSize:12, color:'#888' }}>
-                        Multiplier: <strong style={{ color:C.charcoal }}>{pkg.multiplier}×</strong>
+                        {pkg.is_style ? 'Default mult: ' : 'Multiplier: '}<strong style={{ color:C.charcoal }}>{pkg.multiplier}×</strong>
                       </span>
                       <span style={{ fontFamily:'DM Sans', fontSize:12, color:'#888' }}>
                         Components: <strong style={{ color:C.charcoal }}>{components.length}</strong>
@@ -354,7 +380,7 @@ export default function PackageManager({ materials, overrides, packages, pkgMate
                 ) : (
                   <>
                     <Button size="sm" variant="secondary" style={isMobile?{flex:1}:{}}
-                      onClick={() => setEditPkg({ id:pkg.id, name:pkg.name, description:pkg.description||'', multiplier:String(pkg.multiplier), flat_rate: pkg.flat_rate!=null?String(pkg.flat_rate):'', size_variable:pkg.size_variable, siding_type: pkg.siding_type||'', allow_quantity: pkg.allow_quantity||false })}>
+                      onClick={() => setEditPkg({ id:pkg.id, name:pkg.name, description:pkg.description||'', multiplier:String(pkg.multiplier), flat_rate: pkg.flat_rate!=null?String(pkg.flat_rate):'', size_variable:pkg.size_variable, siding_type: pkg.siding_type||'', allow_quantity: pkg.allow_quantity||false, is_style: pkg.is_style||false })}>
                       Edit
                     </Button>
                     <Button size="sm" variant="danger" onClick={() => setDeletePkg(pkg.id)}>✕</Button>
@@ -536,53 +562,67 @@ export default function PackageManager({ materials, overrides, packages, pkgMate
 
       {/* ── Create Package Modal ── */}
       {showCreate && (
-        <Modal title="New Package" onClose={() => { setShowCreate(false); setNewPkg(EMPTY_PKG); setError(''); }}>
+        <Modal title={newPkg.is_style ? 'New Shed Style' : 'New Package'} onClose={() => { setShowCreate(false); setNewPkg(EMPTY_PKG); setError(''); }}>
           {error && <ErrorBanner onDismiss={() => setError('')}>{error}</ErrorBanner>}
-          <FormField label="Package name *">
-            <Input value={newPkg.name} onChange={v=>setNewPkg(p=>({...p,name:v}))} placeholder="e.g. Window Package" autoFocus />
+          <FormField label={newPkg.is_style ? 'Style name *' : 'Package name *'}>
+            <Input value={newPkg.name} onChange={v=>setNewPkg(p=>({...p,name:v}))} placeholder={newPkg.is_style ? 'e.g. High Wall Modern' : 'e.g. Window Package'} autoFocus />
           </FormField>
           <FormField label="Description (optional)">
             <Input value={newPkg.description} onChange={v=>setNewPkg(p=>({...p,description:v}))} placeholder="Brief description" />
           </FormField>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-            <FormField label="Multiplier *">
+          {newPkg.is_style ? (
+            <FormField label="Default multiplier *">
               <Input type="number" value={newPkg.multiplier} onChange={v=>setNewPkg(p=>({...p,multiplier:v}))} />
             </FormField>
-            <FormField label="Flat rate override (optional)">
-              <Input type="number" value={newPkg.flat_rate} onChange={v=>setNewPkg(p=>({...p,flat_rate:v}))} placeholder="Leave blank to calculate" />
+          ) : (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <FormField label="Multiplier *">
+                <Input type="number" value={newPkg.multiplier} onChange={v=>setNewPkg(p=>({...p,multiplier:v}))} />
+              </FormField>
+              <FormField label="Flat rate override (optional)">
+                <Input type="number" value={newPkg.flat_rate} onChange={v=>setNewPkg(p=>({...p,flat_rate:v}))} placeholder="Leave blank to calculate" />
+              </FormField>
+            </div>
+          )}
+          {!newPkg.is_style && (
+            <FormField label="Quantities vary by shed size?">
+              <label style={{ display:'flex', alignItems:'center', gap:8, fontFamily:'DM Sans', fontSize:13, cursor:'pointer' }}>
+                <input type="checkbox" checked={newPkg.size_variable}
+                  onChange={e=>setNewPkg(p=>({...p,size_variable:e.target.checked}))}
+                  style={{ accentColor:C.sage, width:15, height:15 }} />
+                Yes — I'll enter a per-size quantity grid after creating
+              </label>
             </FormField>
-          </div>
-          <FormField label="Quantities vary by shed size?">
-            <label style={{ display:'flex', alignItems:'center', gap:8, fontFamily:'DM Sans', fontSize:13, cursor:'pointer' }}>
-              <input type="checkbox" checked={newPkg.size_variable}
-                onChange={e=>setNewPkg(p=>({...p,size_variable:e.target.checked}))}
-                style={{ accentColor:C.sage, width:15, height:15 }} />
-              Yes — I'll enter a per-size quantity grid after creating
-            </label>
-          </FormField>
-          <FormField label="Link to siding option (optional)">
-            <select value={newPkg.siding_type} onChange={e=>setNewPkg(p=>({...p,siding_type:e.target.value}))}
-              style={{ width:'100%', padding:'8px 12px', border:`1.5px solid ${C.linenDarker}`, borderRadius:4, fontFamily:'DM Sans', fontSize:14, background:C.linen, color:C.charcoal }}>
-              <option value="">— Not a siding package —</option>
-              <option value="t111">T1-11 Siding</option>
-              <option value="clapboard">Clapboard Siding</option>
-              <option value="bAndB">B&B Siding</option>
-            </select>
-          </FormField>
-          <FormField label="Allow multiple quantities?">
-            <label style={{ display:'flex', alignItems:'center', gap:8, fontFamily:'DM Sans', fontSize:13, cursor:'pointer' }}>
-              <input type="checkbox" checked={newPkg.allow_quantity}
-                onChange={e=>setNewPkg(p=>({...p,allow_quantity:e.target.checked}))}
-                style={{ accentColor:C.sage, width:15, height:15 }} />
-              Yes — show a quantity ticker in the calculator (e.g. for windows)
-            </label>
-          </FormField>
+          )}
+          {!newPkg.is_style && (
+            <FormField label="Link to siding option (optional)">
+              <select value={newPkg.siding_type} onChange={e=>setNewPkg(p=>({...p,siding_type:e.target.value}))}
+                style={{ width:'100%', padding:'8px 12px', border:`1.5px solid ${C.linenDarker}`, borderRadius:4, fontFamily:'DM Sans', fontSize:14, background:C.linen, color:C.charcoal }}>
+                <option value="">— Not a siding package —</option>
+                <option value="t111">T1-11 Siding</option>
+                <option value="clapboard">Clapboard Siding</option>
+                <option value="bAndB">B&B Siding</option>
+              </select>
+            </FormField>
+          )}
+          {!newPkg.is_style && (
+            <FormField label="Allow multiple quantities?">
+              <label style={{ display:'flex', alignItems:'center', gap:8, fontFamily:'DM Sans', fontSize:13, cursor:'pointer' }}>
+                <input type="checkbox" checked={newPkg.allow_quantity}
+                  onChange={e=>setNewPkg(p=>({...p,allow_quantity:e.target.checked}))}
+                  style={{ accentColor:C.sage, width:15, height:15 }} />
+                Yes — show a quantity ticker in the calculator (e.g. for windows)
+              </label>
+            </FormField>
+          )}
           <div style={{ background:C.linen, borderRadius:4, padding:'10px 14px', marginBottom:16, fontFamily:'DM Sans', fontSize:12, color:'#888', lineHeight:1.6 }}>
-            After creating, add component materials and quantities from the package card.
+            {newPkg.is_style
+              ? "After creating, add the style's base material components, then fill in the per-size quantity grid."
+              : 'After creating, add component materials and quantities from the package card.'}
           </div>
           <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
             <Button variant="ghost" onClick={() => { setShowCreate(false); setNewPkg(EMPTY_PKG); }}>Cancel</Button>
-            <Button onClick={createPackage} loading={creating} disabled={!newPkg.name.trim()}>Create Package</Button>
+            <Button onClick={createPackage} loading={creating} disabled={!newPkg.name.trim()}>{newPkg.is_style ? 'Create Style' : 'Create Package'}</Button>
           </div>
         </Modal>
       )}

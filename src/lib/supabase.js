@@ -106,6 +106,39 @@ export function buildQtyMap(quantities) {
   return map;
 }
 
+// ── PACKAGE HELPERS ──────────────────────────────────────────
+/**
+ * Material cost (before any multiplier) for a package at a given shed size.
+ * Size-variable packages read per-size quantities from package_quantities;
+ * fixed packages use each component's fixed_quantity.
+ * Returns null when the package has no usable quantities for that size.
+ */
+export function packageMaterialCost(pkg, pkgMaterials, pkgQuantities, matById, size) {
+  let total = 0, hasAny = false;
+  for (const pm of pkgMaterials) {
+    if (pm.package_id !== pkg.id) continue;
+    const mat = matById[pm.material_id]; if (!mat) continue;
+    const qty = pkg.size_variable
+      ? (pkgQuantities.find(q => q.package_id === pkg.id && q.material_id === pm.material_id && q.shed_size === size)?.quantity ?? null)
+      : (pm.fixed_quantity ?? null);
+    if (qty === null) continue;
+    total += qty * mat.price; hasAny = true;
+  }
+  return hasAny ? total : null;
+}
+
+/**
+ * The multiplier to use for a STYLE package. Shed-style multipliers are
+ * per-builder: a builder's own value (from the style_multipliers map, keyed
+ * by package_id) wins, otherwise the package's default multiplier is used.
+ */
+export function getStyleMultiplier(styleMultipliers, pkg) {
+  if (!pkg) return 1;
+  const ov = styleMultipliers?.[pkg.id];
+  const val = ov != null && ov !== '' ? parseFloat(ov) : parseFloat(pkg.multiplier);
+  return (!isNaN(val) && val > 0) ? val : 1;
+}
+
 /** Generate a slug-style ID from a material name */
 export function generateMaterialId(name) {
   return name

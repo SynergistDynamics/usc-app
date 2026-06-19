@@ -1,44 +1,35 @@
 // src/modules/PricingTool.jsx
 import { useState, useMemo, useEffect } from 'react';
 import {
-  SHED_SIZES, SHED_STYLES, C, fmt,
-  applyOverride, buildQtyMap, getMaterialIdsByGroup, getAddonOptions,
+  SHED_SIZES, C, fmt,
+  applyOverride, getStyleMultiplier,
 } from '../lib/supabase';
-import { SectionHeader, Select, Input, Button, WarningBanner, Badge, QuantityTicker } from '../components/UI';
+import { SectionHeader, Select, Button, WarningBanner, Badge, QuantityTicker } from '../components/UI';
 
-// ── shared calc helpers ───────────────────────────────────────
-function calcPackagePrice(pkg, pkgMaterials, pkgQuantities, matById, size) {
-  let total = 0;
-  const components = pkgMaterials.filter(pm => pm.package_id === pkg.id);
-  for (const pm of components) {
-    const mat = matById[pm.material_id]; if (!mat) continue;
-    const qty = pkg.size_variable
-      ? (size ? (pkgQuantities.find(q => q.package_id === pkg.id && q.material_id === pm.material_id && q.shed_size === size)?.quantity ?? 0) : 0)
-      : (pm.fixed_quantity ?? 0);
-    total += qty * mat.price;
-  }
-  return total * (pkg.multiplier ?? 1);
-}
-
-function buildOutput({ size, siding, selectedPkgs, pkgOverrides, addons, multiplier, salesTax, materials, overrides, quantities, packages, pkgMaterials, pkgQuantities }) {
+function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrides, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities }) {
   const taxMult = 1 + (parseFloat(salesTax) || 0) / 100;
-  const matById     = Object.fromEntries(materials.map(m => {
+  const matById = Object.fromEntries(materials.map(m => {
     const r = applyOverride(m, overrides);
     return [m.id, { ...r, price: r.price * taxMult }];
   }));
-  const qtyMap      = buildQtyMap(quantities);
-  const BASE_IDS    = getMaterialIdsByGroup(materials, 'base');
-  const ADDON_OPTIONS = getAddonOptions(materials);
-  const regularPkgs = (packages || []).filter(p => !p.siding_type);
 
-  const hasQty = BASE_IDS.some(id => id !== 't111' && (qtyMap[id]?.[size] ?? null) !== null);
+  const stylePkg    = (packages || []).find(p => p.id === stylePkgId && p.is_style);
+  // Selectable add-on/option packages = everything that isn't a style or siding package.
+  const regularPkgs = (packages || []).filter(p => !p.siding_type && !p.is_style);
+
+  // Per-size quantity for a material inside the selected style package.
+  const styleQty = (materialId) =>
+    pkgQuantities.find(q => q.package_id === stylePkg?.id && q.material_id === materialId && q.shed_size === size)?.quantity ?? 0;
+
+  const styleComponents = stylePkg ? pkgMaterials.filter(pm => pm.package_id === stylePkg.id) : [];
+  const hasQty = !!stylePkg && styleComponents.some(pm => styleQty(pm.material_id) > 0);
   if (!hasQty) return { hasQty: false };
 
-  const lineItems   = [];
-  const catGroups   = {};
-  const footnotes   = [];
-  const pkgGroups   = [];
-  let baseCost = 0, sidingCost = 0, pkgCost = 0, pkgMatCost = 0, addonCost = 0;
+  const lineItems = [];
+  const catGroups = {};
+  const footnotes = [];
+  const pkgGroups = [];
+  let baseCost = 0, pkgCost = 0, pkgMatCost = 0;
 
   const addFn = url => { if (!url) return null; const i = footnotes.indexOf(url); if (i>=0) return i+1; footnotes.push(url); return footnotes.length; };
 
@@ -48,43 +39,25 @@ function buildOutput({ size, siding, selectedPkgs, pkgOverrides, addons, multipl
     catGroups[cat].subtotal += total;
   }
 
-  // ── Siding ──────────────────────────────────────────────
-  if (siding === 'T1-11') {
-    // Check for a T1-11 siding package first, fall back to direct material
-    const t111Pkg = (packages || []).find(p => p.siding_type === 't111');
-    if (t111Pkg) {
-      const components = pkgMaterials.filter(pm => pm.package_id === t111Pkg.id);
-      const subItems = components.map(pm => {
-        const mat = matById[pm.material_id]; if (!mat) return null;
-        const qty = t111Pkg.size_variable
-          ? (pkgQuantities.find(q => q.package_id === t111Pkg.id && q.material_id === pm.material_id && q.shed_size === size)?.quantity ?? 0)
-          : (pm.fixed_quantity ?? 0);
-        return { name:mat.name, qty, unitPrice:mat.price, total:qty*mat.price, fn:addFn(mat.url) };
-      }).filter(Boolean);
-      const sidingMatCost  = subItems.reduce((a,b) => a+b.total, 0);
-      const sidingPkgPrice = sidingMatCost * (t111Pkg.multiplier ?? 1);
-      subItems.forEach(sub => {
-        lineItems.push({ group:'Siding', name:sub.name, qty:sub.qty, unitPrice:sub.unitPrice, total:sub.total, isSidingComponent:true });
-      });
-      lineItems.push({ group:'Siding', isSidingPkgTotal:true, name:`${t111Pkg.name} (${t111Pkg.multiplier}× multiplier)`, sidingMatCost, sidingPkgPrice });
-      pkgGroups.push({ pkg:t111Pkg, customerPkgPrice:sidingPkgPrice, materialCost:sidingMatCost, subItems, hasFlat:false, isSidingPkg:true });
-      pkgCost    += sidingPkgPrice;
-      pkgMatCost += sidingMatCost;
-    } else {
-      const mat = matById['t111']; if (mat) {
-        const qty = qtyMap['t111']?.[size] ?? 0;
-        if (qty) {
-          sidingCost = qty * mat.price;
-          lineItems.push({ group:'Siding', name:mat.name, qty, unitPrice:mat.price, total:sidingCost });
-          addCatLine('Siding', mat.name, qty, mat.price, sidingCost, mat.url);
-        }
-      }
-    }
-  } else if (siding === 'Western Red Cedar') {
+  // ── Base materials (the selected shed style) ─────────────
+  for (const pm of styleComponents) {
+    const mat = matById[pm.material_id]; if (!mat) continue;
+    const qty = styleQty(pm.material_id);
+    if (!qty) continue;
+    const total = qty * mat.price;
+    lineItems.push({ group:'Base', name:mat.name, qty, unitPrice:mat.price, total });
+    addCatLine(mat.category || 'Base', mat.name, qty, mat.price, total, mat.url);
+    baseCost += total;
+  }
+  const styleMult    = getStyleMultiplier(styleMults, stylePkg);
+  const baseCustomer = baseCost * styleMult;
+
+  // ── Siding (package-backed) ──────────────────────────────
+  if (siding === 'Western Red Cedar') {
     lineItems.push({ group:'Siding', name:'Western Red Cedar', qty:'—', unitPrice:'—', total:0, quote:true });
     addCatLine('Siding', 'Western Red Cedar', 0, 0, 0, '', true);
-  } else {
-    const sidingKey = siding === 'Clapboard' ? 'clapboard' : 'bAndB';
+  } else if (siding && siding !== 'None') {
+    const sidingKey = siding === 'T1-11' ? 't111' : siding === 'Clapboard' ? 'clapboard' : 'bAndB';
     const sidingPkg = (packages || []).find(p => p.siding_type === sidingKey);
     if (sidingPkg) {
       const components = pkgMaterials.filter(pm => pm.package_id === sidingPkg.id);
@@ -99,36 +72,18 @@ function buildOutput({ size, siding, selectedPkgs, pkgOverrides, addons, multipl
       const sidingPkgPrice = sidingMatCost * (sidingPkg.multiplier ?? 1);
       subItems.forEach(sub => {
         lineItems.push({ group:'Siding', name:sub.name, qty:sub.qty, unitPrice:sub.unitPrice, total:sub.total, isSidingComponent:true });
-        // Note: intentionally NOT added to catGroups — siding pkg components are shown via pkgGroups in MaterialsListTab
       });
       lineItems.push({ group:'Siding', isSidingPkgTotal:true, name:`${sidingPkg.name} (${sidingPkg.multiplier}× multiplier)`, sidingMatCost, sidingPkgPrice });
       pkgGroups.push({ pkg:sidingPkg, customerPkgPrice:sidingPkgPrice, materialCost:sidingMatCost, subItems, hasFlat:false, isSidingPkg:true });
       pkgCost    += sidingPkgPrice;
       pkgMatCost += sidingMatCost;
     } else {
-      const matId = siding === 'Clapboard' ? 'clapboard' : 'bAndB';
-      const mat = matById[matId]; if (mat) {
-        const qty = qtyMap[matId]?.[size] ?? 0;
-        sidingCost = qty * mat.price;
-        lineItems.push({ group:'Siding', name:mat.name, qty, unitPrice:mat.price, total:sidingCost });
-        addCatLine('Siding', mat.name, qty, mat.price, sidingCost, mat.url);
-      }
+      lineItems.push({ group:'Siding', name:`${siding} (no siding package configured)`, qty:'—', unitPrice:'—', total:0, quote:true });
+      addCatLine('Siding', `${siding} (no siding package configured)`, 0, 0, 0, '', true);
     }
   }
 
-  // ── Base materials ───────────────────────────────────────
-  for (const id of BASE_IDS) {
-    if (id === 't111') continue;
-    const mat = matById[id]; if (!mat) continue;
-    const qty = qtyMap[id]?.[size] ?? 0;
-    if (!qty) continue;
-    const total = qty * mat.price;
-    lineItems.push({ group:'Base', name:mat.name, qty, unitPrice:mat.price, total });
-    addCatLine(mat.category, mat.name, qty, mat.price, total, mat.url);
-    baseCost += total;
-  }
-
-  // ── Regular packages ─────────────────────────────────────
+  // ── Option packages (incl. former add-ons) ───────────────
   for (const pkg of regularPkgs) {
     const pkgCount = selectedPkgs[pkg.id] || 0;
     if (!pkgCount) continue;
@@ -158,37 +113,18 @@ function buildOutput({ size, siding, selectedPkgs, pkgOverrides, addons, multipl
     pkgMatCost += materialCost;
   }
 
-  // ── Add-ons ──────────────────────────────────────────────
-  for (const ao of ADDON_OPTIONS) {
-    const aoCount = addons[ao.key] || 0;
-    if (!aoCount) continue;
-    const mat = matById[ao.matId]; if (!mat) continue;
-    const baseQty = qtyMap[ao.matId]?.[size] ?? 0;
-    const qty = baseQty * aoCount;  // scale by count
-    if (!qty) continue;
-    const total = qty * mat.price;
-    const label = aoCount > 1 ? `${mat.name} (×${aoCount})` : mat.name;
-    lineItems.push({ group:'Add-on', name:label, qty, unitPrice:mat.price, total });
-    addCatLine('Add-ons', label, qty, mat.price, total, mat.url);
-    addonCost += total;
-  }
-
-  const mult          = parseFloat(multiplier) || 2.5;
-  const baseMat       = baseCost + sidingCost + addonCost;
-  const customerPrice = (baseMat * mult) + pkgCost;
-  const totalMat      = baseMat + pkgMatCost;
+  const customerPrice = baseCustomer + pkgCost;
+  const totalMat      = baseCost + pkgMatCost;
   const laborProfit   = customerPrice - totalMat;
 
   return { hasQty:true, lineItems, catGroups, footnotes, pkgGroups, packages, matById,
-           baseCost, sidingCost, addonCost, pkgCost, pkgMatCost,
-           mult, baseMat, customerPrice, totalMat, laborProfit };
+           baseCost, baseCustomer, styleMult, pkgCost, pkgMatCost,
+           customerPrice, totalMat, laborProfit };
 }
 
 // ── Config Panel ──────────────────────────────────────────────
-function ConfigPanel({ cfg, setCfg, packages, pkgMaterials, pkgQuantities, matById, qtyMap }) {
-  const regularPkgs = (packages || []).filter(p => !p.siding_type);
-  const ADDON_OPTIONS = getAddonOptions([]);
-
+function ConfigPanel({ cfg, setCfg, packages }) {
+  const stylePkgs = (packages || []).filter(p => p.is_style);
   function set(k, v) { setCfg(p => ({ ...p, [k]: v })); }
 
   return (
@@ -197,48 +133,40 @@ function ConfigPanel({ cfg, setCfg, packages, pkgMaterials, pkgQuantities, matBy
       <div style={{ background:'#FFFDF9', border:`1px solid ${C.linenDarker}`, borderRadius:6, padding:20 }}>
         <p style={glbl}>Configuration</p>
         <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-          {[
-            ['Shed Size',  <Select value={cfg.size}  onChange={v=>set('size',v)}  options={SHED_SIZES} />],
-            ['Shed Style', <Select value={cfg.style} onChange={v=>set('style',v)} options={SHED_STYLES} />],
-            ['Siding',     <Select value={cfg.siding} onChange={v=>set('siding',v)} options={['T1-11','Clapboard','B&B','Western Red Cedar']} />],
-            // Multiplier managed in Calculator Settings → Quantity Tables
-          ].map(([label, el]) => (
-            <div key={label}>
-              <div style={flbl}>{label}</div>
-              {el}
-            </div>
-          ))}
+          <div>
+            <div style={flbl}>Shed Size</div>
+            <Select value={cfg.size} onChange={v=>set('size',v)} options={SHED_SIZES} />
+          </div>
+          <div>
+            <div style={flbl}>Shed Style</div>
+            <Select value={cfg.stylePkgId} onChange={v=>set('stylePkgId',v)}
+              options={stylePkgs.length ? stylePkgs.map(p => ({ value:p.id, label:p.name })) : [{ value:'', label:'— no styles configured —' }]} />
+          </div>
+          <div>
+            <div style={flbl}>Siding</div>
+            <Select value={cfg.siding} onChange={v=>set('siding',v)} options={['T1-11','Clapboard','B&B','Western Red Cedar']} />
+          </div>
         </div>
       </div>
 
-      {/* Unified options panel — packages + add-ons merged, countable/boolean separated */}
+      {/* Option packages (incl. former add-ons) */}
       <OptionsPanel cfg={cfg} setCfg={setCfg} packages={packages} />
     </div>
   );
 }
 
 function OptionsPanel({ cfg, setCfg, packages }) {
-  const ADDON_OPTIONS = cfg._addonOptions || [];
-  const regularPkgs   = (packages || []).filter(p => !p.siding_type);
+  const regularPkgs = (packages || []).filter(p => !p.siding_type && !p.is_style);
 
-  // Build unified item list
-  const allItems = [
-    ...regularPkgs.map(pkg => ({
-      type: 'pkg', id: pkg.id, label: pkg.name,
-      allow_quantity: pkg.allow_quantity,
-      flat_rate: pkg.flat_rate,
-      count: cfg.selectedPkgs[pkg.id] || 0,
-      setCount: v => setCfg(p => ({ ...p, selectedPkgs:{ ...p.selectedPkgs, [pkg.id]:v } })),
-      override: cfg.pkgOverrides[pkg.id] ?? '',
-      setOverride: v => setCfg(p => ({ ...p, pkgOverrides:{ ...p.pkgOverrides, [pkg.id]:v } })),
-    })),
-    ...ADDON_OPTIONS.map(ao => ({
-      type: 'addon', id: ao.key, label: ao.label,
-      allow_quantity: ao.allow_quantity,
-      count: cfg.addons[ao.key] || 0,
-      setCount: v => setCfg(p => ({ ...p, addons:{ ...p.addons, [ao.key]:v } })),
-    })),
-  ];
+  const allItems = regularPkgs.map(pkg => ({
+    id: pkg.id, label: pkg.name,
+    allow_quantity: pkg.allow_quantity,
+    flat_rate: pkg.flat_rate,
+    count: cfg.selectedPkgs[pkg.id] || 0,
+    setCount: v => setCfg(p => ({ ...p, selectedPkgs:{ ...p.selectedPkgs, [pkg.id]:v } })),
+    override: cfg.pkgOverrides[pkg.id] ?? '',
+    setOverride: v => setCfg(p => ({ ...p, pkgOverrides:{ ...p.pkgOverrides, [pkg.id]:v } })),
+  }));
 
   const countable = allItems.filter(i => i.allow_quantity);
   const boolean   = allItems.filter(i => !i.allow_quantity);
@@ -263,7 +191,7 @@ function OptionsPanel({ cfg, setCfg, packages }) {
                     <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sage, fontWeight:600 }}>{fmt(item.flat_rate)}</span>
                   )}
                 </div>
-                {item.type === 'pkg' && item.count > 0 && (
+                {item.count > 0 && (
                   <div style={{ marginTop:5 }}>
                     <input type="number" min="0" value={item.override}
                       onChange={e => item.setOverride(e.target.value)}
@@ -298,7 +226,7 @@ function OptionsPanel({ cfg, setCfg, packages }) {
                     <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sage, fontWeight:600 }}>{fmt(item.flat_rate)}</span>
                   )}
                 </label>
-                {item.type === 'pkg' && item.count > 0 && (
+                {item.count > 0 && (
                   <div style={{ marginTop:5, marginLeft:21 }}>
                     <input type="number" min="0" value={item.override}
                       onChange={e => item.setOverride(e.target.value)}
@@ -311,116 +239,6 @@ function OptionsPanel({ cfg, setCfg, packages }) {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ── Pricing Tab ───────────────────────────────────────────────
-function PricingTab({ out, packages, multiplier }) {
-  const groups = [
-    { key:'Base',    label:'Base Materials' },
-    { key:'Siding',  label:'Siding' },
-    { key:'Package', label:'Packages' },
-    { key:'Add-on',  label:'Add-ons' },
-  ];
-
-  return (
-    <div>
-      {/* Line items */}
-      <div style={{ background:'#FFFDF9', border:`1px solid ${C.linenDarker}`, borderRadius:6, padding:20, marginBottom:16 }}>
-        {groups.map(g => {
-          const items = out.lineItems.filter(li => li.group === g.key);
-          if (!items.length) return null;
-          const subtotal = g.key === 'Package'
-            ? items.reduce((a,b) => a+(b.customerPkgPrice||0), 0)
-            : g.key === 'Siding'
-              ? items.filter(li=>!li.isSidingComponent).reduce((a,b) => a+(b.total||0)+(b.sidingPkgPrice||0), 0)
-              : items.reduce((a,b) => a+(b.total||0), 0);
-          return (
-            <div key={g.key} style={{ marginBottom:16 }}>
-              <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sage, paddingBottom:5, borderBottom:`1px solid ${C.linenDarker}`, marginBottom:4 }}>
-                {g.label}
-                {g.key==='Package' && <span style={{ fontWeight:400, color:'#bbb', marginLeft:8, textTransform:'none', letterSpacing:0, fontSize:10 }}>own multiplier — not subject to base multiplier</span>}
-              </div>
-              <table style={{ width:'100%', borderCollapse:'collapse' }}>
-                <tbody>
-                  {items.map((li, i) => (
-                    li.isSidingPkgTotal ? (
-                      <tr key={i} style={{ background:C.linenDark, borderBottom:`1px solid ${C.linenDarker}` }}>
-                        <td style={{ ...tdN, fontWeight:700 }}>{li.name}</td>
-                        <td style={tdR}/>
-                        <td style={{ ...tdR, fontSize:11, color:'#aaa' }}>mat: {fmt(li.sidingMatCost)}</td>
-                        <td style={{ ...tdR, fontWeight:700, color:C.sage }}>{fmt(li.sidingPkgPrice)}</td>
-                      </tr>
-                    ) : li.isSidingComponent ? (
-                      <tr key={i} style={{ borderBottom:`1px solid ${C.linen}` }}>
-                        <td style={{ ...tdN, paddingLeft:14, color:'#888', fontSize:12 }}>↳ {li.name}</td>
-                        <td style={{ ...tdR, fontSize:12, color:'#aaa' }}>{li.qty}</td>
-                        <td style={{ ...tdR, fontSize:12, color:'#aaa' }}>{fmt(li.unitPrice)}</td>
-                        <td style={{ ...tdR, fontSize:12, color:'#888' }}>{fmt(li.total)}</td>
-                      </tr>
-                    ) : li.subItems ? (
-                      <>
-                        <tr key={`ph-${i}`} style={{ background:C.linen }}>
-                          <td style={{ ...tdN, fontWeight:700, paddingTop:6 }}>
-                            {li.name}
-                            {li.hasFlat ? <span style={{ marginLeft:6 }}><Badge color="sand">flat rate</Badge></span>
-                              : <span style={{ fontFamily:'DM Sans', fontSize:11, color:'#aaa', marginLeft:6 }}>{(packages||[]).find(p=>p.id===li.pkgId)?.multiplier}×</span>}
-                          </td>
-                          <td style={tdR}/>
-                          <td style={{ ...tdR, fontSize:11, color:'#aaa' }}>mat: {fmt(li.materialCost)}</td>
-                          <td style={{ ...tdR, fontWeight:700, color:C.sage }}>{fmt(li.customerPkgPrice)}</td>
-                        </tr>
-                        {li.subItems.map((sub,j) => (
-                          <tr key={`ps-${i}-${j}`} style={{ borderBottom:`1px solid ${C.linen}` }}>
-                            <td style={{ ...tdN, paddingLeft:14, color:'#888', fontSize:12 }}>↳ {sub.name}</td>
-                            <td style={{ ...tdR, fontSize:12, color:'#aaa' }}>{sub.qty}</td>
-                            <td style={{ ...tdR, fontSize:12, color:'#aaa' }}>{fmt(sub.unitPrice)}</td>
-                            <td style={{ ...tdR, fontSize:12, color:'#888' }}>{fmt(sub.total)}</td>
-                          </tr>
-                        ))}
-                      </>
-                    ) : (
-                      <tr key={i} style={{ borderBottom:`1px solid ${C.linen}` }}>
-                        <td style={tdN}>{li.name}</td>
-                        <td style={tdR}>{li.qty==='—'?'—':li.qty}</td>
-                        <td style={tdR}>{li.unitPrice==='—'?'—':fmt(li.unitPrice)}</td>
-                        <td style={{ ...tdR, fontWeight:600, color:C.charcoal }}>
-                          {li.quote ? <Badge color="sand">Quote</Badge> : fmt(li.total)}
-                        </td>
-                      </tr>
-                    )
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colSpan={3} style={{ padding:'5px 0 0', fontFamily:'DM Sans', fontSize:11, fontWeight:700 }}>
-                      {g.key==='Package' ? 'Package Total (customer price)' : 'Subtotal'}
-                    </td>
-                    <td style={{ padding:'5px 0 0', fontFamily:'DM Sans', fontSize:12, fontWeight:700, textAlign:'right' }}>{fmt(subtotal)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Totals card */}
-      <div style={{ background:'#1A1510', borderRadius:6, padding:24 }}>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:20 }}>
-          {[
-            ['Material Cost', fmt(out.totalMat), '#fff'],
-            ['Labor & Profit', fmt(out.laborProfit), '#fff'],
-            ['Customer Price', fmt(out.customerPrice), C.sageLight],
-          ].map(([label, val, color]) => (
-            <div key={label}>
-              <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand, marginBottom:3 }}>{label}</div>
-              <div style={{ fontFamily:'Cormorant Garamond, serif', fontSize:label==='Customer Price'?30:22, fontWeight:700, color }}>{val}</div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
@@ -602,19 +420,20 @@ function MaterialsListTab({ out, cfg, size, style, multiplier, isMobile }) {
 }
 
 // ── Main export ───────────────────────────────────────────────
-export default function PricingTool({ materials, overrides, quantities, packages, pkgMaterials, pkgQuantities }) {
-  const ADDON_OPTIONS = useMemo(() => getAddonOptions(materials), [materials]);
+export default function PricingTool({ materials, overrides, packages, pkgMaterials, pkgQuantities, styleMults }) {
+  const stylePkgs = useMemo(() => (packages || []).filter(p => p.is_style), [packages]);
 
   const [cfg, setCfg] = useState({
-    size: SHED_SIZES[0], style: SHED_STYLES[0],
+    size: SHED_SIZES[0],
+    stylePkgId: '',
     siding: 'T1-11',
-    selectedPkgs: {}, pkgOverrides: {}, addons: {},
-    _addonOptions: [],
+    selectedPkgs: {}, pkgOverrides: {},
   });
 
-  // Multiplier is managed in Quantity Tables settings — read live from localStorage
-  const multiplier = localStorage.getItem('usc_multiplier') || '2.5';
-  const salesTax   = localStorage.getItem('usc_sales_tax') || '0';
+  // Fall back to the first style package until the user picks one (styles load async).
+  const stylePkgId = cfg.stylePkgId || stylePkgs[0]?.id || '';
+
+  const salesTax = localStorage.getItem('usc_sales_tax') || '0';
 
   // Track mobile viewport
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
@@ -624,14 +443,13 @@ export default function PricingTool({ materials, overrides, quantities, packages
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Keep _addonOptions in sync without causing infinite loop
-  useMemo(() => {
-    setCfg(p => ({ ...p, _addonOptions: getAddonOptions(materials) }));
-  }, [materials]);
-
   const out = useMemo(() => buildOutput({
-    ...cfg, multiplier, salesTax, materials, overrides, quantities, packages, pkgMaterials, pkgQuantities,
-  }), [cfg, multiplier, salesTax, materials, overrides, quantities, packages, pkgMaterials, pkgQuantities]);
+    ...cfg, stylePkgId, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities,
+  }), [cfg, stylePkgId, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities]);
+
+  const stylePkg   = stylePkgs.find(p => p.id === stylePkgId);
+  const styleLabel = stylePkg?.name || '—';
+  const styleMult  = out.styleMult ?? getStyleMultiplier(styleMults, stylePkg);
 
   return (
     <div>
@@ -647,15 +465,17 @@ export default function PricingTool({ materials, overrides, quantities, packages
 
         {/* ── Left: Config ── */}
         <div style={{ position: isMobile ? 'static' : 'sticky', top:16 }}>
-          <ConfigPanel cfg={cfg} setCfg={setCfg} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} matById={Object.fromEntries(materials.map(m=>[m.id,applyOverride(m,overrides)]))} isMobile={isMobile} />
+          <ConfigPanel cfg={{ ...cfg, stylePkgId }} setCfg={setCfg} packages={packages} />
         </div>
 
         {/* ── Right: Output ── */}
         <div style={{ minWidth:0 }}>
-          {!out.hasQty ? (
-            <WarningBanner>No quantities on file for size {cfg.size}. Add them in the Quantity Tables module.</WarningBanner>
+          {!stylePkgs.length ? (
+            <WarningBanner>No shed styles configured yet. Add them under Packages → Shed Styles.</WarningBanner>
+          ) : !out.hasQty ? (
+            <WarningBanner>No quantities on file for {styleLabel} at size {cfg.size}. Add them under Packages → Shed Styles.</WarningBanner>
           ) : (
-            <MaterialsListTab out={out} cfg={cfg} size={cfg.size} style={cfg.style} multiplier={multiplier} isMobile={isMobile} />
+            <MaterialsListTab out={out} cfg={cfg} size={cfg.size} style={styleLabel} multiplier={styleMult} isMobile={isMobile} />
           )}
         </div>
       </div>
@@ -665,6 +485,4 @@ export default function PricingTool({ materials, overrides, quantities, packages
 
 const glbl = { fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand, margin:'0 0 12px' };
 const flbl = { fontFamily:'DM Sans', fontSize:11, color:'#888', marginBottom:4 };
-const tdN  = { padding:'5px 0', fontFamily:'DM Sans', fontSize:13, color:C.charcoal, width:'50%' };
-const tdR  = { padding:'5px 8px', fontFamily:'DM Sans', fontSize:13, color:'#666', textAlign:'right' };
 const trs  = { padding:'5px 0', fontFamily:'DM Sans', fontSize:13, color:C.charcoal };

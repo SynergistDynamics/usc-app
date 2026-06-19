@@ -20,48 +20,61 @@ resources, and financing info.
 
 ## Source Structure
 ```
+/index.html                  — Vite entry HTML (loads /src/main.jsx)
+/package.json, vite.config.js, eslint.config.js
+/public/                     — _redirects (SPA routing) + static assets (favicon.svg, etc.)
 src/
   App.jsx                    — shell, sidebar nav, data loading, module routing, mobile hamburger
   main.jsx                   — entry point
-  lib/supabase.js            — Supabase client, constants (C colors, SHED_SIZES, helpers like applyOverride, buildQtyMap, getMaterialIdsByGroup, getAddonOptions)
+  lib/supabase.js            — Supabase client, constants (C colors, SHED_SIZES, helpers:
+                               applyOverride, packageMaterialCost, getStyleMultiplier, getAddonOptions, …)
   components/
     UI.jsx                   — shared components (Button, Input, Card, Badge, Modal, Select, SectionHeader, banners, etc.)
     Auth.jsx                 — AuthProvider, login, profile loading, access gating
   modules/
     PricingTool.jsx          — "Materials List Generator" (idx 0). Has buildOutput() pricing engine.
     MaterialPriceManager.jsx — Material Prices (idx 1) — local price overrides + sales tax input
-    QuantityTableEditor.jsx  — Quantity Tables (idx 2) — per-cell debounced autosave
-    PackageManager.jsx       — Packages (idx 3, admin only) — 3 tabs
+    PackageManager.jsx       — Packages (idx 3, admin only) — 4 tabs: Shed Styles, Siding, Fixed, Size-Variable
     AffiliateResources.jsx   — Affiliate Resources (idx 4) — 3 tabs
     AdminPanel.jsx           — Admin (idx 5, admin only) — user management
     Blueprints.jsx           — Blueprints (idx 6)
-    ConfiguratorPricing.jsx  — Configurator Pricing (idx 8) — 4 tabs
+    ConfiguratorPricing.jsx  — Configurator Pricing (idx 8) — 4 tabs (Base/Siding/Fixed/Variable)
     Financing.jsx            — Financing (idx 9)
-    StylesManager.jsx        — used inside ConfiguratorPricing
     ReferralRegistration.jsx — referral form modal, used in AffiliateResources
 ```
-Note: module index 7 is unused.
+Note: module index 2 (Quantity Tables) and index 7 are unused/removed.
+
+> IMPORTANT: the repo was once committed flattened in the root with `[1]` suffixes
+> (un-buildable). It has since been restored to the standard Vite `src/` layout above.
+> Keep that layout — the imports depend on it.
 
 ## Module Index Map (activeModule in App.jsx)
-0=Materials Calculator · 1=Material Prices · 2=Quantity Tables · 3=Packages (admin) ·
+0=Materials Calculator · 1=Material Prices · 3=Packages (admin) ·
 4=Affiliate Resources · 5=Admin (admin) · 6=Blueprints · 8=Configurator Pricing · 9=Financing
+(idx 2 = Quantity Tables was removed — quantities now live inside each package.)
 
 ## Supabase Tables
-- `materials` — master list (price, category, material_group, url). Groups: base, addon, package_component.
+- `materials` — master list (price, category, material_group, url, allow_quantity). Groups: base, addon, package_component.
 - `material_overrides` — per-user local price/url overrides (user_id + material_id)
-- `quantities` — global qty per material_id + shed_size (admin-managed, ~1200+ rows)
-- `packages` — packages (size_variable, flat_rate, multiplier, siding_type, allow_quantity)
-- `package_materials` — components per package (fixed_quantity for non-size-variable)
-- `package_quantities` — per-size quantities for size-variable packages
-- `profiles` — users (id, email, role: admin|builder|blocked, full_name, market, multiplier, sales_tax)
+- `packages` — packages (size_variable, flat_rate, multiplier, siding_type, allow_quantity, **is_style**).
+  - `is_style = true` → a **shed style** package (always size_variable; holds every base material per size).
+  - `siding_type` set → siding package; otherwise a regular option package (add-ons live here now).
+- `package_materials` — components per package (fixed_quantity for non-size-variable; null for size-variable)
+- `package_quantities` — per-size quantities for size-variable packages (incl. styles & add-ons). App loads with `.range(0,9999)`.
+- `style_multipliers` — **per-builder** multiplier for a style package (user_id + package_id, unique). A builder's
+  value overrides the style package's default `multiplier`. Managed on Configurator Pricing → Base Pricing.
+- `profiles` — users (id, email, role: admin|builder|blocked, full_name, market, multiplier, sales_tax).
+  `profiles.multiplier` is now legacy (seed source for style_multipliers); no longer used directly in pricing.
 - `referrals` — builder referrals (name, email, market, status, referred_by, notes)
-- `styles` — shed styles with markup % (Configurator Pricing)
+- LEGACY (kept as backup, no longer read by the app): `quantities` (old global base/add-on quantities),
+  `styles` (old shed styles with markup %). Safe to drop once the migration is verified.
 
 ## CRITICAL Supabase / React gotchas
-- **1000-row limit:** Supabase silently caps SELECTs at 1000 rows. ALL `quantities` fetches MUST use `.range(0, 9999)`. (App.jsx loadData + anywhere quantities are refetched.)
+- **1000-row limit:** Supabase silently caps SELECTs at 1000 rows. `package_quantities` is now the big
+  table (styles + add-ons have per-size grids), so its fetch in App.jsx loadData MUST use `.range(0, 9999)`.
 - **Upserts need a unique constraint** on the conflict columns, not just a PK.
-  - quantities upsert conflict: `material_id,shed_size`
   - package_quantities conflict: `package_id,material_id,shed_size`
+  - style_multipliers conflict: `user_id,package_id`
 - **Check constraints:** adding new enum-like values requires ALTER. E.g. `packages_siding_type_check` allows `clapboard`, `bAndB`, `t111`. Adding new siding types requires updating that constraint.
 - **RLS can silently block writes** (delete/update return no error but affect 0 rows). When a write "succeeds" but data doesn't change, suspect RLS policies. deleteUser in AdminPanel uses `count:'exact'` to detect this and falls back to setting role='blocked'.
 - **No IIFEs inside JSX conditionals** — `{cond && (()=>{...})()}` breaks rendering. Use named helper functions instead (see ConfiguratorPricing FixedOptionsTab/VariableOptionsTab).
@@ -69,14 +82,38 @@ Note: module index 7 is unused.
 - **Mobile responsive uses JS `isMobile` state**, NOT CSS attribute selectors. React renders inline styles as kebab-case in the DOM (e.g. `grid-template-columns`), so selectors like `div[style*="gridTemplateColumns"]` never match. Each responsive module tracks `isMobile` via a resize listener.
 - **Vite build cache** can serve stale output. If a build seems wrong, `rm -rf dist node_modules/.vite` then rebuild.
 
-## Pricing Logic
-- **Multiplier:** per-builder labor & profit multiplier. Stored in `profiles.multiplier` and mirrored to localStorage `usc_multiplier`. Set on Configurator Pricing (Base Pricing tab). Applied to base materials + siding + addons (NOT to packages, which have their own multiplier).
-- **Sales tax:** per-builder, stored in `profiles.sales_tax`, mirrored to localStorage `usc_sales_tax`. Set on Material Prices page. Applied to MATERIAL COST ONLY — baked into `mat.price` via `taxMult = 1 + salesTax/100` when matById is built, so it flows through before any multiplier math. Applied in PricingTool (buildOutput), ConfiguratorPricing, PackageManager.
-- Both multiplier and sales_tax sync to localStorage on profile load in Auth.jsx, so all pages have them immediately.
-- **Style markup:** each style in `styles` table has a markup %, applied to base material cost before the general multiplier (Configurator Pricing).
-- **Siding:** T1-11, Clapboard, B&B can each be backed by a package (siding_type field) with its own multiplier; falls back to direct material if no package exists. Western Red Cedar is quote-only.
-- **Zero-quantity items** are hidden from Materials Calculator output (both Pricing and Materials List).
+## Pricing Logic (package-based model)
+Everything priced in the app is now a **package**. There is no longer a general multiplier,
+no separate Quantity Tables, and no style markup.
+
+- **Shed styles** are size-variable packages (`is_style=true`) whose components are all the base
+  materials, with per-size quantities in `package_quantities`. Base shed price for a size =
+  `Σ(componentQty(size) × materialPrice) × styleMultiplier`.
+- **Style multiplier is PER-BUILDER:** each builder sets their own multiplier for each style
+  (stored in `style_multipliers`, keyed by user_id+package_id). Falls back to the package's
+  default `multiplier`. Helper: `getStyleMultiplier(styleMults, pkg)`. Set on Configurator
+  Pricing → Base Pricing (admin edits the master default and can preview each builder read-only;
+  each builder edits their own).
+- **All other packages** (siding, add-ons, fixed, size-variable) use ONE admin-set global
+  `multiplier` (same for every builder) — the per-builder multiplier does NOT apply to them.
+  Price = `materialCost × multiplier`, unless `flat_rate` is set (then that wins).
+- **Add-ons** are now ordinary packages (mostly size-variable, one component each). They appear
+  as selectable options in the calculator (countable if `allow_quantity`).
+- **Siding:** T1-11 / Clapboard / B&B are backed by `siding_type` packages with their own multiplier.
+  No direct-material fallback anymore — if no siding package exists the calculator shows a quote/0.
+  Western Red Cedar is quote-only.
+- **Sales tax:** per-builder, stored in `profiles.sales_tax`, mirrored to localStorage `usc_sales_tax`.
+  Applied to MATERIAL COST ONLY — baked into `mat.price` via `taxMult = 1 + salesTax/100` when matById
+  is built, so it flows through before any multiplier math. (PricingTool, ConfiguratorPricing, PackageManager.)
+- **Zero-quantity items** are hidden from Materials Calculator output.
 - **pkg_component materials** are read-only for builders in Material Prices (admin-only price, shows 🔒 Admin only).
+
+### One-time migration
+`MIGRATION_styles_as_packages.sql` (repo root) creates the `is_style` column + `style_multipliers`
+table, turns each old `styles` row into a style package seeded from the old base `quantities`, seeds
+each builder's per-style multiplier = `builder.multiplier × (1 + markup%)`, and converts add-on
+materials into packages. Must be run once in the Supabase SQL Editor. Confirm it ran before relying
+on the new tables.
 
 ## Conventions
 - Colors: `C` object in supabase.js — sage #7A9B76, sand #B8986A, charcoal #1A1510, linen #FFFDF9
