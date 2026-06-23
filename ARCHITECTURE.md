@@ -118,8 +118,10 @@ Each step unblocks the next; build in this order.
    auth Site URL fixed. (2026-06)
 1. **[DONE] React Router** — real URLs replacing the module-index switch (React Router 7). *Prerequisite
    for everything below.* (2026-06)
-2. **Builder dashboard** — the landing shell each builder sees after login; anchors the new
-   structure even before it's full.
+2. **[DONE — basic shell] Builder dashboard** — the landing page each builder sees after login
+   (`/dashboard`, now the app's home route). Currently a simple welcome + quick links to the existing
+   tools, with a "Coming Soon" section for ShedPro/projects/reviews. Will be fleshed out (real data,
+   widgets) once ShedPro and projects are connected. (`src/modules/Dashboard.jsx`, 2026-06)
 3. **Projects / project management** — core operational data. Design its schema carefully; it'll
    be the most-used and most-extended table. (New tables + RLS + migration.)
 4. **Customer reviews + public builder profiles** — depends on (3) and on the public/private

@@ -4,6 +4,7 @@ import { Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom'
 import { supabase, C } from './lib/supabase';
 import { AuthProvider, useAuth, LoginPage, LoadingScreen, BlockedScreen } from './components/Auth';
 import { Spinner, Button } from './components/UI';
+import Dashboard             from './modules/Dashboard';
 import PricingTool           from './modules/PricingTool';
 import MaterialPriceManager  from './modules/MaterialPriceManager';
 import AdminPanel            from './modules/AdminPanel';
@@ -33,6 +34,7 @@ function AppShell() {
 // ── NAV CONSTANTS ─────────────────────────────────────────────
 // Real URLs (React Router) replace the old in-memory module index.
 // Route → module map (see <Routes> in AppInner):
+//   /dashboard             = Builder Dashboard (landing page)
 //   /calculator           = Materials Calculator
 //   /material-prices       = Material Prices
 //   /packages              = Packages (admin)
@@ -42,6 +44,7 @@ function AppShell() {
 //   /configurator-pricing  = Configurator Pricing
 //   /financing             = Financing
 const ROUTES = {
+  dashboard:    '/dashboard',
   calculator:   '/calculator',
   matPrices:    '/material-prices',
   packages:     '/packages',
@@ -226,6 +229,9 @@ function AppInner() {
         {/* Nav */}
         <nav style={{ flex:1, overflowY:'auto', overflowX:'hidden', padding:'8px 0' }}>
 
+          {/* Dashboard */}
+          <NavBtn to={ROUTES.dashboard}    icon="🏡" label="Dashboard"              sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
+
           {/* Main tools */}
           <NavBtn to={ROUTES.calculator}   icon="⚡" label="Materials Calculator"   sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
           <NavBtn to={ROUTES.configurator} icon="💲" label="Configurator Pricing"   sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
@@ -295,7 +301,8 @@ function AppInner() {
           </div>
         ) : (
           <Routes>
-            <Route path="/" element={<Navigate to={ROUTES.calculator} replace />} />
+            <Route path="/" element={<Navigate to={ROUTES.dashboard} replace />} />
+            <Route path={ROUTES.dashboard} element={<Dashboard />} />
             <Route path={ROUTES.calculator} element={<PricingTool materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styleMults={styleMults} />} />
             <Route path={ROUTES.matPrices} element={<MaterialPriceManager materials={materials} overrides={overrides} setOverrides={setOverrides} onMasterUpdated={loadData} />} />
             <Route path={ROUTES.packages} element={isAdmin ? <PackageManager materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} onRefresh={loadData} /> : <Navigate to={ROUTES.calculator} replace />} />
@@ -304,7 +311,7 @@ function AppInner() {
             <Route path={ROUTES.blueprints} element={<Blueprints />} />
             <Route path={ROUTES.financing} element={<Financing />} />
             <Route path={ROUTES.configurator} element={<ConfiguratorPricing materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styleMults={styleMults} onRefresh={loadData} />} />
-            <Route path="*" element={<Navigate to={ROUTES.calculator} replace />} />
+            <Route path="*" element={<Navigate to={ROUTES.dashboard} replace />} />
           </Routes>
         )}
       </div>

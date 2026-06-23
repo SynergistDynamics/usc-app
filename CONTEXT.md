@@ -48,6 +48,9 @@ src/
     UI.jsx                   — shared components (Button, Input, Card, Badge, Modal, Select, SectionHeader, banners, etc.)
     Auth.jsx                 — AuthProvider, login, profile loading, access gating
   modules/
+    Dashboard.jsx            — Builder Dashboard (/dashboard, landing page) — welcome + quick links to the
+                               tools, plus a "Coming Soon" section (ShedPro/projects/reviews). Simple shell
+                               for now; grows as the platform is built out (ARCHITECTURE.md step 2).
     PricingTool.jsx          — "Materials List Generator" (idx 0). Has buildOutput() pricing engine.
     MaterialPriceManager.jsx — Material Prices (idx 1) — local price overrides + sales tax input
     PackageManager.jsx       — Packages (idx 3, admin only) — 4 tabs: Shed Styles, Siding, Fixed, Size-Variable
@@ -73,7 +76,8 @@ A `ROUTES` constant in `App.jsx` is the single source of truth for paths.
 Route Map:
 | Path | Module | Access |
 |---|---|---|
-| `/` | redirects → `/calculator` | all |
+| `/` | redirects → `/dashboard` | all |
+| `/dashboard` | Builder Dashboard | all |
 | `/calculator` | Materials Calculator (PricingTool) | all |
 | `/material-prices` | Material Prices | all |
 | `/packages` | Packages (PackageManager) | admin |
@@ -82,7 +86,7 @@ Route Map:
 | `/blueprints` | Blueprints | all |
 | `/configurator-pricing` | Configurator Pricing | all |
 | `/financing` | Financing | all |
-| `*` | redirects → `/calculator` | all |
+| `*` | redirects → `/dashboard` | all |
 
 Notes:
 - **Admin-only routes** render `<Navigate to="/calculator" replace />` when `profile.role !== 'admin'`
