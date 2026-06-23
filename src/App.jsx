@@ -1,6 +1,6 @@
 // src/App.jsx
 import { useState, useEffect, useCallback } from 'react';
-import { Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, NavLink, useLocation, Link } from 'react-router-dom';
 import { supabase, C } from './lib/supabase';
 import { AuthProvider, useAuth, LoginPage, LoadingScreen, BlockedScreen } from './components/Auth';
 import { Spinner, Button } from './components/UI';
@@ -13,6 +13,7 @@ import AffiliateResources    from './modules/AffiliateResources';
 import Blueprints            from './modules/Blueprints';
 import ConfiguratorPricing   from './modules/ConfiguratorPricing';
 import Financing             from './modules/Financing';
+import Profile               from './modules/Profile';
 
 export default function App() {
   return (
@@ -53,6 +54,7 @@ const ROUTES = {
   blueprints:   '/blueprints',
   configurator: '/configurator-pricing',
   financing:    '/financing',
+  profile:      '/profile',
 };
 
 // Routes that live under the collapsible "Calculator Settings" submenu.
@@ -92,6 +94,19 @@ function ExtLink({ href, icon, label, sidebarOpen }) {
       <span style={{ fontSize:15, flexShrink:0 }}>{icon}</span>
       {sidebarOpen && <span>{label}</span>}
     </a>
+  );
+}
+
+// Small round avatar for the sidebar — photo if set, else the user's first initial.
+function UserAvatar({ profile, size = 32 }) {
+  const initial = (profile?.full_name || profile?.email || '?').trim().charAt(0).toUpperCase();
+  if (profile?.avatar_url) {
+    return <img src={profile.avatar_url} alt="" style={{ width:size, height:size, borderRadius:'50%', objectFit:'cover', flexShrink:0, border:'1px solid rgba(255,255,255,0.15)' }} />;
+  }
+  return (
+    <div style={{ width:size, height:size, borderRadius:'50%', background:C.sage, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Cormorant Garamond, serif', fontSize:size*0.5, fontWeight:700, flexShrink:0 }}>
+      {initial}
+    </div>
   );
 }
 
@@ -251,6 +266,7 @@ function AppInner() {
           <div style={{ margin:'10px 16px', borderTop:'1px solid rgba(255,255,255,0.07)' }} />
 
           {/* Other pages */}
+          <NavBtn to={ROUTES.profile}    icon="👤" label="My Profile"          sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
           <NavBtn to={ROUTES.affiliate}  icon="🔗" label="Affiliate Resources" sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
           <NavBtn to={ROUTES.blueprints} icon="📐" label="Blueprints"          sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
           <NavBtn to={ROUTES.financing}  icon="💰" label="Financing"           sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
@@ -269,14 +285,17 @@ function AppInner() {
 
         </nav>
 
-        {/* User + sign out */}
+        {/* User + sign out — the identity block links to the profile page */}
         <div style={{ padding: sidebarExpanded ? '14px 20px' : '14px 8px', borderTop:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
-          {sidebarExpanded && (
-            <div style={{ marginBottom:8 }}>
-              <div style={{ fontFamily:'DM Sans', fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.8)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{profile?.full_name || profile?.email}</div>
-              {profile?.market && <div style={{ fontFamily:'DM Sans', fontSize:10, color:C.sageLight, marginTop:2 }}>{profile.market}</div>}
-            </div>
-          )}
+          <Link to={ROUTES.profile} onClick={onNavigate} style={{ display:'flex', alignItems:'center', gap:10, textDecoration:'none', marginBottom:8, justifyContent: sidebarExpanded ? 'flex-start' : 'center' }}>
+            <UserAvatar profile={profile} size={sidebarExpanded ? 32 : 30} />
+            {sidebarExpanded && (
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontFamily:'DM Sans', fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.8)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{profile?.full_name || profile?.email}</div>
+                {profile?.market && <div style={{ fontFamily:'DM Sans', fontSize:10, color:C.sageLight, marginTop:2 }}>{profile.market}</div>}
+              </div>
+            )}
+          </Link>
           <button onClick={signOut} style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding: sidebarExpanded ? '6px 0' : '6px', border:'none', cursor:'pointer', background:'transparent', color:'rgba(255,255,255,0.35)', fontFamily:'DM Sans', fontSize:11, justifyContent: sidebarExpanded ? 'flex-start' : 'center' }}>
             <span>↩</span>{sidebarExpanded && <span>Sign out</span>}
           </button>
@@ -310,6 +329,7 @@ function AppInner() {
             <Route path={ROUTES.admin} element={isAdmin ? <AdminPanel /> : <Navigate to={ROUTES.calculator} replace />} />
             <Route path={ROUTES.blueprints} element={<Blueprints />} />
             <Route path={ROUTES.financing} element={<Financing />} />
+            <Route path={ROUTES.profile} element={<Profile />} />
             <Route path={ROUTES.configurator} element={<ConfiguratorPricing materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styleMults={styleMults} onRefresh={loadData} />} />
             <Route path="*" element={<Navigate to={ROUTES.dashboard} replace />} />
           </Routes>

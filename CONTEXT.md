@@ -69,6 +69,10 @@ src/
     Blueprints.jsx           — Blueprints (idx 6)
     ConfiguratorPricing.jsx  — Configurator Pricing (idx 8) — 4 tabs (Base/Siding/Fixed/Variable)
     Financing.jsx            — Financing (idx 9)
+    Profile.jsx              — My Profile (/profile, all users) — each user edits their OWN profile
+                               (name, business, phone, market, website, bio) + uploads a profile photo
+                               to the `avatars` storage bucket. Email/role are read-only. Uses
+                               useAuth().reloadProfile() to refresh the session after a save.
     ReferralRegistration.jsx — referral form modal, used in AffiliateResources
 ```
 Note: the old in-memory module index (`activeModule` 0–9) has been replaced by **URL routes** (see Route Map
@@ -96,6 +100,7 @@ Route Map:
 | `/blueprints` | Blueprints | all |
 | `/configurator-pricing` | Configurator Pricing | all |
 | `/financing` | Financing | all |
+| `/profile` | My Profile | all |
 | `*` | redirects → `/dashboard` | all |
 
 Notes:
@@ -121,7 +126,11 @@ Notes:
 - `style_multipliers` — **per-builder** multiplier for a style package (user_id + package_id, unique). A builder's
   value overrides the style package's default `multiplier`. Managed on Configurator Pricing → Base Pricing.
 - `profiles` — users (id, email, role: admin|builder|blocked, full_name, market, multiplier, sales_tax,
-  **is_super_admin**). `is_super_admin` is a flag layered on top of role=admin (NOT a new role value, so
+  **is_super_admin**, plus profile-page fields: **avatar_url, phone, company_name, website, bio**).
+  The profile-page fields are edited by each user on `/profile` (My Profile); the existing RLS policy
+  "Users can update own profile" (`auth.uid() = id`) scopes those writes. (That policy technically also
+  lets a user change their own `role` — the Profile UI never exposes role, but tighten the policy's
+  WITH CHECK if that ever matters.) `is_super_admin` is a flag layered on top of role=admin (NOT a new role value, so
   normal admin access is unaffected); it gates the Admin → Tech Stack tab. Super admins can grant/revoke
   it on other users via a toggle in the Admin → Users tab (granting also promotes the user to admin).
   `profiles.multiplier` is now legacy (seed source for style_multipliers); no longer used directly in pricing.
@@ -131,6 +140,14 @@ Notes:
 - `referrals` — builder referrals (name, email, market, status, referred_by, notes)
 - LEGACY (kept as backup, no longer read by the app): `quantities` (old global base/add-on quantities),
   `styles` (old shed styles with markup %). Safe to drop once the migration is verified.
+
+## Storage Buckets
+- `avatars` — **public** bucket for profile photos (My Profile page). Files are stored under a
+  `{user_id}/` folder. Storage RLS: anyone can READ (it's a public bucket, served via public URL),
+  but a user can only upload/update/delete inside their own `{user_id}/` folder
+  (`(storage.foldername(name))[1] = auth.uid()`). The path is `{user_id}/{timestamp}.{ext}` and the
+  resulting public URL is saved to `profiles.avatar_url`. See `MIGRATION_profile_fields_and_avatars.sql`
+  (applied 2026-06-23).
 
 ## CRITICAL Supabase / React gotchas
 - **1000-row API cap — `.range()` does NOT bypass it.** Supabase's PostgREST `max-rows` (default 1000)
