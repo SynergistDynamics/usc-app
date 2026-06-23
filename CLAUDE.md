@@ -11,7 +11,7 @@
 2. Build from the actual source files in this repo — they are the source of truth.
 
 ## When making changes
-- This is a React + Vite app deployed to Netlify, backed by Supabase. The admin (Jeremy) is
+- This is a React + Vite app deployed to Vercel, backed by Supabase. The admin (Jeremy) is
   not a professional developer — keep explanations clear and avoid unnecessary jargon.
 - Respect the conventions and gotchas documented in `CONTEXT.md`, especially:
   - Supabase's REST API caps results at 1000 rows and `.range(0,9999)` does NOT bypass it; large tables
@@ -31,10 +31,10 @@
    - `CLAUDE.md` if a workflow/convention changed.
    If nothing doc-worthy changed, say so explicitly. Never leave the docs describing old behavior.
 3. Commit the changes with a clear message describing what changed.
-4. **Deployment is automatic via Netlify** (connected to GitHub). Do your work on a feature branch and
-   push it; it goes live when the branch is **merged into `main`** (Netlify auto-builds `npm run build`
+4. **Deployment is automatic via Vercel** (connected to GitHub). Do your work on a feature branch and
+   push it; it goes live when the branch is **merged into `main`** (Vercel auto-builds `npm run build`
    and publishes `dist/`). Don't push to `main` without Jeremy's explicit OK. No manual zip uploads are
-   needed anymore — only fall back to building a `dist/` zip if Netlify is ever disconnected.
+   needed anymore — only fall back to building a `dist/` zip if Vercel is ever disconnected.
 
 ## Database changes
 If a change requires a Supabase schema change (new column, new constraint value, new table,
@@ -42,10 +42,13 @@ RLS policy), DO NOT assume it's been done. Clearly state the exact SQL Jeremy ne
 the Supabase SQL Editor, and confirm it's been run before relying on it.
 
 ## Deployment
-- Netlify is connected to GitHub for **continuous deployment**: every push to `main` auto-builds
+- Vercel is connected to GitHub for **continuous deployment**: every push to `main` auto-builds
   (`npm run build`) and publishes `dist/`. To ship work: push your feature branch, then merge it into
-  `main` (with Jeremy's OK) and Netlify deploys it.
-- Build command: `npm run build` (outputs to `dist/`); publish directory: `dist`.
-- Supabase env vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) are configured in Netlify's
-  Environment variables, so builds always have them.
-- `public/_redirects` (`/* /index.html 200`) is copied into `dist/` automatically for SPA routing.
+  `main` (with Jeremy's OK) and Vercel deploys it.
+- Build command: `npm run build` (outputs to `dist/`); output directory: `dist`. These are pinned in
+  `vercel.json` (which also sets `framework: vite` and the SPA `rewrites` rule).
+- Supabase env vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) are configured in Vercel's
+  Project Settings → Environment Variables, so builds always have them.
+- SPA routing is handled by the `rewrites` rule in `vercel.json` (serve `index.html` for any path).
+  The old `public/_redirects` is Netlify-specific (ignored by Vercel) and kept only as a migration
+  fallback — safe to delete once Netlify is fully retired.

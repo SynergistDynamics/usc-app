@@ -13,15 +13,18 @@ resources, and financing info.
 ## Stack & Deployment
 - **Frontend:** React 19 + Vite
 - **Backend/Auth/DB:** Supabase (project ID `ywboyreznmuaddprkycm`)
-- **Hosting:** Netlify (static) at https://urban-sheds.co
+- **Hosting:** Vercel (static). Target domain: `app.urban-sheds.com` (migrating off Netlify/`urban-sheds.co`).
 - **Build:** `npm run build` → outputs to `dist/`
-- **Deploy:** Netlify is connected to GitHub for **continuous deployment** — every push to `main`
+- **Deploy:** Vercel is connected to GitHub for **continuous deployment** — every push to `main`
   auto-builds (`npm run build`) and publishes `dist/`. Workflow: do work on a feature branch, push it,
   then **merge into `main` to go live** (no more manual zip uploads). The Supabase env vars are set in
-  Netlify (Site configuration → Environment variables), so builds always have them.
-  The `public/_redirects` file (`/* /index.html 200`) handles SPA routing and is copied into `dist/` automatically.
-- **Env:** requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. In Netlify these live in the site's
-  Environment variables; for local dev put them in `.env` (see `.env.example`). `.env` is gitignored — never commit it.
+  Vercel (Project Settings → Environment Variables), so builds always have them.
+  - **SPA routing:** `vercel.json`'s `rewrites` rule serves `index.html` for any path (Vercel auto-detects
+    the Vite framework, build command, and `dist` output, but `vercel.json` pins them explicitly). The old
+    `public/_redirects` (`/* /index.html 200`) is Netlify-specific; Vercel ignores it. It's kept as a
+    harmless fallback during the host migration and can be deleted once Netlify is fully retired.
+- **Env:** requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. In Vercel these live in the project's
+  Environment Variables; for local dev put them in `.env` (see `.env.example`). `.env` is gitignored — never commit it.
 
 ## Source Structure
 ```
