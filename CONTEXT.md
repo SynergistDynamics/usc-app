@@ -127,10 +127,11 @@ Notes:
   value overrides the style package's default `multiplier`. Managed on Configurator Pricing → Base Pricing.
 - `profiles` — users (id, email, role: admin|builder|blocked, full_name, market, multiplier, sales_tax,
   **is_super_admin**, plus profile-page fields: **avatar_url, phone, company_name, website, bio**).
-  The profile-page fields are edited by each user on `/profile` (My Profile); the existing RLS policy
-  "Users can update own profile" (`auth.uid() = id`) scopes those writes. (That policy technically also
-  lets a user change their own `role` — the Profile UI never exposes role, but tighten the policy's
-  WITH CHECK if that ever matters.) `is_super_admin` is a flag layered on top of role=admin (NOT a new role value, so
+  The profile-page fields are edited by each user on `/profile` (My Profile); the RLS policy
+  "Users can update own profile" (`USING auth.uid() = id`) scopes those writes. Its **WITH CHECK pins
+  `role` and `is_super_admin` to their current values**, so a self-update can change any other field
+  but CANNOT escalate privileges (see `MIGRATION_lock_profile_role.sql`). Admins still change roles via
+  the separate "Admin can update any profile" policy. `is_super_admin` is a flag layered on top of role=admin (NOT a new role value, so
   normal admin access is unaffected); it gates the Admin → Tech Stack tab. Super admins can grant/revoke
   it on other users via a toggle in the Admin → Users tab (granting also promotes the user to admin).
   `profiles.multiplier` is now legacy (seed source for style_multipliers); no longer used directly in pricing.
