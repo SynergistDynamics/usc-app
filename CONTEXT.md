@@ -52,11 +52,15 @@ src/
                                • Builders → welcome + quick links to the tools + "Coming Soon" cards
                                  (they only ever see their own data).
                                • Admins → a **tabbed** view: a "Business Overview" tab plus one tab per
-                                 builder (fetched from `profiles` where role='builder'), so the admin can
-                                 switch tabs to check on each builder. Most metrics are placeholders until
+                                 person in the collective (all `profiles` EXCEPT blocked users and the
+                                 admin's own row — same set as Admin → Users), so the admin can switch
+                                 tabs to check on each one. Most metrics are placeholders until
                                  ShedPro/projects connect; real profile fields (name, market, email, joined,
                                  sales_tax) are shown. Builder access to other builders' data is blocked by
-                                 RLS — non-admins never run the profiles query. (ARCHITECTURE.md step 2.)
+                                 RLS — non-admins never run the profiles query. The tab strip uses inline
+                                 overflowX:auto + overflowY:hidden and flexShrink:0 tabs (NOT the
+                                 usc-table-scroll class, which forces a stray vertical scrollbar via the
+                                 overflow-x:auto → overflow-y:auto CSS rule). (ARCHITECTURE.md step 2.)
     PricingTool.jsx          — "Materials List Generator" (idx 0). Has buildOutput() pricing engine.
     MaterialPriceManager.jsx — Material Prices (idx 1) — local price overrides + sales tax input
     PackageManager.jsx       — Packages (idx 3, admin only) — 4 tabs: Shed Styles, Siding, Fixed, Size-Variable
