@@ -14,7 +14,7 @@ management, materials calculation, configurator pricing, blueprint access, affil
 resources, and financing info.
 
 ## Stack & Deployment
-- **Frontend:** React 19 + Vite
+- **Frontend:** React 19 + Vite, **React Router 7** for client-side routing (real URLs)
 - **Backend/Auth/DB:** Supabase (project ID `ywboyreznmuaddprkycm`)
 - **Hosting:** Vercel (static). Live app domain: `https://build.urban-sheds.com` (CNAME → `cname.vercel-dns.com`,
   DNS managed in Cloudflare, "DNS only"/grey-cloud so Vercel issues SSL). Migrated off Netlify in 2026-06.
@@ -25,10 +25,12 @@ resources, and financing info.
   auto-builds (`npm run build`) and publishes `dist/`. Workflow: do work on a feature branch, push it,
   then **merge into `main` to go live** (no more manual zip uploads). The Supabase env vars are set in
   Vercel (Project Settings → Environment Variables), so builds always have them.
-  - **SPA routing:** `vercel.json`'s `rewrites` rule serves `index.html` for any path (Vercel auto-detects
-    the Vite framework, build command, and `dist` output, but `vercel.json` pins them explicitly). The old
-    `public/_redirects` (`/* /index.html 200`) is Netlify-specific; Vercel ignores it. It's kept as a
-    harmless fallback during the host migration and can be deleted once Netlify is fully retired.
+  - **SPA routing:** the app now uses **React Router** (see "Routing" below), so direct links like
+    `build.urban-sheds.com/admin` work. `vercel.json`'s `rewrites` rule serves `index.html` for any path
+    (Vercel auto-detects the Vite framework, build command, and `dist` output, but `vercel.json` pins them
+    explicitly) — this is what makes deep links / refresh resolve to the SPA. The old `public/_redirects`
+    (`/* /index.html 200`) is Netlify-specific; Vercel ignores it. It's kept as a harmless fallback during
+    the host migration and can be deleted once Netlify is fully retired.
 - **Env:** requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. In Vercel these live in the project's
   Environment Variables; for local dev put them in `.env` (see `.env.example`). `.env` is gitignored — never commit it.
 
@@ -38,8 +40,8 @@ resources, and financing info.
 /package.json, vite.config.js, eslint.config.js
 /public/                     — _redirects (SPA routing) + static assets (favicon.svg, etc.)
 src/
-  App.jsx                    — shell, sidebar nav, data loading, module routing, mobile hamburger
-  main.jsx                   — entry point
+  App.jsx                    — shell, sidebar nav (NavLink), data loading, <Routes> definitions, mobile hamburger
+  main.jsx                   — entry point; wraps <App/> in <BrowserRouter>
   lib/supabase.js            — Supabase client, constants (C colors, SHED_SIZES, helpers:
                                applyOverride, packageMaterialCost, getStyleMultiplier, getAddonOptions, …)
   components/
@@ -56,16 +58,42 @@ src/
     Financing.jsx            — Financing (idx 9)
     ReferralRegistration.jsx — referral form modal, used in AffiliateResources
 ```
-Note: module index 2 (Quantity Tables) and index 7 are unused/removed.
+Note: the old in-memory module index (`activeModule` 0–9) has been replaced by **URL routes** (see Route Map
+below). The retired Quantity Tables module no longer has a route at all.
 
 > IMPORTANT: the repo was once committed flattened in the root with `[1]` suffixes
 > (un-buildable). It has since been restored to the standard Vite `src/` layout above.
 > Keep that layout — the imports depend on it.
 
-## Module Index Map (activeModule in App.jsx)
-0=Materials Calculator · 1=Material Prices · 3=Packages (admin) ·
-4=Affiliate Resources · 5=Admin (admin) · 6=Blueprints · 8=Configurator Pricing · 9=Financing
-(idx 2 = Quantity Tables was removed — quantities now live inside each package.)
+## Routing (React Router 7)
+Navigation is **URL-based** (real, bookmarkable URLs), defined in `App.jsx`'s `<Routes>`. Sidebar
+items are `NavLink`s; the active highlight comes from the current URL (`isActive`), not a number.
+A `ROUTES` constant in `App.jsx` is the single source of truth for paths.
+
+Route Map:
+| Path | Module | Access |
+|---|---|---|
+| `/` | redirects → `/calculator` | all |
+| `/calculator` | Materials Calculator (PricingTool) | all |
+| `/material-prices` | Material Prices | all |
+| `/packages` | Packages (PackageManager) | admin |
+| `/affiliate` | Affiliate Resources | all |
+| `/admin` | Admin Panel | admin |
+| `/blueprints` | Blueprints | all |
+| `/configurator-pricing` | Configurator Pricing | all |
+| `/financing` | Financing | all |
+| `*` | redirects → `/calculator` | all |
+
+Notes:
+- **Admin-only routes** render `<Navigate to="/calculator" replace />` when `profile.role !== 'admin'`
+  (defense-in-depth on top of the sidebar hiding those links). The real security boundary is still
+  Supabase RLS — route guards are UX, not authorization.
+- **Calculator Settings** (sidebar submenu holding Material Prices + Packages) auto-expands when the
+  current path is one of `SETTINGS_PATHS`.
+- `main.jsx` wraps the app in `<BrowserRouter>`. The Vercel `rewrites` rule (above) is what lets deep
+  links and refreshes resolve to the SPA.
+- **Data loading is still all-at-once** in `App.jsx`'s `loadData` and passed to route elements as props
+  (modules were not changed). Per-route loading (`ARCHITECTURE.md` §3.3) is a later step.
 
 ## Supabase Tables
 - `materials` — master list (price, category, material_group, url, allow_quantity). Groups: base, addon, package_component.

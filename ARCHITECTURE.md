@@ -48,17 +48,20 @@ These are settled. Don't re-litigate them without a deliberate reason — later 
 As features get added, follow these so the app scales cleanly. Each is here because skipping it
 gets expensive to fix later.
 
-### 3.1 Routing — adopt React Router (next major step)
-Today navigation is an **in-memory module index** (`activeModule` 0–9 in `App.jsx` with a switch).
-That has no real URLs: you can't bookmark/share a screen, refresh loses your place, and the
-browser Back button leaves the app. The platform needs real URLs (`/dashboard`, `/projects/:id`,
-public `/builder/:slug`), so:
+### 3.1 Routing — React Router [DONE]
+The old **in-memory module index** (`activeModule` 0–9 in `App.jsx` with a switch) has been replaced
+by **React Router 7**. The app now has real, bookmarkable URLs; refresh keeps your place and the
+browser Back button works within the app. See `CONTEXT.md` → "Routing" for the full Route Map.
 
-- **Adopt React Router before building the dashboard.** Convert the module-switch to route
-  definitions; sidebar buttons become links. The individual modules barely change — they're
-  reached by URL instead of by number.
-- **SPA fallback is already configured** for Vercel (`vercel.json` `rewrites` → `index.html`),
-  so direct links like `build.urban-sheds.com/admin` will work once routes exist.
+- **What changed:** `main.jsx` wraps the app in `<BrowserRouter>`; `App.jsx` defines `<Routes>` and a
+  `ROUTES` path constant; sidebar buttons are now `NavLink`s (active state from the URL). The
+  individual modules did **not** change — they're reached by URL instead of by number and still get
+  their data as props.
+- **Admin-only routes** redirect non-admins to `/calculator` (UX guard; RLS is the real boundary).
+- **SPA fallback** is configured for Vercel (`vercel.json` `rewrites` → `index.html`), so direct links
+  like `build.urban-sheds.com/admin` resolve.
+- **Still to do (later step):** per-route data loading (§3.3) — `loadData` currently still fetches
+  everything up front.
 
 ### 3.2 Authorization / RLS is a first-class part of every feature
 Supabase Row-Level Security **is** the security model. As customer data and reviews arrive, a
@@ -113,7 +116,8 @@ Each step unblocks the next; build in this order.
 
 0. **[DONE] Hosting foundation** — app on Vercel at `build.urban-sheds.com`, `.co` forwarding,
    auth Site URL fixed. (2026-06)
-1. **React Router** — real URLs replacing the module-index switch. *Prerequisite for everything below.*
+1. **[DONE] React Router** — real URLs replacing the module-index switch (React Router 7). *Prerequisite
+   for everything below.* (2026-06)
 2. **Builder dashboard** — the landing shell each builder sees after login; anchors the new
    structure even before it's full.
 3. **Projects / project management** — core operational data. Design its schema carefully; it'll

@@ -5,7 +5,7 @@ Provides pricing management, materials calculation, configurator pricing, bluepr
 affiliate resources, and financing info.
 
 ## Stack
-- **Frontend:** React 19 + Vite
+- **Frontend:** React 19 + Vite, React Router 7 (real URLs for each section)
 - **Backend/Auth/DB:** Supabase
 - **Hosting:** Vercel (static)
 

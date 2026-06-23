@@ -1,5 +1,6 @@
 // src/App.jsx
 import { useState, useEffect, useCallback } from 'react';
+import { Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
 import { supabase, C } from './lib/supabase';
 import { AuthProvider, useAuth, LoginPage, LoadingScreen, BlockedScreen } from './components/Auth';
 import { Spinner, Button } from './components/UI';
@@ -30,31 +31,50 @@ function AppShell() {
 }
 
 // ── NAV CONSTANTS ─────────────────────────────────────────────
-// indices: 0=Calculator, 1=MatPrices, 3=Packages,
-//          4=Affiliate, 5=Admin, 6=Blueprints, 8=ConfiguratorPricing, 9=Financing
-// (idx 2 / Quantity Tables removed — quantities now live inside packages)
+// Real URLs (React Router) replace the old in-memory module index.
+// Route → module map (see <Routes> in AppInner):
+//   /calculator           = Materials Calculator
+//   /material-prices       = Material Prices
+//   /packages              = Packages (admin)
+//   /affiliate             = Affiliate Resources
+//   /admin                 = Admin (admin)
+//   /blueprints            = Blueprints
+//   /configurator-pricing  = Configurator Pricing
+//   /financing             = Financing
+const ROUTES = {
+  calculator:   '/calculator',
+  matPrices:    '/material-prices',
+  packages:     '/packages',
+  affiliate:    '/affiliate',
+  admin:        '/admin',
+  blueprints:   '/blueprints',
+  configurator: '/configurator-pricing',
+  financing:    '/financing',
+};
 
+// Routes that live under the collapsible "Calculator Settings" submenu.
 const SETTINGS_MODULES_ALL = [
-  { icon:'📋', label:'Material Prices',       idx:1, adminOnly:false },
-  { icon:'📦', label:'Packages',              idx:3, adminOnly:true  },
+  { icon:'📋', label:'Material Prices', to:ROUTES.matPrices, adminOnly:false },
+  { icon:'📦', label:'Packages',        to:ROUTES.packages,  adminOnly:true  },
 ];
+const SETTINGS_PATHS = SETTINGS_MODULES_ALL.map(m => m.to);
 
 // ── NAV COMPONENTS (outside AppInner to prevent re-creation) ──
-function NavBtn({ idx, icon, label, activeModule, setActiveModule, sidebarOpen }) {
-  const active = activeModule === idx;
+// NavBtn is now a router NavLink; active state comes from the current URL.
+function NavBtn({ to, icon, label, sidebarOpen, onNavigate }) {
   return (
-    <button onClick={() => setActiveModule(idx)} style={{
+    <NavLink to={to} onClick={onNavigate} style={({ isActive }) => ({
       display:'flex', alignItems:'center', gap:12, width:'100%',
       padding: sidebarOpen ? '10px 20px' : '10px',
-      border:'none', cursor:'pointer',
-      background: active ? C.sage : 'transparent',
-      color: active ? '#fff' : 'rgba(255,255,255,0.55)',
-      fontFamily:'DM Sans', fontSize:13, fontWeight: active ? 600 : 400,
+      border:'none', cursor:'pointer', textDecoration:'none',
+      background: isActive ? C.sage : 'transparent',
+      color: isActive ? '#fff' : 'rgba(255,255,255,0.55)',
+      fontFamily:'DM Sans', fontSize:13, fontWeight: isActive ? 600 : 400,
       textAlign:'left', transition:'all 0.15s', flexShrink:0,
-    }}>
+    })}>
       <span style={{ fontSize:15, flexShrink:0 }}>{icon}</span>
       {sidebarOpen && <span>{label}</span>}
-    </button>
+    </NavLink>
   );
 }
 
@@ -75,8 +95,8 @@ function ExtLink({ href, icon, label, sidebarOpen }) {
 function AppInner() {
   const { profile, signOut } = useAuth();
   const isAdmin = profile?.role === 'admin';
+  const location = useLocation();
 
-  const [activeModule, setActiveModule] = useState(0);
   const [sidebarOpen,  setSidebarOpen]  = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isMobile,     setIsMobile]     = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
@@ -93,11 +113,10 @@ function AppInner() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Close mobile nav when a module is selected
-  function selectModule(idx) {
-    setActiveModule(idx);
+  // Close the mobile nav drawer whenever a nav link is followed.
+  const onNavigate = useCallback(() => {
     if (isMobile) setMobileNavOpen(false);
-  }
+  }, [isMobile]);
 
   const [materials,      setMaterials]      = useState([]);
   const [overrides,      setOverrides]      = useState({});
@@ -146,12 +165,14 @@ function AppInner() {
   }, [profile?.id]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const isSettingsActive = SETTINGS_PATHS.includes(location.pathname);
+  // Auto-expand the Calculator Settings submenu when on one of its routes.
   useEffect(() => {
-    if ([1,3].includes(activeModule)) setSettingsOpen(true);
-  }, [activeModule]);
+    if (isSettingsActive) setSettingsOpen(true);
+  }, [isSettingsActive]);
 
   const settingsModules = SETTINGS_MODULES_ALL.filter(m => !m.adminOnly || isAdmin);
-  const isSettingsActive = [1,3].includes(activeModule);
 
   // On mobile: sidebar is an overlay drawer, always full-width when open
   const sidebarExpanded = isMobile ? true : sidebarOpen;
@@ -206,8 +227,8 @@ function AppInner() {
         <nav style={{ flex:1, overflowY:'auto', overflowX:'hidden', padding:'8px 0' }}>
 
           {/* Main tools */}
-          <NavBtn idx={0} icon="⚡" label="Materials Calculator"   activeModule={activeModule} setActiveModule={selectModule} sidebarOpen={sidebarExpanded} />
-          <NavBtn idx={8} icon="💲" label="Configurator Pricing"   activeModule={activeModule} setActiveModule={selectModule} sidebarOpen={sidebarExpanded} />
+          <NavBtn to={ROUTES.calculator}   icon="⚡" label="Materials Calculator"   sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
+          <NavBtn to={ROUTES.configurator} icon="💲" label="Configurator Pricing"   sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
 
           {/* Calculator Settings — collapsible submenu */}
           <button onClick={() => setSettingsOpen(p=>!p)} style={{ display:'flex', alignItems:'center', gap:12, width:'100%', padding: sidebarExpanded ? '10px 20px' : '10px', border:'none', cursor:'pointer', background:'transparent', color: isSettingsActive ? C.sageLight : 'rgba(255,255,255,0.4)', fontFamily:'DM Sans', fontSize:12, fontWeight: isSettingsActive ? 600 : 400, textAlign:'left', transition:'all 0.15s' }}>
@@ -215,18 +236,18 @@ function AppInner() {
             {sidebarExpanded && <><span style={{ flex:1 }}>Calculator Settings</span><span style={{ fontSize:10, opacity:0.6 }}>{settingsOpen ? '▲' : '▼'}</span></>}
           </button>
           {settingsOpen && settingsModules.map(m => (
-            <button key={m.idx} onClick={() => selectModule(m.idx)} style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding: sidebarExpanded ? '8px 20px 8px 36px' : '8px 10px', border:'none', cursor:'pointer', background: activeModule===m.idx ? 'rgba(184,152,106,0.15)' : 'transparent', color: activeModule===m.idx ? '#B8986A' : 'rgba(255,255,255,0.35)', fontFamily:'DM Sans', fontSize:12, fontWeight: activeModule===m.idx ? 600 : 400, textAlign:'left', transition:'all 0.15s' }}>
+            <NavLink key={m.to} to={m.to} onClick={onNavigate} style={({ isActive }) => ({ display:'flex', alignItems:'center', gap:10, width:'100%', padding: sidebarExpanded ? '8px 20px 8px 36px' : '8px 10px', border:'none', cursor:'pointer', textDecoration:'none', background: isActive ? 'rgba(184,152,106,0.15)' : 'transparent', color: isActive ? '#B8986A' : 'rgba(255,255,255,0.35)', fontFamily:'DM Sans', fontSize:12, fontWeight: isActive ? 600 : 400, textAlign:'left', transition:'all 0.15s' })}>
               <span style={{ fontSize:12, flexShrink:0 }}>{m.icon}</span>
               {sidebarExpanded && <span>{m.label}</span>}
-            </button>
+            </NavLink>
           ))}
 
           <div style={{ margin:'10px 16px', borderTop:'1px solid rgba(255,255,255,0.07)' }} />
 
           {/* Other pages */}
-          <NavBtn idx={4} icon="🔗" label="Affiliate Resources" activeModule={activeModule} setActiveModule={selectModule} sidebarOpen={sidebarExpanded} />
-          <NavBtn idx={6} icon="📐" label="Blueprints"          activeModule={activeModule} setActiveModule={selectModule} sidebarOpen={sidebarExpanded} />
-          <NavBtn idx={9} icon="💰" label="Financing"           activeModule={activeModule} setActiveModule={selectModule} sidebarOpen={sidebarExpanded} />
+          <NavBtn to={ROUTES.affiliate}  icon="🔗" label="Affiliate Resources" sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
+          <NavBtn to={ROUTES.blueprints} icon="📐" label="Blueprints"          sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
+          <NavBtn to={ROUTES.financing}  icon="💰" label="Financing"           sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
 
           <div style={{ margin:'10px 16px', borderTop:'1px solid rgba(255,255,255,0.07)' }} />
 
@@ -237,7 +258,7 @@ function AppInner() {
           <ExtLink href="https://app.velocity360crm.com/"                                     icon="📊" label="Velocity CRM"      sidebarOpen={sidebarExpanded} />
 
           {isAdmin && <div style={{ margin:'10px 16px', borderTop:'1px solid rgba(255,255,255,0.07)' }} />}
-          {isAdmin && <NavBtn idx={5} icon="🛠" label="Admin" activeModule={activeModule} setActiveModule={selectModule} sidebarOpen={sidebarExpanded} />}
+          {isAdmin && <NavBtn to={ROUTES.admin} icon="🛠" label="Admin" sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />}
           {/* Supabase / Netlify links moved into Admin → Tech Stack (super admin only) */}
 
         </nav>
@@ -273,16 +294,18 @@ function AppInner() {
             <Button variant="secondary" onClick={loadData} style={{ marginTop:12 }}>Retry</Button>
           </div>
         ) : (
-          <>
-            {activeModule === 0 && <PricingTool materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styleMults={styleMults} />}
-            {activeModule === 1 && <MaterialPriceManager materials={materials} overrides={overrides} setOverrides={setOverrides} onMasterUpdated={loadData} />}
-            {activeModule === 3 && isAdmin && <PackageManager materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} onRefresh={loadData} />}
-            {activeModule === 4 && <AffiliateResources />}
-            {activeModule === 5 && isAdmin && <AdminPanel />}
-            {activeModule === 6 && <Blueprints />}
-            {activeModule === 9 && <Financing />}
-            {activeModule === 8 && <ConfiguratorPricing materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styleMults={styleMults} onRefresh={loadData} />}
-          </>
+          <Routes>
+            <Route path="/" element={<Navigate to={ROUTES.calculator} replace />} />
+            <Route path={ROUTES.calculator} element={<PricingTool materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styleMults={styleMults} />} />
+            <Route path={ROUTES.matPrices} element={<MaterialPriceManager materials={materials} overrides={overrides} setOverrides={setOverrides} onMasterUpdated={loadData} />} />
+            <Route path={ROUTES.packages} element={isAdmin ? <PackageManager materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} onRefresh={loadData} /> : <Navigate to={ROUTES.calculator} replace />} />
+            <Route path={ROUTES.affiliate} element={<AffiliateResources />} />
+            <Route path={ROUTES.admin} element={isAdmin ? <AdminPanel /> : <Navigate to={ROUTES.calculator} replace />} />
+            <Route path={ROUTES.blueprints} element={<Blueprints />} />
+            <Route path={ROUTES.financing} element={<Financing />} />
+            <Route path={ROUTES.configurator} element={<ConfiguratorPricing materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styleMults={styleMults} onRefresh={loadData} />} />
+            <Route path="*" element={<Navigate to={ROUTES.calculator} replace />} />
+          </Routes>
         )}
       </div>
     </div>
