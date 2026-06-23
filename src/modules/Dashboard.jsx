@@ -90,13 +90,16 @@ function AdminDashboard() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      // Admins can read all profiles (RLS allows it). We only list actual builders.
+      // Admins can read all profiles (RLS allows it). Show everyone in the collective the admin
+      // manages — i.e. the same set as Admin → Users: all profiles EXCEPT blocked users and the
+      // admin's own row. (Filtering only role='builder' hid co-admins who also build.)
       const { data } = await supabase
-        .from('profiles').select('*').eq('role', 'builder').order('full_name');
-      if (alive) { setBuilders(data || []); setLoading(false); }
+        .from('profiles').select('*').order('full_name');
+      const list = (data || []).filter(p => p.id !== profile?.id && p.role !== 'blocked');
+      if (alive) { setBuilders(list); setLoading(false); }
     })();
     return () => { alive = false; };
-  }, []);
+  }, [profile?.id]);
 
   const firstName = (profile?.full_name || '').trim().split(' ')[0];
   const activeBuilder = builders.find(b => b.id === activeTab);
@@ -109,8 +112,10 @@ function AdminDashboard() {
         sub="See how the collective is doing overall, then switch tabs to check in on each builder."
       />
 
-      {/* Tabs — Overview + one per builder (scrolls horizontally if there are many). */}
-      <div className="usc-table-scroll" style={{ display:'flex', gap:0, marginBottom:24, borderBottom:`2px solid ${C.linenDarker}`, overflowX:'auto' }}>
+      {/* Tabs — Overview + one per builder. Scrolls horizontally only when there are more
+          builders than fit; overflowY is pinned to 'hidden' because setting overflow-x to 'auto'
+          otherwise makes the browser turn overflow-y to 'auto' too (a stray vertical scrollbar). */}
+      <div style={{ display:'flex', gap:0, marginBottom:24, borderBottom:`2px solid ${C.linenDarker}`, overflowX:'auto', overflowY:'hidden' }}>
         <TabBtn label="Business Overview" active={activeTab==='overview'} onClick={() => setActiveTab('overview')} />
         {builders.map(b => (
           <TabBtn key={b.id} label={tabName(b)} active={activeTab===b.id} onClick={() => setActiveTab(b.id)} />
@@ -217,7 +222,7 @@ function SubHeading({ children, style = {} }) {
 
 function TabBtn({ label, active, onClick }) {
   return (
-    <button onClick={onClick} style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, padding:'10px 18px', border:'none', cursor:'pointer', background:'transparent', whiteSpace:'nowrap', color:active?C.sage:'#aaa', borderBottom:active?`2px solid ${C.sage}`:'2px solid transparent', marginBottom:-2, transition:'all 0.15s' }}>
+    <button onClick={onClick} style={{ flexShrink:0, fontFamily:'DM Sans', fontSize:13, fontWeight:600, padding:'10px 18px', border:'none', cursor:'pointer', background:'transparent', whiteSpace:'nowrap', color:active?C.sage:'#aaa', borderBottom:active?`2px solid ${C.sage}`:'2px solid transparent', marginBottom:-2, transition:'all 0.15s' }}>
       {label}
     </button>
   );
