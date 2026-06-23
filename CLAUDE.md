@@ -8,7 +8,10 @@
 ## At the start of every session
 1. Read `CONTEXT.md` in full before making any changes. It contains the architecture, the
    Supabase schema, critical gotchas, and pricing logic for this app.
-2. Build from the actual source files in this repo — they are the source of truth.
+2. For any large new feature (dashboard, projects, reviews, integrations), also read
+   `ARCHITECTURE.md` — it holds the platform vision, the settled structural decisions
+   (single-user tenancy, domains, hosting), and the agreed build sequence.
+3. Build from the actual source files in this repo — they are the source of truth.
 
 ## When making changes
 - This is a React + Vite app deployed to Vercel, backed by Supabase. The admin (Jeremy) is

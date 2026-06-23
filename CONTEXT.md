@@ -3,6 +3,9 @@
 > Read this file at the start of any session before making changes.
 > And KEEP IT CURRENT: whenever code, schema, structure, or gotchas change, update this file (and
 > `README.md` / `CLAUDE.md` as needed) in the same session so the docs never drift from the app.
+>
+> This file = the app **as it is today**. For where the app is **going** (the USC platform vision,
+> settled structural decisions, and the build sequence), see `ARCHITECTURE.md`.
 
 ## What this app is
 A React + Vite web app for **Urban Sheds Collective (USC)** — a network of licensed shed
