@@ -13,7 +13,10 @@ resources, and financing info.
 ## Stack & Deployment
 - **Frontend:** React 19 + Vite
 - **Backend/Auth/DB:** Supabase (project ID `ywboyreznmuaddprkycm`)
-- **Hosting:** Vercel (static). Target domain: `app.urban-sheds.com` (migrating off Netlify/`urban-sheds.co`).
+- **Hosting:** Vercel (static). Live app domain: `https://build.urban-sheds.com` (CNAME → `cname.vercel-dns.com`,
+  DNS managed in Cloudflare, "DNS only"/grey-cloud so Vercel issues SSL). Migrated off Netlify in 2026-06.
+  The old `urban-sheds.co` (Netlify) is being retired; a separate marketing site lives at `urban-sheds.com`.
+  Note: `app.urban-sheds.com` is a *different* app (legacy Adalo, still live) — this app uses the `build` subdomain.
 - **Build:** `npm run build` → outputs to `dist/`
 - **Deploy:** Vercel is connected to GitHub for **continuous deployment** — every push to `main`
   auto-builds (`npm run build`) and publishes `dist/`. Workflow: do work on a feature branch, push it,
