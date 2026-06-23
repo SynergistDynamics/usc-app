@@ -148,10 +148,12 @@ Notes:
 
 ## Storage Buckets
 - `avatars` — **public** bucket for profile photos (My Profile page). Files are stored under a
-  `{user_id}/` folder. Reads happen via the public object URL (no SELECT policy — a broad one would
-  only enable bucket-wide file *listing*, which the storage advisor flags, so it's intentionally
-  omitted). Write RLS: a user can only upload/update/delete inside their own `{user_id}/` folder
-  (`(storage.foldername(name))[1] = auth.uid()`). The path is `{user_id}/{timestamp}.{ext}` and the
+  `{user_id}/` folder. RLS: a user can read/upload/update/delete only inside their own `{user_id}/`
+  folder (`(storage.foldername(name))[1] = auth.uid()`). **The SELECT (read) policy is required**, even
+  though display uses the public object URL — supabase-js reads the object back after upload
+  (`INSERT ... RETURNING`), so with no SELECT policy every upload fails with "new row violates
+  row-level security policy" (see `MIGRATION_fix_avatars_select_policy.sql`). It's scoped to the user's
+  own folder so it doesn't allow bucket-wide listing. The path is `{user_id}/{timestamp}.{ext}` and the
   resulting public URL is saved to `profiles.avatar_url`. See `MIGRATION_profile_fields_and_avatars.sql`
   (applied 2026-06-23).
 

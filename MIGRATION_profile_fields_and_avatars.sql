@@ -29,10 +29,16 @@ values ('avatars', 'avatars', true)
 on conflict (id) do nothing;
 
 -- 3. Storage RLS --------------------------------------------------------------
--- NOTE: no SELECT policy on purpose. avatars is a PUBLIC bucket, so its objects are
--- readable via the public URL with no policy. Adding a broad SELECT policy would only
--- grant file-LISTING of the whole bucket (flagged by the storage advisor), so we omit it.
+-- SELECT is scoped to the user's OWN {user_id}/ folder. It is REQUIRED — supabase-js
+-- reads the object back after upload (INSERT ... RETURNING), which needs a passing SELECT
+-- policy, or the upload fails with "new row violates row-level security policy". Scoping it
+-- to the user's folder (rather than the whole bucket) avoids bucket-wide file listing.
+-- Public display of avatars works via the public object URL, independent of this policy.
 drop policy if exists "Avatar images are publicly readable" on storage.objects;
+drop policy if exists "Users can read their own avatars" on storage.objects;
+create policy "Users can read their own avatars" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
 
 drop policy if exists "Users can upload their own avatar" on storage.objects;
 create policy "Users can upload their own avatar"
