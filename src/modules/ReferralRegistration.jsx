@@ -22,14 +22,16 @@ export default function ReferralRegistration({ onSuccess }) {
     if (!form.name.trim() || !form.email.trim()) { setError('Name and email are required.'); return; }
     setSaving(true); setError(''); setSuccess('');
 
+    // referrals has strict RLS (you can only read your OWN rows), so we can't directly
+    // query across builders to detect a duplicate. The referral_email_taken() SECURITY
+    // DEFINER function does that check server-side and returns only minimal info
+    // (when + who) without exposing the other builder's row. See MIGRATION_referrals_rls.sql.
     const { data: existing } = await supabase
-      .from('referrals')
-      .select('*, profiles:referred_by(full_name, email)')
-      .ilike('email', form.email.trim())
+      .rpc('referral_email_taken', { p_email: form.email.trim() })
       .maybeSingle();
 
     if (existing) {
-      const who  = existing.profiles?.full_name || existing.profiles?.email || 'another builder';
+      const who  = existing.builder_name || 'another builder';
       const date = new Date(existing.created_at).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
       setError(`${form.email.trim()} was already registered on ${date} by ${who}.`);
       setSaving(false); return;

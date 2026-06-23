@@ -6,8 +6,10 @@
 --   1. Adds profile columns: avatar_url, phone, company_name, website, bio.
 --      (full_name + market already existed on profiles.)
 --   2. Creates a PUBLIC storage bucket `avatars` for profile photos.
---   3. Storage RLS: anyone can READ avatars (public URLs), but each user can only
---      upload/update/delete files inside their own {user_id}/ folder.
+--   3. Storage RLS: each user can only upload/update/delete files inside their own
+--      {user_id}/ folder. Reads need NO policy — a public bucket serves objects via its
+--      public URL directly (a broad SELECT policy would only add file-LISTING, which we
+--      don't want, so it's intentionally omitted; see the avatars advisor note).
 --
 -- Note: builders editing their own profile rely on the EXISTING profiles policy
 --   "Users can update own profile" (USING auth.uid() = id). The Profile UI only
@@ -27,10 +29,10 @@ values ('avatars', 'avatars', true)
 on conflict (id) do nothing;
 
 -- 3. Storage RLS --------------------------------------------------------------
+-- NOTE: no SELECT policy on purpose. avatars is a PUBLIC bucket, so its objects are
+-- readable via the public URL with no policy. Adding a broad SELECT policy would only
+-- grant file-LISTING of the whole bucket (flagged by the storage advisor), so we omit it.
 drop policy if exists "Avatar images are publicly readable" on storage.objects;
-create policy "Avatar images are publicly readable"
-  on storage.objects for select
-  using (bucket_id = 'avatars');
 
 drop policy if exists "Users can upload their own avatar" on storage.objects;
 create policy "Users can upload their own avatar"

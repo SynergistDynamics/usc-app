@@ -138,14 +138,19 @@ Notes:
 - `tech_stack` — super-admin-only list of the software this app runs on (name, url, username/signup email,
   sort_order). RLS restricts all access to super admins. Managed in Admin → Tech Stack. The old sidebar
   Supabase/Netlify links were moved here. See `MIGRATION_super_admin_tech_stack.sql`.
-- `referrals` — builder referrals (name, email, market, status, referred_by, notes)
+- `referrals` — builder referrals (name, email, market, status, referred_by, notes). **RLS enabled**:
+  a builder reads/writes only their own rows (`referred_by = auth.uid()`); admins see all (see
+  `MIGRATION_referrals_rls.sql`). Because that hides other builders' rows, the duplicate-email check in
+  ReferralRegistration uses the **`referral_email_taken(email)` SECURITY DEFINER function** — it reports
+  whether an email is already registered (and when/by whom) without exposing the other builder's row.
 - LEGACY (kept as backup, no longer read by the app): `quantities` (old global base/add-on quantities),
   `styles` (old shed styles with markup %). Safe to drop once the migration is verified.
 
 ## Storage Buckets
 - `avatars` — **public** bucket for profile photos (My Profile page). Files are stored under a
-  `{user_id}/` folder. Storage RLS: anyone can READ (it's a public bucket, served via public URL),
-  but a user can only upload/update/delete inside their own `{user_id}/` folder
+  `{user_id}/` folder. Reads happen via the public object URL (no SELECT policy — a broad one would
+  only enable bucket-wide file *listing*, which the storage advisor flags, so it's intentionally
+  omitted). Write RLS: a user can only upload/update/delete inside their own `{user_id}/` folder
   (`(storage.foldername(name))[1] = auth.uid()`). The path is `{user_id}/{timestamp}.{ext}` and the
   resulting public URL is saved to `profiles.avatar_url`. See `MIGRATION_profile_fields_and_avatars.sql`
   (applied 2026-06-23).
