@@ -48,9 +48,15 @@ src/
     UI.jsx                   — shared components (Button, Input, Card, Badge, Modal, Select, SectionHeader, banners, etc.)
     Auth.jsx                 — AuthProvider, login, profile loading, access gating
   modules/
-    Dashboard.jsx            — Builder Dashboard (/dashboard, landing page) — welcome + quick links to the
-                               tools, plus a "Coming Soon" section (ShedPro/projects/reviews). Simple shell
-                               for now; grows as the platform is built out (ARCHITECTURE.md step 2).
+    Dashboard.jsx            — Builder Dashboard (/dashboard, landing page). Role-gated:
+                               • Builders → welcome + quick links to the tools + "Coming Soon" cards
+                                 (they only ever see their own data).
+                               • Admins → a **tabbed** view: a "Business Overview" tab plus one tab per
+                                 builder (fetched from `profiles` where role='builder'), so the admin can
+                                 switch tabs to check on each builder. Most metrics are placeholders until
+                                 ShedPro/projects connect; real profile fields (name, market, email, joined,
+                                 sales_tax) are shown. Builder access to other builders' data is blocked by
+                                 RLS — non-admins never run the profiles query. (ARCHITECTURE.md step 2.)
     PricingTool.jsx          — "Materials List Generator" (idx 0). Has buildOutput() pricing engine.
     MaterialPriceManager.jsx — Material Prices (idx 1) — local price overrides + sales tax input
     PackageManager.jsx       — Packages (idx 3, admin only) — 4 tabs: Shed Styles, Siding, Fixed, Size-Variable
