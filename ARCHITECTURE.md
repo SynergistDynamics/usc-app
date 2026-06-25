@@ -132,8 +132,13 @@ Each step unblocks the next; build in this order.
    the full Materials Calculator spec (size, style, siding, option packages, overrides) so a materials
    list generates from it — the project page reuses PricingTool's engine to render it live.
    (`src/modules/Projects.jsx`, `ProjectDetail.jsx`, `lib/projects.js`, `MIGRATION_projects.sql`, 2026-06-25.)
-   Next here: generate/export saved materials lists in bulk, and use the project's owner's sales-tax for
-   the preview (today it uses the viewer's, same as the calculator).
+   **Expanded for ShedPro (2026-06-25):** `projects` now carries the full ShedPro order record (renderings,
+   configured options, colors, fees) and was **seeded with 870 rows from a ShedPro export**; `contact_id` is
+   now nullable (link by customer email; contact-less = admin-only) and RLS updated so admins always see all.
+   This is the same shape the future Zapier feed will use (`MIGRATION_projects_shedpro.sql`). Next here:
+   generate/export saved materials lists in bulk; map raw ShedPro siding/style strings onto the calculator's
+   packages so the materials list auto-fills; use the project owner's sales-tax for the preview (today it
+   uses the viewer's, same as the calculator).
 4. **Customer reviews + public builder profiles** — depends on (3) and on the public/private
    split (§3.5). Public read RLS; likely surfaced on the marketing domain for SEO.
 5. **ShedPro Configurator integration** — external dependency; do once the internal data model is
