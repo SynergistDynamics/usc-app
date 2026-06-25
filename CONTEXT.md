@@ -50,10 +50,13 @@ src/
   modules/
     Contacts.jsx             — Contacts list (/contacts) — each builder's customers/leads; admins see all.
                                Loads its OWN data via lib/contacts.js (per-route loading, ARCHITECTURE §3.3),
-                               NOT through App.jsx loadData. Search + "Add contact" modal. First step of the
-                               ShedPro integration (leads will sync in via Zapier later).
+                               NOT through App.jsx loadData. Search + "Add contact" modal. Admins also get an
+                               inline owner-assign dropdown per row and a "Lead routing" button.
     ContactProfile.jsx       — A single contact's profile page (/contacts/:id) — editable contact info,
-                               status, address, notes; delete. RLS scopes who can load/edit it.
+                               status, address, notes; delete. Admins get an "Assigned to" builder dropdown.
+                               RLS scopes who can load/edit it.
+    LeadRoutingModal.jsx     — Admin-only modal (from Contacts) to map ShedPro territory → builder; lists
+                               unmapped territories seen on contacts, edits/removes mappings, adds new ones.
     Dashboard.jsx            — Builder Dashboard (/dashboard, landing page). Role-gated:
                                • Builders → welcome + quick links to the tools + "Coming Soon" cards
                                  (they only ever see their own data).
@@ -160,6 +163,7 @@ Notes:
   state, zip, market, status (lead|quoted|customer|closed|lost), source (manual|shedpro|zapier|…),
   **shedpro_id** (external id for Zapier upserts/dedup — plain UNIQUE index so PostgREST can use it as an
   `on_conflict` arbiter; NULLs allowed and distinct — see MIGRATION_contacts_shedpro_upsert_index.sql),
+  **shedpro_territory** (ShedPro territory tag, set by Zapier; drives owner auto-routing),
   notes, created_at, updated_at (auto via `contacts_set_updated_at` trigger). **RLS enabled**: one ALL
   policy "Builders manage own contacts, admins all" — a builder reads/writes only rows where
   `user_id = auth.uid()`, admins read/write all (same shape as referrals). Restricted to `authenticated`.
@@ -172,7 +176,16 @@ Notes:
   `user_id` null = admin-only until assigned to builders; ZIP leading zeros recovered; status defaulted to
   `lead`). 12 test/internal rows (mail-tester.com, seadev.us/shedpro.co staff, "test"/"Test Name", city="Test")
   were then deleted, leaving **686** real contacts. A few junk-but-real-looking rows (e.g. "E R", "D U",
-  "T Woods" with placeholder addresses) were intentionally kept.
+  "T Woods" with placeholder addresses) were intentionally kept. **Owner routing (2026-06-25):** the 686
+  seed rows were assigned to builders by **state** (one-time backfill: GA→Aaron, MA→Paul, TX→Jeremy,
+  PA→Jordan, CT→Noah, OH→Dennis; 113 in other states left unassigned). Going forward, owners are set by
+  territory (see `territory_routing` + trigger below) or manually in the UI.
+- `territory_routing` — admin-managed map of ShedPro **territory → builder** (`territory` PK, `user_id` →
+  profiles). A `BEFORE INSERT` trigger `contacts_auto_assign` (SECURITY DEFINER) sets a new contact's
+  `user_id` from this map when `user_id` is null and `shedpro_territory` is set — so Zapier-inserted leads
+  auto-assign to the right builder. Managed in the Contacts page → **Lead routing** modal (admins only),
+  which also assigns existing unassigned leads when a mapping is added. RLS: admins only. See
+  `MIGRATION_contacts_territory_routing.sql` (applied 2026-06-25).
 - LEGACY (kept as backup, no longer read by the app): `quantities` (old global base/add-on quantities),
   `styles` (old shed styles with markup %). Safe to drop once the migration is verified.
 

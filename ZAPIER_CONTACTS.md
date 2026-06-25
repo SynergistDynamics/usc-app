@@ -75,6 +75,7 @@ Add an action step → app **"Webhooks by Zapier"** → event **"POST"**.
 | `city` | city |
 | `state` | state |
 | `zip` | zip / postal code |
+| `shedpro_territory` | ShedPro's **territory** field (drives auto-assignment to a builder — see below) |
 | `source` | type the literal `shedpro` |
 
 **Do not send** `id`, `user_id`, `status`, `created_at`, or `updated_at`:
@@ -96,6 +97,23 @@ Add an action step → app **"Webhooks by Zapier"** → event **"POST"**.
 4. Turn the Zap **on**.
 
 ---
+
+## Owner auto-routing (territory → builder)
+
+New leads are auto-assigned to a builder based on their **territory**:
+
+1. Map ShedPro's territory field into the `shedpro_territory` data field (table above).
+2. In the app: **Contacts → ⚙ Lead routing** (admin only) maps each territory value to a builder.
+   Any territory that's arrived but isn't mapped yet shows up there under "Needs mapping".
+3. A database trigger assigns the owner automatically when the lead is inserted. If a territory
+   isn't mapped (or `shedpro_territory` is blank), the lead lands **unassigned** for an admin to
+   route by hand (the Contacts list and each contact's page both have an "assign to builder" control).
+
+You can also map a territory **before** any lead arrives via the "Add a mapping" box in that modal —
+just type the exact territory value ShedPro will send.
+
+> The historical 686 seeded contacts were assigned once by **state** (they predate territory data).
+> Territory routing applies to leads arriving from ShedPro going forward.
 
 ## Notes & gotchas
 

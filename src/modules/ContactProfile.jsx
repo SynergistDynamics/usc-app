@@ -9,7 +9,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { C } from '../lib/supabase';
 import { useAuth } from '../components/Auth';
 import {
-  getContact, updateContact, deleteContact,
+  getContact, updateContact, deleteContact, assignContact, fetchAssignableBuilders,
   CONTACT_STATUSES, STATUS_LABELS, STATUS_COLORS,
 } from '../lib/contacts';
 import {
@@ -43,6 +43,20 @@ export default function ContactProfile() {
   const [success, setSuccess] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [builders, setBuilders] = useState([]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetchAssignableBuilders().then(({ data }) => setBuilders(data || []));
+  }, [isAdmin]);
+
+  async function reassign(userId) {
+    setError('');
+    const { data, error: e } = await assignContact(id, userId);
+    if (e) { setError(e.message); return; }
+    setContact(data);
+    setSuccess(userId ? 'Owner updated.' : 'Contact unassigned.');
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -120,13 +134,30 @@ export default function ContactProfile() {
             <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
               <Badge color={STATUS_COLORS[contact.status] || 'ghost'}>{STATUS_LABELS[contact.status] || contact.status}</Badge>
               {contact.source && contact.source !== 'manual' && <Badge color="sand">via {contact.source}</Badge>}
-              {isAdmin && contact.owner && (
-                <span style={{ fontFamily:'DM Sans', fontSize:11.5, color:'#999' }}>
-                  Owner: {contact.owner.full_name || contact.owner.email}
-                </span>
+              {contact.shedpro_territory && (
+                <span style={{ fontFamily:'DM Sans', fontSize:11, color:'#aaa' }}>territory: {contact.shedpro_territory}</span>
               )}
             </div>
           </div>
+
+          {/* Owner assignment (admins) */}
+          {isAdmin ? (
+            <div style={{ marginLeft:'auto', minWidth:200 }}>
+              <Label>Assigned to</Label>
+              <Select
+                value={contact.user_id || ''}
+                onChange={reassign}
+                options={[
+                  { value:'', label:'— Unassigned —' },
+                  ...builders.map(b => ({ value:b.id, label:b.full_name || b.email })),
+                ]}
+              />
+            </div>
+          ) : contact.owner ? (
+            <div style={{ marginLeft:'auto', fontFamily:'DM Sans', fontSize:11.5, color:'#999' }}>
+              Owner: {contact.owner.full_name || contact.owner.email}
+            </div>
+          ) : null}
         </div>
       </Card>
 

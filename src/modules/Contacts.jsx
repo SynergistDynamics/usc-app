@@ -12,11 +12,13 @@ import { C } from '../lib/supabase';
 import { useAuth } from '../components/Auth';
 import {
   fetchContacts, createContact, CONTACT_STATUSES, STATUS_LABELS, STATUS_COLORS,
+  fetchAssignableBuilders, assignContact,
 } from '../lib/contacts';
 import {
   Card, SectionHeader, Button, Badge, Input, Select, Modal, FormField, Label,
   ErrorBanner, Spinner,
 } from '../components/UI';
+import LeadRoutingModal from './LeadRoutingModal';
 
 const STATUS_OPTIONS = CONTACT_STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s] }));
 
@@ -41,6 +43,9 @@ export default function Contacts() {
   const [saving,  setSaving]  = useState(false);
   const [addErr,  setAddErr]  = useState('');
 
+  const [builders,    setBuilders]    = useState([]);
+  const [showRouting, setShowRouting] = useState(false);
+
   useEffect(() => {
     function onResize() { setIsMobile(window.innerWidth <= 768); }
     window.addEventListener('resize', onResize);
@@ -55,6 +60,24 @@ export default function Contacts() {
     setContacts(data);
   }
   useEffect(() => { load(); }, []);
+
+  // Admins can assign owners, so load the builder list for the dropdowns.
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetchAssignableBuilders().then(({ data }) => setBuilders(data || []));
+  }, [isAdmin]);
+
+  const builderOptions = useMemo(() => ([
+    { value: '', label: '— Unassigned —' },
+    ...builders.map(b => ({ value: b.id, label: b.full_name || b.email })),
+  ]), [builders]);
+
+  // Reassign a contact's owner inline; update the row in place.
+  async function reassign(contactId, userId) {
+    const { data, error: e } = await assignContact(contactId, userId);
+    if (e) { setError(e.message); return; }
+    setContacts(prev => prev.map(c => (c.id === contactId ? { ...c, user_id: data.user_id, owner: data.owner } : c)));
+  }
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -90,10 +113,13 @@ export default function Contacts() {
   return (
     <div>
       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16, flexWrap:'wrap' }}>
-        <SectionHeader sub="Your customers and leads. ShedPro leads will sync in here automatically once connected.">
+        <SectionHeader sub="Your customers and leads. New ShedPro leads sync in and auto-assign by territory.">
           Contacts
         </SectionHeader>
-        <Button onClick={() => { setForm(EMPTY_FORM); setAddErr(''); setShowAdd(true); }}>+ Add contact</Button>
+        <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+          {isAdmin && <Button variant="secondary" onClick={() => setShowRouting(true)}>⚙ Lead routing</Button>}
+          <Button onClick={() => { setForm(EMPTY_FORM); setAddErr(''); setShowAdd(true); }}>+ Add contact</Button>
+        </div>
       </div>
 
       {error && <ErrorBanner onDismiss={() => setError('')}>{error}</ErrorBanner>}
@@ -148,7 +174,16 @@ export default function Contacts() {
                     {!isMobile && <Td>{c.email || '—'}</Td>}
                     {!isMobile && <Td>{c.phone || '—'}</Td>}
                     <Td><Badge color={STATUS_COLORS[c.status] || 'ghost'}>{STATUS_LABELS[c.status] || c.status}</Badge></Td>
-                    {isAdmin && !isMobile && <Td>{c.owner?.full_name || c.owner?.email || '—'}</Td>}
+                    {isAdmin && !isMobile && (
+                      <td style={{ padding:'8px 14px', verticalAlign:'top' }} onClick={e => e.stopPropagation()}>
+                        <Select
+                          value={c.user_id || ''}
+                          onChange={v => reassign(c.id, v)}
+                          options={builderOptions}
+                          style={{ fontSize:12, padding:'5px 8px', minWidth:140 }}
+                        />
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -201,6 +236,14 @@ export default function Contacts() {
             <Button onClick={addContact} loading={saving}>Save contact</Button>
           </div>
         </Modal>
+      )}
+
+      {showRouting && (
+        <LeadRoutingModal
+          builders={builders}
+          onClose={() => setShowRouting(false)}
+          onChanged={load}
+        />
       )}
 
       <style>{`
