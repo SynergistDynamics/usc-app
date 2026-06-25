@@ -129,8 +129,17 @@ Each step unblocks the next; build in this order.
    be the most-used and most-extended table. (New tables + RLS + migration.)
 4. **Customer reviews + public builder profiles** — depends on (3) and on the public/private
    split (§3.5). Public read RLS; likely surfaced on the marketing domain for SEO.
-5. **ShedPro Configurator integration** — external dependency via an Edge Function (§3.4); do
-   once the internal data model is stable so we know what we're mapping to.
+5. **ShedPro Configurator integration** — external dependency; do once the internal data model is
+   stable so we know what we're mapping to.
+   - **[STARTED] Contacts** — a `contacts` table + Contacts list (`/contacts`) and per-contact profile
+     (`/contacts/:id`), per-builder with admin-sees-all RLS (`src/modules/Contacts.jsx`,
+     `ContactProfile.jsx`, `lib/contacts.js`, `MIGRATION_contacts.sql`, 2026-06-25). Contacts are entered
+     manually today; the table carries `source` + a unique `shedpro_id` so ShedPro leads can be upserted
+     in later.
+   - **Sync mechanism: Zapier** (decided 2026-06). Rather than a custom Edge Function for the *initial*
+     lead sync, ShedPro → Zapier → Supabase REST API will insert/upsert contacts (upsert on `shedpro_id`).
+     This sidesteps shipping a ShedPro secret to the browser (§3.4) without us hosting the integration.
+     A dedicated Edge Function can still replace Zapier later if we outgrow it.
 
 Parallel track (independent of the app): **rebuild the marketing site** off Wix onto Vercel.
 

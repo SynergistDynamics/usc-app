@@ -48,6 +48,12 @@ src/
     UI.jsx                   — shared components (Button, Input, Card, Badge, Modal, Select, SectionHeader, banners, etc.)
     Auth.jsx                 — AuthProvider, login, profile loading, access gating
   modules/
+    Contacts.jsx             — Contacts list (/contacts) — each builder's customers/leads; admins see all.
+                               Loads its OWN data via lib/contacts.js (per-route loading, ARCHITECTURE §3.3),
+                               NOT through App.jsx loadData. Search + "Add contact" modal. First step of the
+                               ShedPro integration (leads will sync in via Zapier later).
+    ContactProfile.jsx       — A single contact's profile page (/contacts/:id) — editable contact info,
+                               status, address, notes; delete. RLS scopes who can load/edit it.
     Dashboard.jsx            — Builder Dashboard (/dashboard, landing page). Role-gated:
                                • Builders → welcome + quick links to the tools + "Coming Soon" cards
                                  (they only ever see their own data).
@@ -69,6 +75,9 @@ src/
     Blueprints.jsx           — Blueprints (idx 6)
     ConfiguratorPricing.jsx  — Configurator Pricing (idx 8) — 4 tabs (Base/Siding/Fixed/Variable)
     Financing.jsx            — Financing (idx 9)
+  lib/contacts.js            — Contacts data/service layer (fetch w/ 1000-row paging, get, create, update,
+                               delete) + CONTACT_STATUSES / STATUS_LABELS / STATUS_COLORS constants.
+  modules/ (cont.)
     Profile.jsx              — My Profile (/profile, all users) — each user edits their OWN profile
                                (name, business, phone, market, website, bio) + uploads a profile photo
                                to the `avatars` storage bucket. Email/role are read-only. Uses
@@ -92,6 +101,8 @@ Route Map:
 |---|---|---|
 | `/` | redirects → `/dashboard` | all |
 | `/dashboard` | Builder Dashboard | all |
+| `/contacts` | Contacts list | all (own only; admin sees all) |
+| `/contacts/:id` | Contact profile | all (own only; admin sees all) |
 | `/calculator` | Materials Calculator (PricingTool) | all |
 | `/material-prices` | Material Prices | all |
 | `/packages` | Packages (PackageManager) | admin |
@@ -111,8 +122,9 @@ Notes:
   current path is one of `SETTINGS_PATHS`.
 - `main.jsx` wraps the app in `<BrowserRouter>`. The Vercel `rewrites` rule (above) is what lets deep
   links and refreshes resolve to the SPA.
-- **Data loading is still all-at-once** in `App.jsx`'s `loadData` and passed to route elements as props
-  (modules were not changed). Per-route loading (`ARCHITECTURE.md` §3.3) is a later step.
+- **Data loading is mostly all-at-once** in `App.jsx`'s `loadData` and passed to route elements as props
+  (the original pricing/packages modules). **Contacts is the first module to load its own data per-route**
+  (via `lib/contacts.js`, ARCHITECTURE.md §3.3) instead of through `loadData` — the model for new sections.
 
 ## Supabase Tables
 - `materials` — master list (price, category, material_group, url, allow_quantity). Groups: base, addon, package_component.
@@ -143,6 +155,15 @@ Notes:
   `MIGRATION_referrals_rls.sql`). Because that hides other builders' rows, the duplicate-email check in
   ReferralRegistration uses the **`referral_email_taken(email)` SECURITY DEFINER function** — it reports
   whether an email is already registered (and when/by whom) without exposing the other builder's row.
+- `contacts` — per-builder customers/leads (first step of the ShedPro integration). Columns: user_id
+  (owner → profiles.id, defaults to auth.uid()), full_name, email, phone, company_name, address, city,
+  state, zip, market, status (lead|quoted|customer|closed|lost), source (manual|shedpro|zapier|…),
+  **shedpro_id** (external id for later Zapier upserts/dedup — partial-unique index where not null),
+  notes, created_at, updated_at (auto via `contacts_set_updated_at` trigger). **RLS enabled**: one ALL
+  policy "Builders manage own contacts, admins all" — a builder reads/writes only rows where
+  `user_id = auth.uid()`, admins read/write all (same shape as referrals). Restricted to `authenticated`.
+  See `MIGRATION_contacts.sql` (applied 2026-06-25). ShedPro leads will be pushed in LATER via **Zapier**
+  (Zapier → Supabase REST API), upserting on `shedpro_id`; there is no live API integration yet.
 - LEGACY (kept as backup, no longer read by the app): `quantities` (old global base/add-on quantities),
   `styles` (old shed styles with markup %). Safe to drop once the migration is verified.
 

@@ -5,6 +5,8 @@ import { supabase, C } from './lib/supabase';
 import { AuthProvider, useAuth, LoginPage, LoadingScreen, BlockedScreen } from './components/Auth';
 import { Spinner, Button } from './components/UI';
 import Dashboard             from './modules/Dashboard';
+import Contacts              from './modules/Contacts';
+import ContactProfile        from './modules/ContactProfile';
 import PricingTool           from './modules/PricingTool';
 import MaterialPriceManager  from './modules/MaterialPriceManager';
 import AdminPanel            from './modules/AdminPanel';
@@ -46,6 +48,7 @@ function AppShell() {
 //   /financing             = Financing
 const ROUTES = {
   dashboard:    '/dashboard',
+  contacts:     '/contacts',
   calculator:   '/calculator',
   matPrices:    '/material-prices',
   packages:     '/packages',
@@ -246,6 +249,7 @@ function AppInner() {
 
           {/* Dashboard */}
           <NavBtn to={ROUTES.dashboard}    icon="🏡" label="Dashboard"              sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
+          <NavBtn to={ROUTES.contacts}     icon="📇" label="Contacts"               sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
 
           {/* Main tools */}
           <NavBtn to={ROUTES.calculator}   icon="⚡" label="Materials Calculator"   sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
@@ -322,6 +326,8 @@ function AppInner() {
           <Routes>
             <Route path="/" element={<Navigate to={ROUTES.dashboard} replace />} />
             <Route path={ROUTES.dashboard} element={<Dashboard />} />
+            <Route path={ROUTES.contacts} element={<Contacts />} />
+            <Route path={`${ROUTES.contacts}/:id`} element={<ContactProfile />} />
             <Route path={ROUTES.calculator} element={<PricingTool materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styleMults={styleMults} />} />
             <Route path={ROUTES.matPrices} element={<MaterialPriceManager materials={materials} overrides={overrides} setOverrides={setOverrides} onMasterUpdated={loadData} />} />
             <Route path={ROUTES.packages} element={isAdmin ? <PackageManager materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} onRefresh={loadData} /> : <Navigate to={ROUTES.calculator} replace />} />
