@@ -72,13 +72,15 @@ src/
                                  (size/style/siding/multiplier), selected option packages, ShedPro finishes &
                                  colors, renderings, pricing (material/labor/calc + sale price) and notes. A
                                  "🖨 Print work order" button opens it in a clean print window (same new-window
-                                 innerHTML technique as PricingTool's printList). The editable fields (name,
-                                 status, sale price, notes) live in an "Edit project details" card BELOW the
-                                 document (not printed).
-                               • "Materials List" — the editable shed spec (size, style, siding, option packages,
-                                 overrides) + a live materials list. Reuses PricingTool's exported ConfigPanel +
-                                 MaterialsListTab + buildOutput (one engine); editing the spec here updates the
-                                 work order too. Save/Delete actions are shared below both tabs.
+                                 innerHTML technique as PricingTool's printList). ALL editing happens here, below
+                                 the document (not printed): an "Edit project details" card (name, status, sale
+                                 price, notes) PLUS a "Shed specification" card with PricingTool's ConfigPanel
+                                 (size, style, siding, option packages, overrides) — the single place to edit the
+                                 spec. Editing the spec updates both the work order doc and the Materials List tab.
+                               • "Materials List" — READ-ONLY. Shows the live materials list generated from the
+                                 spec via PricingTool's exported MaterialsListTab + buildOutput (one engine). No
+                                 config controls here (a link sends you to the Work Order tab to edit the spec).
+                                 Save/Delete actions are shared below both tabs.
                                Needs the global material/package data, passed as props like the calculator.
     LeadRoutingModal.jsx     — Admin-only modal (from Contacts) to map ShedPro territory → builder; lists
                                unmapped territories seen on contacts, edits/removes mappings, adds new ones.
