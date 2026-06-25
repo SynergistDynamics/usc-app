@@ -254,7 +254,6 @@ function AppInner() {
           {/* Dashboard */}
           <NavBtn to={ROUTES.dashboard}    icon="🏡" label="Dashboard"              sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
           <NavBtn to={ROUTES.contacts}     icon="📇" label="Contacts"               sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
-          <NavBtn to={ROUTES.projects}     icon="🏗" label="Projects"               sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
           <NavBtn to={ROUTES.soldProjects} icon="✅" label="Sold Projects"          sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
 
           {/* Main tools */}
