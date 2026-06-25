@@ -266,7 +266,7 @@ function AppInner() {
 
           {isAdmin && <div style={{ margin:'10px 16px', borderTop:'1px solid rgba(255,255,255,0.07)' }} />}
           {isAdmin && <NavBtn to={ROUTES.admin} icon="🛠" label="Admin" sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />}
-          {/* Supabase / Netlify links moved into Admin → Tech Stack (super admin only) */}
+          {/* Tech-stack links (Supabase, Vercel, …) live in Admin → Tech Stack (super admin only) */}
 
         </nav>
 

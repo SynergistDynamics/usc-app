@@ -17,8 +17,8 @@ resources, and financing info.
 - **Frontend:** React 19 + Vite, **React Router 7** for client-side routing (real URLs)
 - **Backend/Auth/DB:** Supabase (project ID `ywboyreznmuaddprkycm`)
 - **Hosting:** Vercel (static). Live app domain: `https://build.urban-sheds.com` (CNAME → `cname.vercel-dns.com`,
-  DNS managed in Cloudflare, "DNS only"/grey-cloud so Vercel issues SSL). Migrated off Netlify in 2026-06.
-  The old `urban-sheds.co` (Netlify) is being retired; a separate marketing site lives at `urban-sheds.com`.
+  DNS managed in Cloudflare, "DNS only"/grey-cloud so Vercel issues SSL). Migrated off Netlify in 2026-06;
+  Netlify is now fully retired (host disconnected). A separate marketing site lives at `urban-sheds.com`.
   Note: `app.urban-sheds.com` is a *different* app (legacy Adalo, still live) — this app uses the `build` subdomain.
 - **Build:** `npm run build` → outputs to `dist/`
 - **Deploy:** Vercel is connected to GitHub for **continuous deployment** — every push to `main`
@@ -29,8 +29,7 @@ resources, and financing info.
     `build.urban-sheds.com/admin` work. `vercel.json`'s `rewrites` rule serves `index.html` for any path
     (Vercel auto-detects the Vite framework, build command, and `dist` output, but `vercel.json` pins them
     explicitly) — this is what makes deep links / refresh resolve to the SPA. The old `public/_redirects`
-    (`/* /index.html 200`) is Netlify-specific; Vercel ignores it. It's kept as a harmless fallback during
-    the host migration and can be deleted once Netlify is fully retired.
+    (`/* /index.html 200`) was Netlify-specific and has been removed now that Netlify is fully retired.
 - **Env:** requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. In Vercel these live in the project's
   Environment Variables; for local dev put them in `.env` (see `.env.example`). `.env` is gitignored — never commit it.
 
@@ -38,7 +37,7 @@ resources, and financing info.
 ```
 /index.html                  — Vite entry HTML (loads /src/main.jsx)
 /package.json, vite.config.js, eslint.config.js
-/public/                     — _redirects (SPA routing) + static assets (favicon.svg, etc.)
+/public/                     — static assets (favicon.svg, hero.png, icons.svg, etc.)
 src/
   App.jsx                    — shell, sidebar nav (NavLink), data loading, <Routes> definitions, mobile hamburger
   main.jsx                   — entry point; wraps <App/> in <BrowserRouter>
@@ -211,7 +210,8 @@ Notes:
   `profiles.multiplier` is now legacy (seed source for style_multipliers); no longer used directly in pricing.
 - `tech_stack` — super-admin-only list of the software this app runs on (name, url, username/signup email,
   sort_order). RLS restricts all access to super admins. Managed in Admin → Tech Stack. The old sidebar
-  Supabase/Netlify links were moved here. See `MIGRATION_super_admin_tech_stack.sql`.
+  Supabase link was moved here (the Netlify row was removed in 2026-06 when Netlify was retired; Vercel
+  is the current host). See `MIGRATION_super_admin_tech_stack.sql`.
 - `referrals` — builder referrals (name, email, market, status, referred_by, notes). **RLS enabled**:
   a builder reads/writes only their own rows (`referred_by = auth.uid()`); admins see all (see
   `MIGRATION_referrals_rls.sql`). Because that hides other builders' rows, the duplicate-email check in

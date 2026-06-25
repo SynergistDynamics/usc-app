@@ -34,8 +34,8 @@ npm run build
 ```
 
 The production build is output to `dist/`. SPA routing (serving `index.html` for any path) is
-handled by `vercel.json`'s `rewrites` rule. The legacy `public/_redirects` file is kept as a
-harmless fallback for Netlify and is ignored by Vercel.
+handled by `vercel.json`'s `rewrites` rule. (The app was previously hosted on Netlify; that host
+was fully retired in 2026-06 and the Netlify-only `public/_redirects` file has been removed.)
 
 **Deployment is automatic.** Vercel is connected to this GitHub repo: every push to `main`
 auto-builds (`npm run build`) and publishes `dist/`. Day-to-day flow: work on a feature branch,

@@ -28,11 +28,11 @@ create policy tech_stack_super_admin on tech_stack for all
   using      ( exists (select 1 from profiles p where p.id = auth.uid() and p.is_super_admin = true) )
   with check ( exists (select 1 from profiles p where p.id = auth.uid() and p.is_super_admin = true) );
 
--- 5) Seed the existing Supabase + Netlify links (username left blank — fill in via the UI)
+-- 5) Seed the Supabase link (username left blank — fill in via the UI)
+-- Netlify was retired in 2026-06 (app now hosted on Vercel); add the Vercel link via the UI.
 insert into tech_stack (name, url, username, sort_order)
 select v.name, v.url, v.username, v.sort_order
 from (values
-  ('Supabase', 'https://supabase.com/dashboard/project/ywboyreznmuaddprkycm',      null::text, 1),
-  ('Netlify',  'https://app.netlify.com/projects/delightful-souffle-129a04/overview', null::text, 2)
+  ('Supabase', 'https://supabase.com/dashboard/project/ywboyreznmuaddprkycm',      null::text, 1)
 ) as v(name, url, username, sort_order)
 where not exists (select 1 from tech_stack t where t.name = v.name);

@@ -53,5 +53,4 @@ the Supabase SQL Editor, and confirm it's been run before relying on it.
 - Supabase env vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) are configured in Vercel's
   Project Settings → Environment Variables, so builds always have them.
 - SPA routing is handled by the `rewrites` rule in `vercel.json` (serve `index.html` for any path).
-  The old `public/_redirects` is Netlify-specific (ignored by Vercel) and kept only as a migration
-  fallback — safe to delete once Netlify is fully retired.
+  The old Netlify-specific `public/_redirects` was removed in 2026-06 now that Netlify is fully retired.
