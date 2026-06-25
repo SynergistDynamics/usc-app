@@ -64,13 +64,22 @@ src/
                                only projects whose contact they own (RLS). Loads its own data via lib/projects.js.
                                "+ New project" opens a contact picker. Sold view filters to sold/completed and
                                shows a total-sold sum.
-    ProjectDetail.jsx        — A single project's page (/projects/:id) — edit name, status, sale price, notes,
-                               AND the full shed spec (size, style, siding, option packages, overrides). The
-                               spec reuses PricingTool's exported ConfigPanel + MaterialsListTab + buildOutput,
-                               so a live materials list renders from the saved project (one engine). Needs the
-                               global material/package data, passed as props like the calculator. Also shows a
-                               read-only "ShedPro order details" card (renderings + configured options/colors)
-                               for synced/seeded projects.
+    ProjectDetail.jsx        — A single project's page (/projects/:id), presented as a printable WORK ORDER
+                               with TWO TABS:
+                               • "Work Order" — a formatted, printable work-order document (rendered inside
+                                 #work-order-print) showing every relevant detail: customer (name/company/full
+                                 mailing address/phone/email, from the embedded contact), builder, shed spec
+                                 (size/style/siding/multiplier), selected option packages, ShedPro finishes &
+                                 colors, renderings, pricing (material/labor/calc + sale price) and notes. A
+                                 "🖨 Print work order" button opens it in a clean print window (same new-window
+                                 innerHTML technique as PricingTool's printList). The editable fields (name,
+                                 status, sale price, notes) live in an "Edit project details" card BELOW the
+                                 document (not printed).
+                               • "Materials List" — the editable shed spec (size, style, siding, option packages,
+                                 overrides) + a live materials list. Reuses PricingTool's exported ConfigPanel +
+                                 MaterialsListTab + buildOutput (one engine); editing the spec here updates the
+                                 work order too. Save/Delete actions are shared below both tabs.
+                               Needs the global material/package data, passed as props like the calculator.
     LeadRoutingModal.jsx     — Admin-only modal (from Contacts) to map ShedPro territory → builder; lists
                                unmapped territories seen on contacts, edits/removes mappings, adds new ones.
     Dashboard.jsx            — Builder Dashboard (/dashboard, landing page). Role-gated:
@@ -108,8 +117,9 @@ src/
                                delete) + CONTACT_STATUSES / STATUS_LABELS / STATUS_COLORS constants.
   lib/projects.js            — Projects data/service layer (fetchProjects w/ 1000-row paging + soldOnly filter,
                                fetchProjectsForContact, get, create, update, delete) + PROJECT_STATUSES /
-                               LABELS / COLORS, SOLD_STATUSES, isSoldStatus. Embeds the parent contact (+owner)
-                               and the style package name in its SELECT.
+                               LABELS / COLORS, SOLD_STATUSES, isSoldStatus. Embeds the parent contact — incl.
+                               full contact details (phone, address, city, state, zip) so ProjectDetail can
+                               render a complete work order — plus its owner profile, and the style package name.
   modules/ (cont.)
     Profile.jsx              — My Profile (/profile, all users) — each user edits their OWN profile
                                (name, business, phone, market, website, bio) + uploads a profile photo
