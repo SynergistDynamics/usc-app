@@ -293,6 +293,13 @@ Notes:
 - **Check constraints:** adding new enum-like values requires ALTER. E.g. `packages_siding_type_check` allows `clapboard`, `bAndB`, `t111`. Adding new siding types requires updating that constraint.
 - **RLS can silently block writes** (delete/update return no error but affect 0 rows). When a write "succeeds" but data doesn't change, suspect RLS policies. deleteUser in AdminPanel uses `count:'exact'` to detect this and falls back to setting role='blocked'.
 - **No IIFEs inside JSX conditionals** — `{cond && (()=>{...})()}` breaks rendering. Use named helper functions instead (see ConfiguratorPricing FixedOptionsTab/VariableOptionsTab).
+- **NEVER put `className="usc-table-scroll"` on a TAB STRIP.** That class sets `overflow-x:auto` AND
+  `overflow-y:auto`, so a 2px-bottom-border tab row overflows vertically by a hair and renders a stray
+  little vertical scrollbar. `usc-table-scroll` is for *wide data tables only*. For a horizontally
+  scrolling tab strip use **inline `overflowX:'auto'` + `overflowY:'hidden'`** (plus `flexShrink:0` tabs).
+  This bit the Dashboard, then the Project Detail / Sold Projects / Configurator / Packages / Affiliate
+  tab strips — all five were converted to the inline pattern (2026-06-25). If you add a new tabbed view,
+  copy that inline pattern, not the class.
 - **NavBtn/ExtLink must be defined OUTSIDE AppInner** in App.jsx — defining them inside causes infinite re-render crashes.
 - **Mobile responsive uses JS `isMobile` state**, NOT CSS attribute selectors. React renders inline styles as kebab-case in the DOM (e.g. `grid-template-columns`), so selectors like `div[style*="gridTemplateColumns"]` never match. Each responsive module tracks `isMobile` via a resize listener.
 - **Vite build cache** can serve stale output. If a build seems wrong, `rm -rf dist node_modules/.vite` then rebuild.
@@ -338,6 +345,7 @@ anytime a style grid looks empty/partial.
 - Colors: `C` object in supabase.js — sage #7A9B76, sand #B8986A, charcoal #1A1510, linen #FFFDF9
 - Fonts: Cormorant Garamond (headings), DM Sans (body/UI)
 - Tables that can overflow use `className="usc-table-scroll"` for horizontal scroll on mobile (class defined in App.jsx globalStyles).
+  **Do NOT use it for tab strips** — it adds `overflow-y:auto` and yields a stray vertical scrollbar; tab strips use inline `overflowX:'auto'` + `overflowY:'hidden'` (see the gotcha above).
 - Builder-facing labels: "Local Price" (not "Your Price"), "Local Supplier" (not "Supplier").
 
 ## Access / Invitation Flow

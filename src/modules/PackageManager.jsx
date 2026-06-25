@@ -249,7 +249,7 @@ export default function PackageManager({ materials, overrides, packages, pkgMate
       </div>
 
       {/* Tabs */}
-      <div className="usc-table-scroll" style={{ display:'flex', gap:0, marginBottom:24, borderBottom:`2px solid ${C.linenDarker}`, flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: isMobile ? 'auto' : 'visible' }}>
+      <div style={{ display:'flex', gap:0, marginBottom:24, borderBottom:`2px solid ${C.linenDarker}`, flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: isMobile ? 'auto' : 'visible', overflowY:'hidden' }}>
         {TABS.map(([key,label]) => {
           const count = packages.filter(p => pkgTab(p) === key).length;
           return (
