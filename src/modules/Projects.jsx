@@ -51,7 +51,7 @@ export default function Projects({ soldOnly = false }) {
     const q = search.trim().toLowerCase();
     if (!q) return projects;
     return projects.filter(p =>
-      [p.name, p.contact?.full_name, p.contact?.company_name, p.shed_size, p.style_package?.name]
+      [p.name, p.contact?.full_name, p.contact?.company_name, p.customer_email, p.project_number, p.shed_size, p.style_package?.name]
         .filter(Boolean).some(v => String(v).toLowerCase().includes(q))
     );
   }, [projects, search]);
@@ -121,7 +121,7 @@ export default function Projects({ soldOnly = false }) {
                         <div style={{ color:'#888', fontSize:12, marginTop:2 }}>{p.shed_size}{p.style_package?.name ? ` · ${p.style_package.name}` : ''}</div>
                       )}
                     </Td>
-                    <Td>{p.contact?.full_name || p.contact?.company_name || p.contact?.email || '—'}</Td>
+                    <Td>{p.contact?.full_name || p.contact?.company_name || p.contact?.email || p.customer_email || '—'}</Td>
                     {!isMobile && <Td>{p.shed_size || '—'}</Td>}
                     {!isMobile && <Td>{p.style_package?.name || '—'}</Td>}
                     <Td><Badge color={PROJECT_STATUS_COLORS[p.status] || 'ghost'}>{PROJECT_STATUS_LABELS[p.status] || p.status}</Badge></Td>

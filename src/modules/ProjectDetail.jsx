@@ -207,6 +207,9 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
         </div>
       </Card>
 
+      {/* ShedPro order details (read-only) — present on synced/seeded projects */}
+      <ShedProDetails project={project} isMobile={isMobile} />
+
       {/* Shed spec + live materials list (same as the Materials Calculator) */}
       <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand, marginBottom:12 }}>
         Shed spec & materials list
@@ -266,5 +269,72 @@ function BackLink() {
     <Link to="/projects" style={{ fontFamily:'DM Sans', fontSize:13, color:C.sage, textDecoration:'none', display:'inline-flex', alignItems:'center', gap:6 }}>
       ← All projects
     </Link>
+  );
+}
+
+// Read-only ShedPro order details — renderings + the configured options/colors that
+// came from ShedPro (today seeded from the CSV export, later via Zapier). Only shows
+// for projects that carry ShedPro data; the editable spec above stays the calculator's.
+function ShedProDetails({ project, isMobile }) {
+  if (!project) return null;
+  const renders = [
+    project.rendering_url_1, project.rendering_url_2, project.rendering_url_3,
+    project.rendering_url_4, project.layout_rendering_url,
+  ].filter(Boolean);
+
+  // [label, value] pairs — only the ones that have a value are shown.
+  const specs = [
+    ['Project #', project.project_number && `#${project.project_number}`],
+    ['Customer', project.customer_email],
+    ['Builder (ShedPro)', project.builder_email],
+    ['Construction date', project.construction_date],
+    ['Siding type', project.siding_type],
+    ['Overhang', project.overhang_size],
+    ['Siding color', project.siding_color],
+    ['Trim color', project.trim_color],
+    ['Door color', project.door_color],
+    ['Roof color', project.roof_color],
+    ['Doors', project.doors],
+    ['Windows', project.windows],
+    ['Vents', project.vents],
+    ['Roof', project.roof],
+    ['Floor', project.floor],
+    ['Transom', project.transom_package],
+    ['Site prep', project.site_prep],
+    ['Building permit', project.building_permit],
+    ['Access', project.access],
+    ['Additional features', project.additional_features],
+  ].filter(([, v]) => v != null && String(v).trim() !== '');
+
+  if (!renders.length && !specs.length) return null;
+
+  return (
+    <Card style={{ marginBottom:20 }}>
+      <div style={{ fontFamily:'Cormorant Garamond, serif', fontSize:20, fontWeight:600, color:C.charcoal, marginBottom:14 }}>
+        ShedPro order details
+      </div>
+
+      {renders.length > 0 && (
+        <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginBottom: specs.length ? 18 : 0 }}>
+          {renders.map((url, i) => (
+            <a key={i} href={url} target="_blank" rel="noreferrer" style={{ display:'block', flexShrink:0 }}>
+              <img src={url} alt="" loading="lazy"
+                style={{ width: isMobile ? 100 : 130, height: isMobile ? 75 : 98, objectFit:'cover', borderRadius:4, border:`1px solid ${C.linenDarker}`, background:C.linen }} />
+            </a>
+          ))}
+        </div>
+      )}
+
+      {specs.length > 0 && (
+        <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)', gap:'12px 20px' }}>
+          {specs.map(([label, value]) => (
+            <div key={label}>
+              <div style={{ fontFamily:'DM Sans', fontSize:9.5, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:C.sand }}>{label}</div>
+              <div style={{ fontFamily:'DM Sans', fontSize:13, color:C.charcoal, marginTop:2, wordBreak:'break-word' }}>{value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
