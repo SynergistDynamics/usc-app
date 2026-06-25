@@ -111,7 +111,7 @@ export default function Projects({ soldOnly = false }) {
       </div>
 
       {showBuilderTabs && builderTabs.length > 0 && (
-        <div className="usc-table-scroll" style={{ display:'flex', gap:0, marginBottom:18, borderBottom:`2px solid ${C.linenDarker}`, flexWrap:'nowrap', overflowX:'auto' }}>
+        <div style={{ display:'flex', gap:0, marginBottom:18, borderBottom:`2px solid ${C.linenDarker}`, flexWrap:'nowrap', overflowX:'auto', overflowY:'hidden' }}>
           {[{ id:'all', name:'All', count:projects.length }, ...builderTabs].map(t => (
             <button key={t.id} onClick={() => setBuilderTab(t.id)}
               style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, padding: isMobile ? '9px 13px' : '9px 18px', border:'none', cursor:'pointer', background:'transparent', color: builderTab===t.id ? C.sage : '#aaa', borderBottom: builderTab===t.id ? `2px solid ${C.sage}` : '2px solid transparent', marginBottom:-2, transition:'all 0.15s', whiteSpace:'nowrap', flexShrink:0 }}>

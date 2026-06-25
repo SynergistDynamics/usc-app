@@ -163,7 +163,7 @@ export default function AffiliateResources() {
       </div>
 
       {/* Tabs */}
-      <div className="usc-table-scroll" style={{ display:'flex', gap:0, marginBottom:28, borderBottom:`2px solid ${C.linenDarker}`, overflowX: isMobile ? 'auto' : 'visible' }}>
+      <div style={{ display:'flex', gap:0, marginBottom:28, borderBottom:`2px solid ${C.linenDarker}`, overflowX: isMobile ? 'auto' : 'visible', overflowY:'hidden' }}>
         <button style={tabStyle('program')} onClick={()=>setActiveTab('program')}>Program</button>
         <button style={tabStyle('resources')} onClick={()=>setActiveTab('resources')}>Recruiting Resources</button>
         <button style={tabStyle('referrals')} onClick={()=>setActiveTab('referrals')}>
