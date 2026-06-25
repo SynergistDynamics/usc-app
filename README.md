@@ -53,6 +53,8 @@ src/
     UI.jsx                   — shared UI components
     Auth.jsx                 — auth provider, login, gating
   modules/
+    Contacts.jsx / ContactProfile.jsx — Customers/leads list + profile (with the contact's projects)
+    Projects.jsx / ProjectDetail.jsx  — Projects + Sold Projects lists; per-project shed spec & materials list
     PricingTool.jsx          — Materials List Generator
     MaterialPriceManager.jsx — Material Prices (with local price overrides + sales tax)
     PackageManager.jsx       — Packages (admin) — Shed Styles, Siding, Fixed, Size-Variable tabs

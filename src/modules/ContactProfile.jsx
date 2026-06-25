@@ -13,9 +13,14 @@ import {
   CONTACT_STATUSES, STATUS_LABELS, STATUS_COLORS,
 } from '../lib/contacts';
 import {
+  fetchProjectsForContact, createProject,
+  PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS,
+} from '../lib/projects';
+import {
   Card, Button, Badge, Input, Select, FormField, Label, Modal,
   ErrorBanner, SuccessBanner, Spinner,
 } from '../components/UI';
+import { fmt } from '../lib/supabase';
 
 const STATUS_OPTIONS = CONTACT_STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s] }));
 
@@ -216,6 +221,9 @@ export default function ContactProfile() {
         </div>
       </Card>
 
+      {/* Projects for this contact */}
+      <ContactProjects contactId={id} navigate={navigate} />
+
       {confirmDelete && (
         <Modal title="Delete contact?" onClose={() => setConfirmDelete(false)} width={420}>
           <p style={{ fontFamily:'DM Sans', fontSize:14, color:C.charcoal, marginTop:0 }}>
@@ -242,5 +250,77 @@ function BackLink() {
     <Link to="/contacts" style={{ fontFamily:'DM Sans', fontSize:13, color:C.sage, textDecoration:'none', display:'inline-flex', alignItems:'center', gap:6 }}>
       ← All contacts
     </Link>
+  );
+}
+
+// This contact's projects — a contact can have many. New projects are created
+// here (contact pre-selected) and open straight into the project page.
+function ContactProjects({ contactId, navigate }) {
+  const [projects, setProjects] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState('');
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const { data, error: e } = await fetchProjectsForContact(contactId);
+      if (cancelled) return;
+      setLoading(false);
+      if (e) { setError(e.message); return; }
+      setProjects(data || []);
+    })();
+    return () => { cancelled = true; };
+  }, [contactId]);
+
+  async function addProject() {
+    setCreating(true); setError('');
+    const { data, error: e } = await createProject({ contact_id: contactId, status: 'draft' });
+    setCreating(false);
+    if (e) { setError(e.message); return; }
+    navigate(`/projects/${data.id}`);
+  }
+
+  return (
+    <Card style={{ marginTop:20 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:14, flexWrap:'wrap' }}>
+        <div style={{ fontFamily:'Cormorant Garamond, serif', fontSize:20, fontWeight:600, color:C.charcoal }}>Projects</div>
+        <Button size="sm" onClick={addProject} loading={creating}>+ New project</Button>
+      </div>
+
+      {error && <ErrorBanner onDismiss={() => setError('')}>{error}</ErrorBanner>}
+
+      {loading ? (
+        <div style={{ display:'flex', justifyContent:'center', padding:20 }}><Spinner size={22} /></div>
+      ) : projects.length === 0 ? (
+        <div style={{ fontFamily:'DM Sans', fontSize:13.5, color:'#999', padding:'6px 2px' }}>
+          No projects for this contact yet. Create one to spec a shed and generate a materials list.
+        </div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column' }}>
+          {projects.map(p => (
+            <div
+              key={p.id}
+              onClick={() => navigate(`/projects/${p.id}`)}
+              style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 4px', borderTop:`1px solid ${C.linenDarker}`, cursor:'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.background = C.linen}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontFamily:'DM Sans', fontSize:14, fontWeight:600, color:C.charcoal }}>{p.name || 'Untitled project'}</div>
+                <div style={{ fontFamily:'DM Sans', fontSize:12, color:'#999', marginTop:1 }}>
+                  {[p.shed_size, p.style_package?.name, p.siding].filter(Boolean).join(' · ') || 'No spec yet'}
+                </div>
+              </div>
+              {p.sale_price != null && (
+                <span style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, color:C.sageDark }}>{fmt(p.sale_price)}</span>
+              )}
+              <Badge color={PROJECT_STATUS_COLORS[p.status] || 'ghost'}>{PROJECT_STATUS_LABELS[p.status] || p.status}</Badge>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
