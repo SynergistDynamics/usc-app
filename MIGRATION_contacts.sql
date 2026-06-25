@@ -37,10 +37,13 @@ create table if not exists public.contacts (
 );
 
 create index if not exists contacts_user_id_idx on public.contacts(user_id);
--- Partial unique index lets a future Zapier integration upsert on conflict(shedpro_id)
--- without colliding on the many manual rows that have no shedpro_id.
+-- Unique index on shedpro_id so the Zapier integration can upsert on conflict(shedpro_id).
+-- NOTE: this started as a PARTIAL unique index (WHERE shedpro_id IS NOT NULL), but a partial
+-- index can't serve as a PostgREST ON CONFLICT arbiter — MIGRATION_contacts_shedpro_upsert_index.sql
+-- replaced it with the plain unique index below. A plain unique index still allows many NULL
+-- shedpro_id rows (NULLs are distinct), so seeded/manual contacts are unaffected.
 create unique index if not exists contacts_shedpro_id_key
-  on public.contacts(shedpro_id) where shedpro_id is not null;
+  on public.contacts(shedpro_id);
 
 -- 2. Keep updated_at fresh ----------------------------------------------------
 create or replace function public.set_contacts_updated_at()

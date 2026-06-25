@@ -158,12 +158,16 @@ Notes:
 - `contacts` — per-builder customers/leads (first step of the ShedPro integration). Columns: user_id
   (owner → profiles.id, defaults to auth.uid()), full_name, email, phone, company_name, address, city,
   state, zip, market, status (lead|quoted|customer|closed|lost), source (manual|shedpro|zapier|…),
-  **shedpro_id** (external id for later Zapier upserts/dedup — partial-unique index where not null),
+  **shedpro_id** (external id for Zapier upserts/dedup — plain UNIQUE index so PostgREST can use it as an
+  `on_conflict` arbiter; NULLs allowed and distinct — see MIGRATION_contacts_shedpro_upsert_index.sql),
   notes, created_at, updated_at (auto via `contacts_set_updated_at` trigger). **RLS enabled**: one ALL
   policy "Builders manage own contacts, admins all" — a builder reads/writes only rows where
   `user_id = auth.uid()`, admins read/write all (same shape as referrals). Restricted to `authenticated`.
-  See `MIGRATION_contacts.sql` (applied 2026-06-25). ShedPro leads will be pushed in LATER via **Zapier**
-  (Zapier → Supabase REST API), upserting on `shedpro_id`; there is no live API integration yet.
+  See `MIGRATION_contacts.sql` (applied 2026-06-25). **ShedPro → Zapier → Supabase REST** integration:
+  Zapier (ShedPro native "New Customer" trigger) POSTs to `/rest/v1/contacts?on_conflict=shedpro_id` with
+  the service_role key + `Prefer: resolution=merge-duplicates`, upserting on `shedpro_id`. Setup steps live
+  in `ZAPIER_CONTACTS.md`. The write bypasses RLS (service_role), so incoming leads land with `user_id` null
+  (admin-only) unless Zapier sets an owner.
   **Seeded 2026-06-25** with 698 rows from a ShedPro customer export (`source='shedpro'`, `shedpro_id` null,
   `user_id` null = admin-only until assigned to builders; ZIP leading zeros recovered; status defaulted to
   `lead`). 12 test/internal rows (mail-tester.com, seadev.us/shedpro.co staff, "test"/"Test Name", city="Test")
