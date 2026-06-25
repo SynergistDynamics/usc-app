@@ -224,14 +224,16 @@ Notes:
   projects via `lib/projects.js` (1000-row paging; embeds contact+owner and style package name). The Sold
   Projects page filters status ∈ {sold, completed}; ProjectDetail shows a read-only "ShedPro order details"
   card (renderings + configured options/colors). See `MIGRATION_projects.sql` + `MIGRATION_projects_shedpro.sql`
-  + `MIGRATION_projects_style_mapping.sql` (all applied 2026-06-25). **Seeded 2026-06-25** with **870 rows** from a
+  + `MIGRATION_projects_style_mapping.sql` + `MIGRATION_projects_siding_mapping.sql` (all applied 2026-06-25). **Seeded 2026-06-25** with **870 rows** from a
   ShedPro "Shed Projects" export (`source='shedpro'`; 37 with a Date Sold → status `sold`, the other 833 →
   `quoted`; all 870 rows kept incl. ~114 price-revision rows sharing a project #; linked to contacts by customer
   email — 801/870 matched, the 69 unmatched left contact-less/admin-only; rendering URLs reconstructed from a
   shared CloudFront prefix). The raw `shed_style` text was then **mapped to style_package_id** (Tall Modern→High
   Wall Modern, Tall Traditional→High Wall Traditional, Modern→Modern, Traditional→Traditional) so projects link to
-  real style packages. A few test/internal rows (seadev/shedpro.co/mail-tester) came along in the export and are
-  harmless admin-only noise.
+  real style packages. The raw `siding_type` was likewise **mapped to the calculator `siding` value** (LP Lap*→
+  Clapboard, LP Smart*/`*T1-11*`→T1-11, Board & Batten→B&B, Western Red Cedar→Western Red Cedar; blanks left
+  unset) so the materials list resolves siding too. A few test/internal rows (seadev/shedpro.co/mail-tester) came
+  along in the export and are harmless admin-only noise.
 - `territory_routing` — admin-managed map of ShedPro **territory → builder** (`territory` PK, `user_id` →
   profiles). A `BEFORE INSERT` trigger `contacts_auto_assign` (SECURITY DEFINER) sets a new contact's
   `user_id` from this map when `user_id` is null and `shedpro_territory` is set — so Zapier-inserted leads
