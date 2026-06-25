@@ -75,15 +75,21 @@ src/
                                  (size/style/siding/multiplier), selected option packages, ShedPro finishes &
                                  colors, renderings, pricing (material/labor/calc + sale price) and notes. A
                                  "🖨 Print work order" button opens it in a clean print window (same new-window
-                                 innerHTML technique as PricingTool's printList). ALL editing happens here, below
-                                 the document (not printed): an "Edit project details" card (name, status, sale
-                                 price, notes) PLUS a "Shed specification" card with PricingTool's ConfigPanel
-                                 (size, style, siding, option packages, overrides) — the single place to edit the
-                                 spec. Editing the spec updates both the work order doc and the Materials List tab.
+                                 innerHTML technique as PricingTool's printList). The page only DISPLAYS the saved
+                                 project — all editing is in a modal (see below).
                                • "Materials List" — READ-ONLY. Shows the live materials list generated from the
                                  spec via PricingTool's exported MaterialsListTab + buildOutput (one engine). No
-                                 config controls here (a link sends you to the Work Order tab to edit the spec).
-                                 Save/Delete actions are shared below both tabs.
+                                 config controls here (an "Edit the spec" link opens the edit modal).
+                               EDITING — an "✎ Edit project" button (header + footer) opens **EditProjectModal**:
+                               name, status, sale price, notes, the shed spec (PricingTool's ConfigPanel: size,
+                               style, siding, option packages, overrides), and — for **admins** — an "Assigned
+                               builder" dropdown. The modal edits a draft and only persists on Save (Cancel
+                               discards); "Use calc" reflects the draft spec's live price. The assigned-builder
+                               control reassigns the project's CONTACT owner (contacts.user_id via
+                               assignContact) — ownership is derived from the contact, so it changes the builder
+                               for ALL of that contact's projects (the modal flags this); it's hidden for
+                               contact-less projects. Builders (non-admin) don't see the builder control. Delete
+                               lives in the footer.
                                Needs the global material/package data, passed as props like the calculator.
     LeadRoutingModal.jsx     — Admin-only modal (from Contacts) to map ShedPro territory → builder; lists
                                unmapped territories seen on contacts, edits/removes mappings, adds new ones.
