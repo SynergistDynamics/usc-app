@@ -39,8 +39,10 @@ export const isSoldStatus = (s) => SOLD_STATUSES.includes(s);
 // (with its owner profile) so the list can show who the project is for and, for
 // admins, which builder owns it; and the style package so the list can show the
 // style name without loading every package.
+// We embed the parent contact's full mailing/contact details too (phone, address,
+// city, state, zip) so the Project Detail page can render a complete work order.
 const SELECT =
-  '*, contact:contacts(id, full_name, company_name, email, user_id, owner:profiles(full_name, email)), style_package:packages(name)';
+  '*, contact:contacts(id, full_name, company_name, email, phone, address, city, state, zip, user_id, owner:profiles(full_name, email, company_name, phone)), style_package:packages(name)';
 
 // Fetch every project the current user can see. Pages in 1000-row chunks because
 // PostgREST caps SELECTs at 1000 rows and .range() does NOT bypass that cap
