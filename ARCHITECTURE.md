@@ -125,8 +125,15 @@ Each step unblocks the next; build in this order.
    ShedPro/projects are connected; profile data we already have is shown for real. Builders only ever
    see their own data — the per-builder profiles query runs for admins only and is backstopped by RLS.
    (`src/modules/Dashboard.jsx`, 2026-06)
-3. **Projects / project management** — core operational data. Design its schema carefully; it'll
-   be the most-used and most-extended table. (New tables + RLS + migration.)
+3. **[STARTED] Projects / project management** — core operational data. A `projects` table + Projects
+   list (`/projects`), Sold Projects list (`/sold-projects`), and per-project page (`/projects/:id`).
+   Every project belongs to one contact (a contact can have many); ownership/RLS is **derived from the
+   parent contact** (admins see all, builders see projects whose contact they own). Each project carries
+   the full Materials Calculator spec (size, style, siding, option packages, overrides) so a materials
+   list generates from it — the project page reuses PricingTool's engine to render it live.
+   (`src/modules/Projects.jsx`, `ProjectDetail.jsx`, `lib/projects.js`, `MIGRATION_projects.sql`, 2026-06-25.)
+   Next here: generate/export saved materials lists in bulk, and use the project's owner's sales-tax for
+   the preview (today it uses the viewer's, same as the calculator).
 4. **Customer reviews + public builder profiles** — depends on (3) and on the public/private
    split (§3.5). Public read RLS; likely surfaced on the marketing domain for SEO.
 5. **ShedPro Configurator integration** — external dependency; do once the internal data model is

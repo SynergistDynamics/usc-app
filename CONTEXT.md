@@ -54,7 +54,18 @@ src/
                                inline owner-assign dropdown per row and a "Lead routing" button.
     ContactProfile.jsx       — A single contact's profile page (/contacts/:id) — editable contact info,
                                status, address, notes; delete. Admins get an "Assigned to" builder dropdown.
-                               RLS scopes who can load/edit it.
+                               RLS scopes who can load/edit it. Also shows this contact's **Projects** list
+                               (ContactProjects helper) with a "+ New project" button (a contact can have many).
+    Projects.jsx             — Projects list (/projects) and Sold Projects list (/sold-projects, `soldOnly`
+                               prop). A project is a shed job tied to a contact; admins see all, builders see
+                               only projects whose contact they own (RLS). Loads its own data via lib/projects.js.
+                               "+ New project" opens a contact picker. Sold view filters to sold/completed and
+                               shows a total-sold sum.
+    ProjectDetail.jsx        — A single project's page (/projects/:id) — edit name, status, sale price, notes,
+                               AND the full shed spec (size, style, siding, option packages, overrides). The
+                               spec reuses PricingTool's exported ConfigPanel + MaterialsListTab + buildOutput,
+                               so a live materials list renders from the saved project (one engine). Needs the
+                               global material/package data, passed as props like the calculator.
     LeadRoutingModal.jsx     — Admin-only modal (from Contacts) to map ShedPro territory → builder; lists
                                unmapped territories seen on contacts, edits/removes mappings, adds new ones.
     Dashboard.jsx            — Builder Dashboard (/dashboard, landing page). Role-gated:
@@ -71,6 +82,8 @@ src/
                                  usc-table-scroll class, which forces a stray vertical scrollbar via the
                                  overflow-x:auto → overflow-y:auto CSS rule). (ARCHITECTURE.md step 2.)
     PricingTool.jsx          — "Materials List Generator" (idx 0). Has buildOutput() pricing engine.
+                               **Exports** buildOutput, ConfigPanel, MaterialsListTab so ProjectDetail can
+                               render the same shed spec + materials list from a saved project.
     MaterialPriceManager.jsx — Material Prices (idx 1) — local price overrides + sales tax input
     PackageManager.jsx       — Packages (idx 3, admin only) — 4 tabs: Shed Styles, Siding, Fixed, Size-Variable
     AffiliateResources.jsx   — Affiliate Resources (idx 4) — 3 tabs
@@ -80,6 +93,10 @@ src/
     Financing.jsx            — Financing (idx 9)
   lib/contacts.js            — Contacts data/service layer (fetch w/ 1000-row paging, get, create, update,
                                delete) + CONTACT_STATUSES / STATUS_LABELS / STATUS_COLORS constants.
+  lib/projects.js            — Projects data/service layer (fetchProjects w/ 1000-row paging + soldOnly filter,
+                               fetchProjectsForContact, get, create, update, delete) + PROJECT_STATUSES /
+                               LABELS / COLORS, SOLD_STATUSES, isSoldStatus. Embeds the parent contact (+owner)
+                               and the style package name in its SELECT.
   modules/ (cont.)
     Profile.jsx              — My Profile (/profile, all users) — each user edits their OWN profile
                                (name, business, phone, market, website, bio) + uploads a profile photo
@@ -105,7 +122,10 @@ Route Map:
 | `/` | redirects → `/dashboard` | all |
 | `/dashboard` | Builder Dashboard | all |
 | `/contacts` | Contacts list | all (own only; admin sees all) |
-| `/contacts/:id` | Contact profile | all (own only; admin sees all) |
+| `/contacts/:id` | Contact profile (+ its projects) | all (own only; admin sees all) |
+| `/projects` | Projects list | all (contacts they own; admin sees all) |
+| `/sold-projects` | Sold Projects list | all (contacts they own; admin sees all) |
+| `/projects/:id` | Project detail (shed spec + materials list) | all (contacts they own; admin sees all) |
 | `/calculator` | Materials Calculator (PricingTool) | all |
 | `/material-prices` | Material Prices | all |
 | `/packages` | Packages (PackageManager) | admin |
@@ -180,6 +200,17 @@ Notes:
   seed rows were assigned to builders by **state** (one-time backfill: GA→Aaron, MA→Paul, TX→Jeremy,
   PA→Jordan, CT→Noah, OH→Dennis; 113 in other states left unassigned). Going forward, owners are set by
   territory (see `territory_routing` + trigger below) or manually in the UI.
+- `projects` — shed jobs (ARCHITECTURE.md step 3). Columns: contact_id (→ contacts, ON DELETE CASCADE — a
+  contact can have many projects), name, status (draft|quoted|sold|completed|cancelled), plus the **Materials
+  Calculator inputs** so a materials list can be generated from a project: shed_size, style_package_id (→
+  packages, ON DELETE SET NULL), siding, selected_packages (jsonb `{package_id: count}`), package_overrides
+  (jsonb `{package_id: unit_price_override}`); sale_price, sold_at (stamped the first time status becomes
+  sold/completed), notes, created_at, updated_at (auto via `projects_set_updated_at` trigger). **RLS enabled**:
+  one ALL policy "Builders manage own projects, admins all" — ownership is **DERIVED from the parent contact**
+  (a builder reads/writes projects where the parent contact's `user_id = auth.uid()`; admins all). No redundant
+  owner column, so reassigning a contact moves its projects automatically. Restricted to `authenticated`. The
+  app reads projects via `lib/projects.js` (1000-row paging; embeds contact+owner and style package name). The
+  Sold Projects page filters status ∈ {sold, completed}. See `MIGRATION_projects.sql` (applied 2026-06-25).
 - `territory_routing` — admin-managed map of ShedPro **territory → builder** (`territory` PK, `user_id` →
   profiles). A `BEFORE INSERT` trigger `contacts_auto_assign` (SECURITY DEFINER) sets a new contact's
   `user_id` from this map when `user_id` is null and `shedpro_territory` is set — so Zapier-inserted leads

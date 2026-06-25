@@ -6,7 +6,9 @@ import {
 } from '../lib/supabase';
 import { SectionHeader, Select, Button, WarningBanner, Badge, QuantityTicker } from '../components/UI';
 
-function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrides, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities }) {
+// Exported so the Projects feature can render the same materials list from a
+// saved project's config (ProjectDetail.jsx) — same engine, one source of truth.
+export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrides, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities }) {
   const taxMult = 1 + (parseFloat(salesTax) || 0) / 100;
   const matById = Object.fromEntries(materials.map(m => {
     const r = applyOverride(m, overrides);
@@ -123,7 +125,8 @@ function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrides, sty
 }
 
 // ── Config Panel ──────────────────────────────────────────────
-function ConfigPanel({ cfg, setCfg, packages }) {
+// Exported for reuse on the project page (ProjectDetail.jsx).
+export function ConfigPanel({ cfg, setCfg, packages }) {
   const stylePkgs = (packages || []).filter(p => p.is_style);
   function set(k, v) { setCfg(p => ({ ...p, [k]: v })); }
 
@@ -244,7 +247,8 @@ function OptionsPanel({ cfg, setCfg, packages }) {
 }
 
 // ── Materials List Tab ────────────────────────────────────────
-function MaterialsListTab({ out, cfg, size, style, multiplier, isMobile }) {
+// Exported for reuse on the project page (ProjectDetail.jsx).
+export function MaterialsListTab({ out, cfg, size, style, multiplier, isMobile }) {
   const CAT_ORDER = ['Framing','Sheathing','Roofing','Siding','Trim','Hardware','Add-ons'];
   const dateStr = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
 

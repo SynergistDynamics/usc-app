@@ -7,6 +7,8 @@ import { Spinner, Button } from './components/UI';
 import Dashboard             from './modules/Dashboard';
 import Contacts              from './modules/Contacts';
 import ContactProfile        from './modules/ContactProfile';
+import Projects              from './modules/Projects';
+import ProjectDetail         from './modules/ProjectDetail';
 import PricingTool           from './modules/PricingTool';
 import MaterialPriceManager  from './modules/MaterialPriceManager';
 import AdminPanel            from './modules/AdminPanel';
@@ -49,6 +51,8 @@ function AppShell() {
 const ROUTES = {
   dashboard:    '/dashboard',
   contacts:     '/contacts',
+  projects:     '/projects',
+  soldProjects: '/sold-projects',
   calculator:   '/calculator',
   matPrices:    '/material-prices',
   packages:     '/packages',
@@ -250,6 +254,8 @@ function AppInner() {
           {/* Dashboard */}
           <NavBtn to={ROUTES.dashboard}    icon="🏡" label="Dashboard"              sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
           <NavBtn to={ROUTES.contacts}     icon="📇" label="Contacts"               sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
+          <NavBtn to={ROUTES.projects}     icon="🏗" label="Projects"               sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
+          <NavBtn to={ROUTES.soldProjects} icon="✅" label="Sold Projects"          sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
 
           {/* Main tools */}
           <NavBtn to={ROUTES.calculator}   icon="⚡" label="Materials Calculator"   sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
@@ -328,6 +334,9 @@ function AppInner() {
             <Route path={ROUTES.dashboard} element={<Dashboard />} />
             <Route path={ROUTES.contacts} element={<Contacts />} />
             <Route path={`${ROUTES.contacts}/:id`} element={<ContactProfile />} />
+            <Route path={ROUTES.projects} element={<Projects />} />
+            <Route path={ROUTES.soldProjects} element={<Projects soldOnly />} />
+            <Route path={`${ROUTES.projects}/:id`} element={<ProjectDetail materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styleMults={styleMults} />} />
             <Route path={ROUTES.calculator} element={<PricingTool materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styleMults={styleMults} />} />
             <Route path={ROUTES.matPrices} element={<MaterialPriceManager materials={materials} overrides={overrides} setOverrides={setOverrides} onMasterUpdated={loadData} />} />
             <Route path={ROUTES.packages} element={isAdmin ? <PackageManager materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} onRefresh={loadData} /> : <Navigate to={ROUTES.calculator} replace />} />
