@@ -89,12 +89,20 @@ src/
     PricingTool.jsx          — "Materials List Generator" (idx 0). Has buildOutput() pricing engine.
                                **Exports** buildOutput, ConfigPanel, MaterialsListTab so ProjectDetail can
                                render the same shed spec + materials list from a saved project.
-    MaterialPriceManager.jsx — Material Prices (idx 1) — local price overrides + sales tax input
-    PackageManager.jsx       — Packages (idx 3, admin only) — 4 tabs: Shed Styles, Siding, Fixed, Size-Variable
+    MaterialPriceManager.jsx — Material Prices — local price overrides + sales tax input. No longer in the
+                               sidebar; rendered as the "Material Prices" tab inside Configurator Pricing
+                               (route /material-prices still resolves for direct links).
+    PackageManager.jsx       — Packages (admin only) — 4 tabs: Shed Styles, Siding, Fixed, Size-Variable.
+                               No longer in the sidebar; rendered as the "Packages" tab inside Configurator
+                               Pricing (route /packages still resolves for direct links).
     AffiliateResources.jsx   — Affiliate Resources (idx 4) — 3 tabs
     AdminPanel.jsx           — Admin (idx 5, admin only) — Users tab; Tech Stack tab (super admin only)
     Blueprints.jsx           — Blueprints (idx 6)
-    ConfiguratorPricing.jsx  — Configurator Pricing (idx 8) — 4 tabs (Base/Siding/Fixed/Variable)
+    ConfiguratorPricing.jsx  — Configurator Pricing — 4 pricing tabs (Base/Siding/Fixed/Variable) PLUS the
+                               "Material Prices" tab (everyone) and "Packages" tab (admin only), which embed
+                               MaterialPriceManager / PackageManager. The builder selector + Export CSV button
+                               only show on the four pricing tabs. Needs setOverrides passed from App.jsx so the
+                               embedded Material Prices tab can update the shared overrides state.
     Financing.jsx            — Financing (idx 9)
   lib/contacts.js            — Contacts data/service layer (fetch w/ 1000-row paging, get, create, update,
                                delete) + CONTACT_STATUSES / STATUS_LABELS / STATUS_COLORS constants.
@@ -132,8 +140,8 @@ Route Map:
 | `/sold-projects` | Sold Projects list | all (contacts they own; admin sees all) |
 | `/projects/:id` | Project detail (shed spec + materials list) | all (contacts they own; admin sees all) |
 | `/calculator` | Materials Calculator (PricingTool) | all |
-| `/material-prices` | Material Prices | all |
-| `/packages` | Packages (PackageManager) | admin |
+| `/material-prices` | Material Prices (route only — now a tab in Configurator Pricing) | all |
+| `/packages` | Packages (PackageManager) (route only — now a tab in Configurator Pricing) | admin |
 | `/affiliate` | Affiliate Resources | all |
 | `/admin` | Admin Panel | admin |
 | `/blueprints` | Blueprints | all |
@@ -146,8 +154,9 @@ Notes:
 - **Admin-only routes** render `<Navigate to="/calculator" replace />` when `profile.role !== 'admin'`
   (defense-in-depth on top of the sidebar hiding those links). The real security boundary is still
   Supabase RLS — route guards are UX, not authorization.
-- **Calculator Settings** (sidebar submenu holding Material Prices + Packages) auto-expands when the
-  current path is one of `SETTINGS_PATHS`.
+- **Material Prices + Packages** used to live in a collapsible "Calculator Settings" sidebar submenu.
+  That submenu is gone — both are now tabs inside the Configurator Pricing page. Their routes
+  (`/material-prices`, `/packages`) still resolve so old direct links keep working.
 - `main.jsx` wraps the app in `<BrowserRouter>`. The Vercel `rewrites` rule (above) is what lets deep
   links and refreshes resolve to the SPA.
 - **Data loading is mostly all-at-once** in `App.jsx`'s `loadData` and passed to route elements as props

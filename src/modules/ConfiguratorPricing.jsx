@@ -3,8 +3,10 @@ import { useState, useEffect } from 'react';
 import { supabase, SHED_SIZES, C, fmt, applyOverride, packageMaterialCost } from '../lib/supabase';
 import { useAuth } from '../components/Auth';
 import { SectionHeader, Button, ErrorBanner, SuccessBanner, WarningBanner } from '../components/UI';
+import MaterialPriceManager from './MaterialPriceManager';
+import PackageManager from './PackageManager';
 
-export default function ConfiguratorPricing({ materials, overrides, packages, pkgMaterials, pkgQuantities, styleMults, onRefresh }) {
+export default function ConfiguratorPricing({ materials, overrides, setOverrides, packages, pkgMaterials, pkgQuantities, styleMults, onRefresh }) {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
 
@@ -258,15 +260,22 @@ export default function ConfiguratorPricing({ materials, overrides, packages, pk
     );
   }
 
+  // Tabs: the four pricing views, plus the management tools (Material Prices for
+  // everyone, Packages for admins) that used to live in the sidebar submenu.
+  const PRICING_TABS = [['base','Base Pricing'],['siding','Siding'],['fixed','Fixed Price Options'],['variable','Size-Variable Options']];
+  const MANAGE_TABS  = isAdmin ? [['materials','Material Prices'],['packages','Packages']] : [['materials','Material Prices']];
+  const TABS = [...PRICING_TABS, ...MANAGE_TABS];
+  const isPricingTab = PRICING_TABS.some(([key]) => key === activeTab);
+
   return (
     <div>
-      <SectionHeader sub="Customer pricing by size and style. Style multipliers are per-builder; manage style structure under Packages.">Configurator Pricing</SectionHeader>
+      <SectionHeader sub="Customer pricing by size and style. Style multipliers are per-builder; manage materials and packages in the tabs below.">Configurator Pricing</SectionHeader>
 
       {error   && <ErrorBanner onDismiss={()=>setError('')}>{error}</ErrorBanner>}
       {success && <SuccessBanner>{success}</SuccessBanner>}
 
-      {/* Builder selector */}
-      {isAdmin && builders.length > 0 && (
+      {/* Builder selector — only relevant to the pricing tabs */}
+      {isPricingTab && isAdmin && builders.length > 0 && (
         <div style={{ marginBottom:20, display:'flex', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 6 : 12, flexDirection: isMobile ? 'column' : 'row' }}>
           <div style={{ fontFamily:'DM Sans', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:'#aaa' }}>Viewing pricing for:</div>
           <select value={selectedBuilder} onChange={e=>selectBuilder(e.target.value)}
@@ -281,7 +290,7 @@ export default function ConfiguratorPricing({ materials, overrides, packages, pk
       )}
 
       {/* Top controls */}
-      {hasAnyQty && (
+      {isPricingTab && hasAnyQty && (
         <div style={{ marginBottom:24 }}>
           <Button variant="secondary" size="sm" onClick={exportCSV}>↓ Export CSV</Button>
         </div>
@@ -289,7 +298,7 @@ export default function ConfiguratorPricing({ materials, overrides, packages, pk
 
       {/* Tabs */}
       <div className="usc-table-scroll" style={{ display:'flex', gap:0, marginBottom:20, borderBottom:`2px solid ${C.linenDarker}`, flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: isMobile ? 'auto' : 'visible' }}>
-        {[['base','Base Pricing'],['siding','Siding'],['fixed','Fixed Price Options'],['variable','Size-Variable Options']].map(([key,label])=>(
+        {TABS.map(([key,label])=>(
           <button key={key} onClick={()=>setActiveTab(key)} style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, padding: isMobile ? '10px 14px' : '10px 20px', border:'none', cursor:'pointer', background:'transparent', color:activeTab===key?C.sage:'#aaa', borderBottom:activeTab===key?`2px solid ${C.sage}`:'2px solid transparent', marginBottom:-2, transition:'all 0.15s', whiteSpace:'nowrap', flexShrink:0 }}>{label}</button>
         ))}
       </div>
@@ -298,6 +307,12 @@ export default function ConfiguratorPricing({ materials, overrides, packages, pk
       {activeTab==='siding'   && SidingTab()}
       {activeTab==='fixed'    && FixedOptionsTab()}
       {activeTab==='variable' && VariableOptionsTab()}
+      {activeTab==='materials' && (
+        <MaterialPriceManager materials={materials} overrides={overrides} setOverrides={setOverrides} onMasterUpdated={onRefresh} />
+      )}
+      {activeTab==='packages' && isAdmin && (
+        <PackageManager materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} onRefresh={onRefresh} />
+      )}
     </div>
   );
 }

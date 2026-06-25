@@ -1,6 +1,6 @@
 // src/App.jsx
 import { useState, useEffect, useCallback } from 'react';
-import { Routes, Route, Navigate, NavLink, useLocation, Link } from 'react-router-dom';
+import { Routes, Route, Navigate, NavLink, Link } from 'react-router-dom';
 import { supabase, C } from './lib/supabase';
 import { AuthProvider, useAuth, LoginPage, LoadingScreen, BlockedScreen } from './components/Auth';
 import { Spinner, Button } from './components/UI';
@@ -64,12 +64,9 @@ const ROUTES = {
   profile:      '/profile',
 };
 
-// Routes that live under the collapsible "Calculator Settings" submenu.
-const SETTINGS_MODULES_ALL = [
-  { icon:'📋', label:'Material Prices', to:ROUTES.matPrices, adminOnly:false },
-  { icon:'📦', label:'Packages',        to:ROUTES.packages,  adminOnly:true  },
-];
-const SETTINGS_PATHS = SETTINGS_MODULES_ALL.map(m => m.to);
+// Material Prices (/material-prices) and Packages (/packages) used to live in a
+// collapsible "Calculator Settings" submenu. They're now tabs inside the
+// Configurator Pricing page; the routes are kept so direct links still resolve.
 
 // ── NAV COMPONENTS (outside AppInner to prevent re-creation) ──
 // NavBtn is now a router NavLink; active state comes from the current URL.
@@ -120,10 +117,8 @@ function UserAvatar({ profile, size = 32 }) {
 function AppInner() {
   const { profile, signOut } = useAuth();
   const isAdmin = profile?.role === 'admin';
-  const location = useLocation();
 
   const [sidebarOpen,  setSidebarOpen]  = useState(true);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [isMobile,     setIsMobile]     = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -191,13 +186,6 @@ function AppInner() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const isSettingsActive = SETTINGS_PATHS.includes(location.pathname);
-  // Auto-expand the Calculator Settings submenu when on one of its routes.
-  useEffect(() => {
-    if (isSettingsActive) setSettingsOpen(true);
-  }, [isSettingsActive]);
-
-  const settingsModules = SETTINGS_MODULES_ALL.filter(m => !m.adminOnly || isAdmin);
 
   // On mobile: sidebar is an overlay drawer, always full-width when open
   const sidebarExpanded = isMobile ? true : sidebarOpen;
@@ -259,18 +247,6 @@ function AppInner() {
           {/* Main tools */}
           <NavBtn to={ROUTES.calculator}   icon="⚡" label="Materials Calculator"   sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
           <NavBtn to={ROUTES.configurator} icon="💲" label="Configurator Pricing"   sidebarOpen={sidebarExpanded} onNavigate={onNavigate} />
-
-          {/* Calculator Settings — collapsible submenu */}
-          <button onClick={() => setSettingsOpen(p=>!p)} style={{ display:'flex', alignItems:'center', gap:12, width:'100%', padding: sidebarExpanded ? '10px 20px' : '10px', border:'none', cursor:'pointer', background:'transparent', color: isSettingsActive ? C.sageLight : 'rgba(255,255,255,0.4)', fontFamily:'DM Sans', fontSize:12, fontWeight: isSettingsActive ? 600 : 400, textAlign:'left', transition:'all 0.15s' }}>
-            <span style={{ fontSize:14, flexShrink:0 }}>⚙</span>
-            {sidebarExpanded && <><span style={{ flex:1 }}>Calculator Settings</span><span style={{ fontSize:10, opacity:0.6 }}>{settingsOpen ? '▲' : '▼'}</span></>}
-          </button>
-          {settingsOpen && settingsModules.map(m => (
-            <NavLink key={m.to} to={m.to} onClick={onNavigate} style={({ isActive }) => ({ display:'flex', alignItems:'center', gap:10, width:'100%', padding: sidebarExpanded ? '8px 20px 8px 36px' : '8px 10px', border:'none', cursor:'pointer', textDecoration:'none', background: isActive ? 'rgba(184,152,106,0.15)' : 'transparent', color: isActive ? '#B8986A' : 'rgba(255,255,255,0.35)', fontFamily:'DM Sans', fontSize:12, fontWeight: isActive ? 600 : 400, textAlign:'left', transition:'all 0.15s' })}>
-              <span style={{ fontSize:12, flexShrink:0 }}>{m.icon}</span>
-              {sidebarExpanded && <span>{m.label}</span>}
-            </NavLink>
-          ))}
 
           <div style={{ margin:'10px 16px', borderTop:'1px solid rgba(255,255,255,0.07)' }} />
 
@@ -344,7 +320,7 @@ function AppInner() {
             <Route path={ROUTES.blueprints} element={<Blueprints />} />
             <Route path={ROUTES.financing} element={<Financing />} />
             <Route path={ROUTES.profile} element={<Profile />} />
-            <Route path={ROUTES.configurator} element={<ConfiguratorPricing materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styleMults={styleMults} onRefresh={loadData} />} />
+            <Route path={ROUTES.configurator} element={<ConfiguratorPricing materials={materials} overrides={overrides} setOverrides={setOverrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styleMults={styleMults} onRefresh={loadData} />} />
             <Route path="*" element={<Navigate to={ROUTES.dashboard} replace />} />
           </Routes>
         )}
