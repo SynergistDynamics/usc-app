@@ -31,7 +31,7 @@ import {
   getProject, updateProject, deleteProject,
   PROJECT_STATUSES, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, isSoldStatus,
 } from '../lib/projects';
-import { assignContact, fetchAssignableBuilders } from '../lib/contacts';
+import { assignContact, fetchAssignableBuilders, fetchContacts } from '../lib/contacts';
 import {
   Card, Button, Badge, Input, Select, FormField, Label, Modal,
   ErrorBanner, SuccessBanner, WarningBanner, Spinner,
@@ -307,6 +307,12 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
   const [cfg,       setCfg]       = useState(toCfg(project, stylePkgs));
   const origOwner = project.contact?.user_id || '';
   const [builderId, setBuilderId] = useState(origOwner);
+  // Linked contact. A project can start contact-less (admin-only); pick one here to link it.
+  const origContactId = project.contact?.id || '';
+  const [contactId, setContactId] = useState(origContactId);
+  const [contactLabel, setContactLabel] = useState(
+    project.contact ? (project.contact.full_name || project.contact.company_name || project.contact.email || 'Unnamed contact') : ''
+  );
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState('');
 
@@ -315,20 +321,24 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
     ...cfg, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities,
   }), [cfg, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities]);
 
-  const canAssign = isAdmin && !!project.contact?.id;
+  // The "Assigned builder" control only applies when keeping the SAME contact — if
+  // you're switching the linked contact, the builder follows the new contact's owner.
+  const canAssign = isAdmin && !!contactId && contactId === origContactId;
+  const contactChanged = contactId !== origContactId;
 
   async function save() {
     setSaving(true); setErr('');
 
     // Reassign the contact owner FIRST so updateProject's SELECT re-embeds the
-    // fresh owner in the returned row.
+    // fresh owner in the returned row. (Only when the contact is unchanged.)
     if (canAssign && builderId !== origOwner) {
-      const { error: ae } = await assignContact(project.contact.id, builderId || null);
+      const { error: ae } = await assignContact(contactId, builderId || null);
       if (ae) { setErr(ae.message); setSaving(false); return; }
     }
 
     const willBeSold = isSoldStatus(status);
     const payload = {
+      contact_id: contactId || null,
       name: name.trim() || null,
       status,
       sale_price: salePrice.trim() === '' ? null : parseFloat(salePrice),
@@ -350,6 +360,21 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
   return (
     <Modal title="Edit project" onClose={onClose} width={640}>
       {err && <ErrorBanner onDismiss={() => setErr('')}>{err}</ErrorBanner>}
+
+      <FormField label="Contact" style={{ marginBottom:16 }}>
+        <ContactPicker
+          value={contactId}
+          label={contactLabel}
+          onPick={(id, lbl) => { setContactId(id); setContactLabel(lbl); }}
+        />
+        {contactChanged && (
+          <div style={{ fontFamily:'DM Sans', fontSize:11.5, color:C.sand, marginTop:6 }}>
+            {contactId
+              ? 'This project will be linked to the selected contact (the builder follows that contact’s owner).'
+              : 'This project will be unlinked from its contact (admin-only until linked again).'}
+          </div>
+        )}
+      </FormField>
 
       <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:16 }}>
         <FormField label="Project name" style={{ marginBottom:0 }}>
@@ -416,6 +441,91 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
         <Button onClick={save} loading={saving}>Save project</Button>
       </div>
     </Modal>
+  );
+}
+
+// Inline contact picker for the edit modal: shows the linked contact (if any) and,
+// when expanded, a searchable list to pick a different one. Contacts load on first
+// expand (not when the modal opens) since there can be hundreds. RLS scopes the list
+// (a builder sees only their own contacts; admins see all).
+function ContactPicker({ value, label, onPick }) {
+  const [open, setOpen] = useState(false);
+  const [contacts, setContacts] = useState(null); // null = not loaded yet
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
+
+  async function ensureLoaded() {
+    if (contacts) return;
+    setLoading(true);
+    const { data } = await fetchContacts();
+    setLoading(false);
+    setContacts(data || []);
+  }
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next) ensureLoaded();
+  }
+
+  const filtered = useMemo(() => {
+    const list = contacts || [];
+    const q = search.trim().toLowerCase();
+    const f = q
+      ? list.filter(c => [c.full_name, c.company_name, c.email].filter(Boolean).some(v => v.toLowerCase().includes(q)))
+      : list;
+    return f.slice(0, 50); // keep the picker light even with hundreds of contacts
+  }, [contacts, search]);
+
+  return (
+    <div>
+      <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+        <span style={{ fontFamily:'DM Sans', fontSize:14, color: value ? C.charcoal : '#999', fontWeight: value ? 600 : 400 }}>
+          {label || 'No contact linked'}
+        </span>
+        <Button variant="ghost" size="sm" onClick={toggle}>
+          {open ? 'Close' : (value ? 'Change' : 'Link a contact')}
+        </Button>
+      </div>
+
+      {open && (
+        <div style={{ marginTop:10 }}>
+          <Input value={search} onChange={setSearch} placeholder="Search contacts by name, company, email…" />
+          {loading ? (
+            <div style={{ display:'flex', justifyContent:'center', padding:16 }}><Spinner size={20} /></div>
+          ) : (
+            <div style={{ marginTop:8, maxHeight:220, overflowY:'auto', border:`1px solid ${C.linenDarker}`, borderRadius:4 }}>
+              {filtered.length === 0 ? (
+                <div style={{ padding:'14px', fontFamily:'DM Sans', fontSize:13, color:'#888', textAlign:'center' }}>
+                  {(contacts || []).length === 0 ? 'No contacts found.' : 'No contacts match.'}
+                </div>
+              ) : filtered.map(c => {
+                const lbl = c.full_name || c.company_name || c.email || 'Unnamed contact';
+                const selected = c.id === value;
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => { onPick(c.id, lbl); setOpen(false); }}
+                    style={{
+                      padding:'9px 12px', cursor:'pointer', fontFamily:'DM Sans', fontSize:13,
+                      borderBottom:`1px solid ${C.linen}`,
+                      background: selected ? C.sage : 'transparent',
+                      color: selected ? '#fff' : C.charcoal,
+                    }}
+                  >
+                    <div style={{ fontWeight:600 }}>{lbl}</div>
+                    {(c.email || c.market) && (
+                      <div style={{ fontSize:11, color: selected ? 'rgba(255,255,255,0.8)' : '#999', marginTop:1 }}>
+                        {[c.email, c.market].filter(Boolean).join(' · ')}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
