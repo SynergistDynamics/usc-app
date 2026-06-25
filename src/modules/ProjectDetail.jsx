@@ -284,7 +284,7 @@ function ShedProDetails({ project, isMobile }) {
 
   // [label, value] pairs — only the ones that have a value are shown.
   const specs = [
-    ['Order #', project.shedpro_order_id && `#${project.shedpro_order_id}`],
+    ['Project #', project.project_number && `#${project.project_number}`],
     ['Customer', project.customer_email],
     ['Builder (ShedPro)', project.builder_email],
     ['Construction date', project.construction_date],

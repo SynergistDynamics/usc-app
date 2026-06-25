@@ -51,7 +51,7 @@ export default function Projects({ soldOnly = false }) {
     const q = search.trim().toLowerCase();
     if (!q) return projects;
     return projects.filter(p =>
-      [p.name, p.contact?.full_name, p.contact?.company_name, p.customer_email, p.shedpro_order_id, p.shed_size, p.style_package?.name]
+      [p.name, p.contact?.full_name, p.contact?.company_name, p.customer_email, p.project_number, p.shed_size, p.style_package?.name]
         .filter(Boolean).some(v => String(v).toLowerCase().includes(q))
     );
   }, [projects, search]);

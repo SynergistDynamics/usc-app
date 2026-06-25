@@ -210,8 +210,10 @@ Notes:
   (jsonb `{package_id: unit_price_override}`); sale_price, sold_at (stamped the first time status becomes
   sold/completed by the app), notes, created_at, updated_at (auto via `projects_set_updated_at` trigger).
   **Raw ShedPro columns** (today seeded from a CSV export, in future fed via Zapier like contacts): source
-  (manual|shedpro), shedpro_order_id (the ShedPro order #, e.g. 5826 — **NOT unique**: the export has price
-  REVISIONS sharing an order #), shed_style (raw style name), customer_email (links a project to a contact by
+  (manual|shedpro), project_number (the ShedPro order/project #, e.g. 5826 — **NOT unique**: the export has price
+  REVISIONS sharing a number; was `shedpro_order_id`, renamed in MIGRATION_projects_style_mapping.sql), shed_style
+  (raw style name, e.g. "Tall Modern" — mapped to a style_package_id where ShedPro "Tall" = the app's "High Wall"),
+  customer_email (links a project to a contact by
   email), builder_email (raw ShedPro "User/Builder", kept for later reconciliation), construction_date,
   shedpro_created, rendering_url_1..4 + layout_rendering_url + details_url, work_order_pdf (raw text blob),
   siding_type, overhang_size, doors, windows, transom_package, vents, roof, floor, siding_color, trim_color,
@@ -222,11 +224,14 @@ Notes:
   projects via `lib/projects.js` (1000-row paging; embeds contact+owner and style package name). The Sold
   Projects page filters status ∈ {sold, completed}; ProjectDetail shows a read-only "ShedPro order details"
   card (renderings + configured options/colors). See `MIGRATION_projects.sql` + `MIGRATION_projects_shedpro.sql`
-  (both applied 2026-06-25). **Seeded 2026-06-25** with **870 rows** from a ShedPro "Shed Projects" export
-  (`source='shedpro'`; 37 with a Date Sold → status `sold`, the other 833 → `quoted`; all 870 rows kept incl.
-  ~114 price-revision rows sharing an order #; linked to contacts by customer email — 801/870 matched, the 69
-  unmatched left contact-less/admin-only; rendering URLs reconstructed from a shared CloudFront prefix). A few
-  test/internal rows (seadev/shedpro.co/mail-tester) came along in the export and are harmless admin-only noise.
+  + `MIGRATION_projects_style_mapping.sql` (all applied 2026-06-25). **Seeded 2026-06-25** with **870 rows** from a
+  ShedPro "Shed Projects" export (`source='shedpro'`; 37 with a Date Sold → status `sold`, the other 833 →
+  `quoted`; all 870 rows kept incl. ~114 price-revision rows sharing a project #; linked to contacts by customer
+  email — 801/870 matched, the 69 unmatched left contact-less/admin-only; rendering URLs reconstructed from a
+  shared CloudFront prefix). The raw `shed_style` text was then **mapped to style_package_id** (Tall Modern→High
+  Wall Modern, Tall Traditional→High Wall Traditional, Modern→Modern, Traditional→Traditional) so projects link to
+  real style packages. A few test/internal rows (seadev/shedpro.co/mail-tester) came along in the export and are
+  harmless admin-only noise.
 - `territory_routing` — admin-managed map of ShedPro **territory → builder** (`territory` PK, `user_id` →
   profiles). A `BEFORE INSERT` trigger `contacts_auto_assign` (SECURITY DEFINER) sets a new contact's
   `user_id` from this map when `user_id` is null and `shedpro_territory` is set — so Zapier-inserted leads
