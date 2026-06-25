@@ -28,6 +28,7 @@ export default function Projects({ soldOnly = false }) {
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState('');
   const [search,   setSearch]   = useState('');
+  const [builderTab, setBuilderTab] = useState('all'); // Sold Projects: filter by builder (admin)
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
 
   const [showAdd, setShowAdd] = useState(false);
@@ -47,14 +48,42 @@ export default function Projects({ soldOnly = false }) {
   }
   useEffect(() => { load(); }, [soldOnly]);
 
+  // Sold Projects (admin) shows a tab per builder that owns one of these projects,
+  // plus "All" and (when present) "Unassigned". Builders only ever see their own
+  // projects (RLS), so the tabs are an admin-only convenience.
+  const showBuilderTabs = soldOnly && isAdmin;
+  const builderTabs = useMemo(() => {
+    if (!showBuilderTabs) return [];
+    const map = new Map();
+    let unassigned = 0;
+    for (const p of projects) {
+      const o = p.contact?.owner;
+      if (o?.id) {
+        const cur = map.get(o.id) || { id: o.id, name: o.full_name || o.email || 'Builder', count: 0 };
+        cur.count++; map.set(o.id, cur);
+      } else {
+        unassigned++;
+      }
+    }
+    const arr = [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+    if (unassigned) arr.push({ id: 'unassigned', name: 'Unassigned', count: unassigned });
+    return arr;
+  }, [projects, showBuilderTabs]);
+
   const filtered = useMemo(() => {
+    let list = projects;
+    if (showBuilderTabs && builderTab !== 'all') {
+      list = list.filter(p => (p.contact?.owner?.id || 'unassigned') === builderTab);
+    }
     const q = search.trim().toLowerCase();
-    if (!q) return projects;
-    return projects.filter(p =>
-      [p.name, p.contact?.full_name, p.contact?.company_name, p.customer_email, p.project_number, p.shed_size, p.style_package?.name]
-        .filter(Boolean).some(v => String(v).toLowerCase().includes(q))
-    );
-  }, [projects, search]);
+    if (q) {
+      list = list.filter(p =>
+        [p.name, p.contact?.full_name, p.contact?.company_name, p.customer_email, p.project_number, p.shed_size, p.style_package?.name]
+          .filter(Boolean).some(v => String(v).toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [projects, search, builderTab, showBuilderTabs]);
 
   // Sold-projects total (sum of sale_price) — quick at-a-glance number.
   const soldTotal = useMemo(
@@ -80,6 +109,17 @@ export default function Projects({ soldOnly = false }) {
       <div style={{ maxWidth:360, marginBottom:16 }}>
         <Input value={search} onChange={setSearch} placeholder="Search project, contact, size, style…" />
       </div>
+
+      {showBuilderTabs && builderTabs.length > 0 && (
+        <div className="usc-table-scroll" style={{ display:'flex', gap:0, marginBottom:18, borderBottom:`2px solid ${C.linenDarker}`, flexWrap:'nowrap', overflowX:'auto' }}>
+          {[{ id:'all', name:'All', count:projects.length }, ...builderTabs].map(t => (
+            <button key={t.id} onClick={() => setBuilderTab(t.id)}
+              style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, padding: isMobile ? '9px 13px' : '9px 18px', border:'none', cursor:'pointer', background:'transparent', color: builderTab===t.id ? C.sage : '#aaa', borderBottom: builderTab===t.id ? `2px solid ${C.sage}` : '2px solid transparent', marginBottom:-2, transition:'all 0.15s', whiteSpace:'nowrap', flexShrink:0 }}>
+              {t.name} <span style={{ color: builderTab===t.id ? C.sage : '#ccc', fontWeight:500 }}>({t.count})</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ display:'flex', justifyContent:'center', paddingTop:60 }}><Spinner size={28} /></div>
