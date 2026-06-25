@@ -81,15 +81,19 @@ src/
                                  spec via PricingTool's exported MaterialsListTab + buildOutput (one engine). No
                                  config controls here (an "Edit the spec" link opens the edit modal).
                                EDITING — an "✎ Edit project" button (header + footer) opens **EditProjectModal**:
-                               name, status, sale price, notes, the shed spec (PricingTool's ConfigPanel: size,
-                               style, siding, option packages, overrides), and — for **admins** — an "Assigned
-                               builder" dropdown. The modal edits a draft and only persists on Save (Cancel
-                               discards); "Use calc" reflects the draft spec's live price. The assigned-builder
-                               control reassigns the project's CONTACT owner (contacts.user_id via
-                               assignContact) — ownership is derived from the contact, so it changes the builder
-                               for ALL of that contact's projects (the modal flags this); it's hidden for
-                               contact-less projects. Builders (non-admin) don't see the builder control. Delete
-                               lives in the footer.
+                               a **Contact** picker (link/change/unlink the project's contact — ContactPicker
+                               loads contacts lazily on first expand, RLS-scoped), name, status, sale price,
+                               notes, the shed spec (PricingTool's ConfigPanel: size, style, siding, option
+                               packages, overrides), and — for **admins** — an "Assigned builder" dropdown. The
+                               modal edits a draft and only persists on Save (Cancel discards); "Use calc"
+                               reflects the draft spec's live price. The Contact picker is how you link a
+                               **contact-less project** (sets projects.contact_id); switching the contact makes
+                               the builder follow the new contact's owner, so the "Assigned builder" dropdown only
+                               shows when the contact is UNCHANGED. The assigned-builder control reassigns the
+                               project's CONTACT owner (contacts.user_id via assignContact) — ownership is derived
+                               from the contact, so it changes the builder for ALL of that contact's projects (the
+                               modal flags this). Builders (non-admin) don't see the builder control. Delete lives
+                               in the footer.
                                Needs the global material/package data, passed as props like the calculator.
     LeadRoutingModal.jsx     — Admin-only modal (from Contacts) to map ShedPro territory → builder; lists
                                unmapped territories seen on contacts, edits/removes mappings, adds new ones.
