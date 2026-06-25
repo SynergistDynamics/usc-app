@@ -255,28 +255,44 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
               />
             </div>
           </Card>
+
+          {/* Shed specification — the single place to edit size/style/siding/options.
+              Editing here updates both the work order above AND the Materials List tab. */}
+          <Card style={{ marginBottom:20 }}>
+            <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand, marginBottom:6 }}>
+              Shed specification
+            </div>
+            <p style={{ fontFamily:'DM Sans', fontSize:12, color:'#999', margin:'0 0 14px' }}>
+              Set the size, style, siding and options here — the work order and the Materials List tab update automatically.
+            </p>
+            <div style={{ maxWidth: isMobile ? '100%' : 340 }}>
+              <ConfigPanel cfg={cfg} setCfg={setCfg} packages={packages} />
+            </div>
+          </Card>
         </>
       )}
 
-      {/* ── Materials List tab ── */}
+      {/* ── Materials List tab (read-only) ── */}
+      {/* The list is generated from the spec; edit the spec on the Work Order tab. */}
       {activeTab === 'materials' && cfg && (
         <div style={{ marginBottom:20 }}>
-          <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand, marginBottom:12 }}>
-            Shed spec & materials list
+          <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:12, flexWrap:'wrap', marginBottom:12 }}>
+            <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand }}>
+              Materials list
+            </div>
+            <button onClick={() => setActiveTab('work-order')}
+              style={{ background:'none', border:'none', padding:0, cursor:'pointer', fontFamily:'DM Sans', fontSize:12, color:C.sage, fontWeight:600 }}>
+              Edit the spec on the Work Order tab →
+            </button>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '280px 1fr', gap:20, alignItems:'start' }}>
-            <div style={{ position: isMobile ? 'static' : 'sticky', top:16 }}>
-              <ConfigPanel cfg={cfg} setCfg={setCfg} packages={packages} />
-            </div>
-            <div style={{ minWidth:0 }}>
-              {!stylePkgs.length ? (
-                <WarningBanner>No shed styles configured yet. Add them under Packages → Shed Styles.</WarningBanner>
-              ) : !out.hasQty ? (
-                <WarningBanner>No quantities on file for {styleLabel} at size {cfg.size}. Add them under Packages → Shed Styles.</WarningBanner>
-              ) : (
-                <MaterialsListTab out={out} cfg={cfg} size={cfg.size} style={styleLabel} multiplier={styleMult} isMobile={isMobile} />
-              )}
-            </div>
+          <div style={{ minWidth:0 }}>
+            {!stylePkgs.length ? (
+              <WarningBanner>No shed styles configured yet. Add them under Packages → Shed Styles.</WarningBanner>
+            ) : !out.hasQty ? (
+              <WarningBanner>No quantities on file for {styleLabel} at size {cfg.size}. Add them under Packages → Shed Styles.</WarningBanner>
+            ) : (
+              <MaterialsListTab out={out} cfg={cfg} size={cfg.size} style={styleLabel} multiplier={styleMult} isMobile={isMobile} />
+            )}
           </div>
         </div>
       )}
