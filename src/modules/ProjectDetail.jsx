@@ -4,13 +4,18 @@
 // Two tabs:
 //   • Work Order   — a formatted, printable work-order document with all the
 //                    relevant project details (customer, builder, shed spec,
-//                    finishes, options, renderings, pricing, notes). Has a
-//                    "Print work order" button. The editable project fields
-//                    (name, status, sale price, notes) live below the document.
-//   • Materials List — the shed spec config + a live materials list, rendered by
+//                    finishes, options, renderings, pricing, notes). Has an
+//                    "Edit project" button (opens a modal) and a "Print work
+//                    order" button.
+//   • Materials List — a READ-ONLY live materials list generated from the spec by
 //                    the SAME engine as the Materials Calculator (PricingTool's
-//                    ConfigPanel + MaterialsListTab + buildOutput — one source of
-//                    truth). Editing the spec here updates the work order too.
+//                    MaterialsListTab + buildOutput — one source of truth).
+//
+// ALL editing happens in the Edit project modal (EditProjectModal): project
+// fields (name, status, sale price, notes), the shed spec (size/style/siding/
+// options via PricingTool's ConfigPanel), and — for admins — the assigned builder
+// (which reassigns the project's CONTACT owner, since project ownership is derived
+// from the contact). The page itself just displays the saved project.
 //
 // Loads its own row via lib/projects.js; RLS guarantees a builder can only open/edit
 // a project whose contact they own (admins can open any). The global material/package
@@ -20,11 +25,13 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   SHED_SIZES, C, fmt, getStyleMultiplier,
 } from '../lib/supabase';
+import { useAuth } from '../components/Auth';
 import { buildOutput, ConfigPanel, MaterialsListTab } from './PricingTool';
 import {
   getProject, updateProject, deleteProject,
   PROJECT_STATUSES, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, isSoldStatus,
 } from '../lib/projects';
+import { assignContact, fetchAssignableBuilders } from '../lib/contacts';
 import {
   Card, Button, Badge, Input, Select, FormField, Label, Modal,
   ErrorBanner, SuccessBanner, WarningBanner, Spinner,
@@ -47,6 +54,8 @@ function toCfg(project, stylePkgs) {
 export default function ProjectDetail({ materials, overrides, packages, pkgMaterials, pkgQuantities, styleMults }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
 
   const stylePkgs = useMemo(() => (packages || []).filter(p => p.is_style), [packages]);
   const salesTax = localStorage.getItem('usc_sales_tax') || '0';
@@ -54,19 +63,13 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const [project,  setProject]  = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [saving,   setSaving]   = useState(false);
   const [error,    setError]    = useState('');
   const [success,  setSuccess]  = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState('work-order');
-
-  // Editable fields
-  const [name,      setName]      = useState('');
-  const [status,    setStatus]    = useState('draft');
-  const [salePrice, setSalePrice] = useState('');
-  const [notes,     setNotes]     = useState('');
-  const [cfg,       setCfg]       = useState(null); // calculator config (size/style/siding/options)
+  const [showEdit, setShowEdit] = useState(false);
+  const [builders, setBuilders] = useState([]);
 
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
   useEffect(() => {
@@ -74,6 +77,12 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // Builders the admin can assign this project to (everyone except blocked users).
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetchAssignableBuilders().then(({ data }) => setBuilders(data || []));
+  }, [isAdmin]);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,22 +93,19 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
       setLoading(false);
       if (e) { setError(e.message); return; }
       if (!data) { setNotFound(true); return; }
-      hydrate(data);
+      setProject(data);
     })();
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  function hydrate(data) {
-    setProject(data);
-    setName(data.name || '');
-    setStatus(data.status || 'draft');
-    setSalePrice(data.sale_price != null ? String(data.sale_price) : '');
-    setNotes(data.notes || '');
-    setCfg(toCfg(data, stylePkgs));
-  }
+  // ── Display values derived from the saved project ──
+  const cfg = useMemo(() => (project ? toCfg(project, stylePkgs) : null), [project, stylePkgs]);
+  const name      = project?.name?.trim() || '';
+  const status    = project?.status || 'draft';
+  const salePrice = project?.sale_price;
+  const notes     = project?.notes || '';
 
-  // Live materials list from the current (unsaved) config — same engine as the calculator.
+  // Live materials list from the saved config — same engine as the calculator.
   const out = useMemo(() => {
     if (!cfg) return { hasQty: false };
     return buildOutput({
@@ -110,29 +116,6 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const stylePkg   = stylePkgs.find(p => p.id === cfg?.stylePkgId);
   const styleLabel = stylePkg?.name || '—';
   const styleMult  = out.styleMult ?? getStyleMultiplier(styleMults, stylePkg);
-
-  async function save() {
-    setSaving(true); setError(''); setSuccess('');
-    const willBeSold = isSoldStatus(status);
-    const payload = {
-      name: name.trim() || null,
-      status,
-      sale_price: salePrice.trim() === '' ? null : parseFloat(salePrice),
-      notes: notes.trim() || null,
-      shed_size: cfg.size || null,
-      style_package_id: cfg.stylePkgId || null,
-      siding: cfg.siding || null,
-      selected_packages: cfg.selectedPkgs || {},
-      package_overrides: cfg.pkgOverrides || {},
-    };
-    // Stamp sold_at the first time a project becomes sold; keep it once set.
-    if (willBeSold && !project.sold_at) payload.sold_at = new Date().toISOString();
-    const { data, error: e } = await updateProject(id, payload);
-    setSaving(false);
-    if (e) { setError(e.message); return; }
-    hydrate(data);
-    setSuccess('Project saved.');
-  }
 
   async function doDelete() {
     setDeleting(true); setError('');
@@ -159,7 +142,8 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
 
   const contact = project?.contact;
   const contactName = contact?.full_name || contact?.company_name || contact?.email || 'a contact';
-  const title = name.trim() || 'Untitled project';
+  const ownerName = contact?.owner?.full_name || contact?.owner?.email || null;
+  const title = name || 'Untitled project';
 
   // Selected option packages (name + count) for the work order, in package order.
   const selectedOptions = (packages || [])
@@ -183,8 +167,14 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
               <span style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#888' }}>
                 for <Link to={`/contacts/${contact?.id}`} style={{ color:C.sage, textDecoration:'none', fontWeight:600 }}>{contactName}</Link>
               </span>
+              {isAdmin && (
+                <span style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#aaa' }}>
+                  · builder: <strong style={{ color:'#888', fontWeight:600 }}>{ownerName || 'Unassigned'}</strong>
+                </span>
+              )}
             </div>
           </div>
+          <Button onClick={() => setShowEdit(true)}>✎ Edit project</Button>
         </div>
       </Card>
 
@@ -202,7 +192,7 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
       {activeTab === 'work-order' && (
         <>
           <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:14 }}>
-            <Button onClick={printWorkOrder} style={isMobile ? { width:'100%' } : {}}>🖨 Print work order</Button>
+            <Button variant="secondary" onClick={printWorkOrder} style={isMobile ? { width:'100%' } : {}}>🖨 Print work order</Button>
           </div>
 
           <WorkOrderDoc
@@ -220,69 +210,20 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
             selectedOptions={selectedOptions}
             isMobile={isMobile}
           />
-
-          {/* Editable fields (not part of the printed work order) */}
-          <Card style={{ marginTop:20, marginBottom:20 }}>
-            <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand, marginBottom:14 }}>
-              Edit project details
-            </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }} className="usc-project-grid">
-              <FormField label="Project name" style={{ marginBottom:0 }}>
-                <Input value={name} onChange={setName} placeholder="e.g. 10x12 Modern — backyard office" />
-              </FormField>
-              <FormField label="Status" style={{ marginBottom:0 }}>
-                <Select value={status} onChange={setStatus} options={STATUS_OPTIONS} />
-              </FormField>
-              <FormField label="Sale price" style={{ marginBottom:0 }}>
-                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                  <Input type="number" value={salePrice} onChange={setSalePrice} placeholder="0.00" />
-                  {out.hasQty && (
-                    <Button variant="ghost" size="sm" onClick={() => setSalePrice(String(Math.round(out.customerPrice)))} style={{ whiteSpace:'nowrap' }}>
-                      Use calc ({fmt(out.customerPrice)})
-                    </Button>
-                  )}
-                </div>
-              </FormField>
-            </div>
-            <div style={{ marginTop:16 }}>
-              <Label>Notes</Label>
-              <textarea
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                rows={3}
-                placeholder="Anything worth remembering about this project…"
-                style={{ fontFamily:'DM Sans, sans-serif', fontSize:14, padding:'10px 12px', border:`1.5px solid ${C.linenDarker}`, borderRadius:4, background:'#FFFDF9', color:C.charcoal, width:'100%', boxSizing:'border-box', resize:'vertical', lineHeight:1.5 }}
-              />
-            </div>
-          </Card>
-
-          {/* Shed specification — the single place to edit size/style/siding/options.
-              Editing here updates both the work order above AND the Materials List tab. */}
-          <Card style={{ marginBottom:20 }}>
-            <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand, marginBottom:6 }}>
-              Shed specification
-            </div>
-            <p style={{ fontFamily:'DM Sans', fontSize:12, color:'#999', margin:'0 0 14px' }}>
-              Set the size, style, siding and options here — the work order and the Materials List tab update automatically.
-            </p>
-            <div style={{ maxWidth: isMobile ? '100%' : 340 }}>
-              <ConfigPanel cfg={cfg} setCfg={setCfg} packages={packages} />
-            </div>
-          </Card>
         </>
       )}
 
       {/* ── Materials List tab (read-only) ── */}
-      {/* The list is generated from the spec; edit the spec on the Work Order tab. */}
+      {/* The list is generated from the spec; edit the spec via "Edit project". */}
       {activeTab === 'materials' && cfg && (
         <div style={{ marginBottom:20 }}>
           <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:12, flexWrap:'wrap', marginBottom:12 }}>
             <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand }}>
               Materials list
             </div>
-            <button onClick={() => setActiveTab('work-order')}
+            <button onClick={() => setShowEdit(true)}
               style={{ background:'none', border:'none', padding:0, cursor:'pointer', fontFamily:'DM Sans', fontSize:12, color:C.sage, fontWeight:600 }}>
-              Edit the spec on the Work Order tab →
+              ✎ Edit the spec →
             </button>
           </div>
           <div style={{ minWidth:0 }}>
@@ -305,9 +246,28 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
         </span>
         <div style={{ display:'flex', gap:10 }}>
           <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)}>Delete</Button>
-          <Button onClick={save} loading={saving}>Save project</Button>
+          <Button onClick={() => setShowEdit(true)}>✎ Edit project</Button>
         </div>
       </div>
+
+      {showEdit && (
+        <EditProjectModal
+          project={project}
+          isAdmin={isAdmin}
+          builders={builders}
+          stylePkgs={stylePkgs}
+          materials={materials}
+          overrides={overrides}
+          packages={packages}
+          pkgMaterials={pkgMaterials}
+          pkgQuantities={pkgQuantities}
+          styleMults={styleMults}
+          salesTax={salesTax}
+          isMobile={isMobile}
+          onClose={() => setShowEdit(false)}
+          onSaved={(data) => { setProject(data); setShowEdit(false); setSuccess('Project saved.'); }}
+        />
+      )}
 
       {confirmDelete && (
         <Modal title="Delete project?" onClose={() => setConfirmDelete(false)} width={420}>
@@ -320,12 +280,6 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
           </div>
         </Modal>
       )}
-
-      <style>{`
-        @media (max-width: 600px) {
-          .usc-project-grid { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
     </div>
   );
 }
@@ -335,6 +289,133 @@ function BackLink() {
     <Link to="/projects" style={{ fontFamily:'DM Sans', fontSize:13, color:C.sage, textDecoration:'none', display:'inline-flex', alignItems:'center', gap:6 }}>
       ← All projects
     </Link>
+  );
+}
+
+// ── Edit project modal ────────────────────────────────────────────────────────
+// Edits a draft copy of the project fields + shed spec, and (for admins) the
+// assigned builder. On Save it persists everything and hands the fresh row back.
+//
+// "Assigned builder" reassigns the project's CONTACT owner (contacts.user_id) —
+// project ownership is derived from the contact, so this changes the builder for
+// ALL of that contact's projects, not just this one (flagged in the UI).
+function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, overrides, packages, pkgMaterials, pkgQuantities, styleMults, salesTax, isMobile, onClose, onSaved }) {
+  const [name,      setName]      = useState(project.name || '');
+  const [status,    setStatus]    = useState(project.status || 'draft');
+  const [salePrice, setSalePrice] = useState(project.sale_price != null ? String(project.sale_price) : '');
+  const [notes,     setNotes]     = useState(project.notes || '');
+  const [cfg,       setCfg]       = useState(toCfg(project, stylePkgs));
+  const origOwner = project.contact?.user_id || '';
+  const [builderId, setBuilderId] = useState(origOwner);
+  const [saving, setSaving] = useState(false);
+  const [err,    setErr]    = useState('');
+
+  // Live price from the DRAFT spec so "Use calc" reflects unsaved changes.
+  const out = useMemo(() => buildOutput({
+    ...cfg, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities,
+  }), [cfg, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities]);
+
+  const canAssign = isAdmin && !!project.contact?.id;
+
+  async function save() {
+    setSaving(true); setErr('');
+
+    // Reassign the contact owner FIRST so updateProject's SELECT re-embeds the
+    // fresh owner in the returned row.
+    if (canAssign && builderId !== origOwner) {
+      const { error: ae } = await assignContact(project.contact.id, builderId || null);
+      if (ae) { setErr(ae.message); setSaving(false); return; }
+    }
+
+    const willBeSold = isSoldStatus(status);
+    const payload = {
+      name: name.trim() || null,
+      status,
+      sale_price: salePrice.trim() === '' ? null : parseFloat(salePrice),
+      notes: notes.trim() || null,
+      shed_size: cfg.size || null,
+      style_package_id: cfg.stylePkgId || null,
+      siding: cfg.siding || null,
+      selected_packages: cfg.selectedPkgs || {},
+      package_overrides: cfg.pkgOverrides || {},
+    };
+    if (willBeSold && !project.sold_at) payload.sold_at = new Date().toISOString();
+
+    const { data, error } = await updateProject(project.id, payload);
+    setSaving(false);
+    if (error) { setErr(error.message); return; }
+    onSaved(data);
+  }
+
+  return (
+    <Modal title="Edit project" onClose={onClose} width={640}>
+      {err && <ErrorBanner onDismiss={() => setErr('')}>{err}</ErrorBanner>}
+
+      <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:16 }}>
+        <FormField label="Project name" style={{ marginBottom:0 }}>
+          <Input value={name} onChange={setName} placeholder="e.g. 10x12 Modern — backyard office" autoFocus />
+        </FormField>
+        <FormField label="Status" style={{ marginBottom:0 }}>
+          <Select value={status} onChange={setStatus} options={STATUS_OPTIONS} />
+        </FormField>
+        <FormField label="Sale price" style={{ marginBottom:0 }}>
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <Input type="number" value={salePrice} onChange={setSalePrice} placeholder="0.00" />
+            {out.hasQty && (
+              <Button variant="ghost" size="sm" onClick={() => setSalePrice(String(Math.round(out.customerPrice)))} style={{ whiteSpace:'nowrap' }}>
+                Use calc ({fmt(out.customerPrice)})
+              </Button>
+            )}
+          </div>
+        </FormField>
+        {canAssign && (
+          <FormField label="Assigned builder" style={{ marginBottom:0 }}>
+            <Select
+              value={builderId}
+              onChange={setBuilderId}
+              options={[
+                { value:'', label:'— Unassigned —' },
+                ...builders.map(b => ({ value:b.id, label:b.full_name || b.email })),
+              ]}
+            />
+          </FormField>
+        )}
+      </div>
+
+      {canAssign && builderId !== origOwner && (
+        <div style={{ fontFamily:'DM Sans', fontSize:11.5, color:C.sand, marginTop:8 }}>
+          Heads up: the builder is set on the contact, so this reassigns every project for {project.contact?.full_name || project.contact?.company_name || 'this contact'}.
+        </div>
+      )}
+
+      <div style={{ marginTop:16 }}>
+        <Label>Notes</Label>
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          rows={3}
+          placeholder="Anything worth remembering about this project…"
+          style={{ fontFamily:'DM Sans, sans-serif', fontSize:14, padding:'10px 12px', border:`1.5px solid ${C.linenDarker}`, borderRadius:4, background:'#FFFDF9', color:C.charcoal, width:'100%', boxSizing:'border-box', resize:'vertical', lineHeight:1.5 }}
+        />
+      </div>
+
+      {/* Shed specification */}
+      <div style={{ borderTop:`1px solid ${C.linenDarker}`, margin:'20px 0 16px' }} />
+      <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand, marginBottom:6 }}>
+        Shed specification
+      </div>
+      <p style={{ fontFamily:'DM Sans', fontSize:12, color:'#999', margin:'0 0 14px' }}>
+        Size, style, siding and options. Drives the work order and the materials list.
+      </p>
+      <div style={{ maxWidth: isMobile ? '100%' : 360 }}>
+        <ConfigPanel cfg={cfg} setCfg={setCfg} packages={packages} />
+      </div>
+
+      <div style={{ display:'flex', justifyContent:'flex-end', gap:10, marginTop:22 }}>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button onClick={save} loading={saving}>Save project</Button>
+      </div>
+    </Modal>
   );
 }
 
