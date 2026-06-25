@@ -166,8 +166,9 @@ Notes:
   (Zapier → Supabase REST API), upserting on `shedpro_id`; there is no live API integration yet.
   **Seeded 2026-06-25** with 698 rows from a ShedPro customer export (`source='shedpro'`, `shedpro_id` null,
   `user_id` null = admin-only until assigned to builders; ZIP leading zeros recovered; status defaulted to
-  `lead`). ~13 obvious test rows (mail-tester.com, seadev.us/shedpro.co staff, "test"/"Test Name") came in
-  with the export — left in place for now, can be cleaned up later.
+  `lead`). 12 test/internal rows (mail-tester.com, seadev.us/shedpro.co staff, "test"/"Test Name", city="Test")
+  were then deleted, leaving **686** real contacts. A few junk-but-real-looking rows (e.g. "E R", "D U",
+  "T Woods" with placeholder addresses) were intentionally kept.
 - LEGACY (kept as backup, no longer read by the app): `quantities` (old global base/add-on quantities),
   `styles` (old shed styles with markup %). Safe to drop once the migration is verified.
 
