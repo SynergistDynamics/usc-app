@@ -57,7 +57,10 @@ src/
                                RLS scopes who can load/edit it. Also shows this contact's **Projects** list
                                (ContactProjects helper) with a "+ New project" button (a contact can have many).
     Projects.jsx             — Projects list (/projects) and Sold Projects list (/sold-projects, `soldOnly`
-                               prop). A project is a shed job tied to a contact; admins see all, builders see
+                               prop). NOTE: the all-projects "/projects" view is no longer linked from the
+                               sidebar nav (only "Sold Projects" is) — the route still exists and resolves, but
+                               the everyday way to reach a contact's projects is via their contact profile.
+                               A project is a shed job tied to a contact; admins see all, builders see
                                only projects whose contact they own (RLS). Loads its own data via lib/projects.js.
                                "+ New project" opens a contact picker. Sold view filters to sold/completed and
                                shows a total-sold sum.
@@ -125,7 +128,7 @@ Route Map:
 | `/dashboard` | Builder Dashboard | all |
 | `/contacts` | Contacts list | all (own only; admin sees all) |
 | `/contacts/:id` | Contact profile (+ its projects) | all (own only; admin sees all) |
-| `/projects` | Projects list | all (contacts they own; admin sees all) |
+| `/projects` | Projects list (route only — not in sidebar nav) | all (contacts they own; admin sees all) |
 | `/sold-projects` | Sold Projects list | all (contacts they own; admin sees all) |
 | `/projects/:id` | Project detail (shed spec + materials list) | all (contacts they own; admin sees all) |
 | `/calculator` | Materials Calculator (PricingTool) | all |
