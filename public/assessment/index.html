@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Are you an Urban Sheds builder? — Self-Assessment</title>
+<meta name="description" content="Answer a few honest questions to find out if the Urban Sheds licensed builder program is the right fit for you.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --green: #1D9E75; --green-light: #E1F5EE; --green-dark: #085041; --green-mid: #0F6E56;
+    --amber: #BA7517; --amber-light: #FAEEDA; --amber-dark: #633806;
+    --blue: #378ADD; --blue-light: #E6F1FB;
+    --red: #E24B4A; --red-light: #FCEBEB; --red-dark: #501313;
+    --gray-50: #F8F7F4; --gray-100: #F1EFE8; --gray-200: #D3D1C7; --gray-400: #888780; --gray-600: #5F5E5A;
+    --text: #1a1a18; --text-mid: #5F5E5A; --text-muted: #888780;
+    --border: rgba(0,0,0,0.1); --border-mid: rgba(0,0,0,0.18);
+    --radius: 12px; --radius-sm: 8px;
+    --shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--gray-50);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── HEADER ── */
+  .site-header {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .site-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 17px;
+    color: var(--text);
+    text-decoration: none;
+    letter-spacing: -0.01em;
+  }
+  .site-logo span { color: var(--green); }
+
+  /* ── HERO ── */
+  .hero {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 3rem 2rem 2.5rem;
+    text-align: center;
+  }
+  .hero-eyebrow {
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--green); margin-bottom: 1rem; font-weight: 500;
+  }
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(26px, 5vw, 38px);
+    font-weight: 400; line-height: 1.2; margin-bottom: 1rem;
+    max-width: 560px; margin-left: auto; margin-right: auto;
+  }
+  .hero p {
+    font-size: 15px; color: var(--text-mid);
+    max-width: 440px; margin: 0 auto; line-height: 1.7;
+  }
+  .hero-meta {
+    margin-top: 1.25rem;
+    font-size: 12px; color: var(--text-muted);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .hero-meta .dot { opacity: 0.4; }
+
+  /* ── MAIN ── */
+  .main { max-width: 660px; margin: 0 auto; padding: 2rem 1.5rem 4rem; flex: 1; width: 100%; }
+
+  /* ── PROGRESS BAR ── */
+  .progress-wrap { margin-bottom: 1.5rem; }
+  .progress-labels {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 6px;
+  }
+  .progress-step-label { font-size: 12px; color: var(--text-muted); }
+  .progress-pct { font-size: 12px; color: var(--text-muted); }
+  .progress-track {
+    height: 5px; background: var(--gray-200); border-radius: 3px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; border-radius: 3px;
+    background: var(--green); transition: width 0.4s ease;
+    width: 0%;
+  }
+  .cat-tabs {
+    display: flex; gap: 4px; margin-top: 8px;
+  }
+  .cat-tab {
+    flex: 1; height: 3px; border-radius: 2px;
+    background: var(--gray-200); transition: background 0.3s;
+  }
+  .cat-tab.done { background: var(--green); }
+  .cat-tab.active { background: var(--green); opacity: 0.5; }
+
+  /* ── SCREENS ── */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ── INTRO SCREEN ── */
+  .intro-card {
+    background: #fff; border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 2rem;
+    text-align: center;
+  }
+  .intro-icon {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: var(--green-light); display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1.25rem;
+  }
+  .intro-icon svg { width: 24px; height: 24px; }
+  .intro-card h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px; font-weight: 400; margin-bottom: 0.75rem;
+  }
+  .intro-card p {
+    font-size: 14px; color: var(--text-mid); line-height: 1.7;
+    max-width: 400px; margin: 0 auto 1.5rem;
+  }
+  .checklist {
+    list-style: none; text-align: left;
+    max-width: 340px; margin: 0 auto 1.75rem;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .checklist li {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; color: var(--text-mid);
+  }
+  .check-dot {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--green-light); display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .check-dot svg { width: 10px; height: 10px; }
+
+  /* ── STEP SCREEN ── */
+  .cat-heading { margin-bottom: 1.25rem; }
+  .cat-eyebrow {
+    font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    font-weight: 500; margin-bottom: 5px;
+  }
+  .cat-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px; font-weight: 400;
+  }
+
+  .q-card {
+    background: #fff; border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius); padding: 1.125rem 1.25rem;
+    margin-bottom: 10px; transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .q-card.answered { border-color: #B4B2A9; box-shadow: var(--shadow); }
+  .q-top {
+    display: flex; align-items: flex-start; gap: 8px; margin-bottom: 10px;
+  }
+  .key-badge-wrap { padding-top: 2px; flex-shrink: 0; }
+  .key-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--red); display: inline-block; margin-top: 4px;
+  }
+  .q-text { font-size: 14px; color: var(--text); line-height: 1.55; flex: 1; }
+  .q-btns { display: flex; gap: 6px; }
+
+  .q-btn {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 400;
+    padding: 6px 16px; border-radius: 20px;
+    border: 1.5px solid var(--gray-200);
+    background: transparent; color: var(--text-muted);
+    cursor: pointer; transition: all 0.12s; white-space: nowrap;
+  }
+  .q-btn:hover { background: var(--gray-100); border-color: var(--gray-400); }
+  .q-btn.sel-yes  { background: var(--green) !important; color: #fff !important; border-color: var(--green) !important; font-weight: 500 !important; }
+  .q-btn.sel-partial { background: var(--amber) !important; color: #fff !important; border-color: var(--amber) !important; font-weight: 500 !important; }
+  .q-btn.sel-no   { background: var(--red) !important; color: #fff !important; border-color: var(--red) !important; font-weight: 500 !important; }
+
+  /* ── NAV ROW ── */
+  .nav-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 1.5rem; flex-wrap: wrap; gap: 10px;
+  }
+  .btn-back {
+    font-family: 'DM Sans', sans-serif; font-size: 13px;
+    background: none; border: none; color: var(--text-muted);
+    cursor: pointer; text-decoration: underline; padding: 0;
+  }
+  .nav-right { display: flex; align-items: center; gap: 12px; }
+  .remaining-note { font-size: 12px; color: var(--text-muted); }
+  .btn-primary {
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500;
+    padding: 10px 24px; border-radius: var(--radius-sm); border: none;
+    background: var(--green); color: #fff; cursor: pointer; transition: opacity 0.15s;
+  }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* ── RESULT SCREEN ── */
+  .result-score-card {
+    background: #fff; border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1.5rem;
+    display: flex; align-items: center; gap: 1.5rem;
+    margin-bottom: 1rem;
+  }
+  .r-score-num { font-size: 56px; font-weight: 500; line-height: 1; }
+  .r-score-denom { font-size: 18px; color: var(--text-muted); }
+  .r-right { flex: 1; }
+  .r-verdict { font-size: 17px; font-weight: 500; margin-bottom: 5px; line-height: 1.3; }
+  .r-desc { font-size: 13px; color: var(--text-mid); line-height: 1.6; margin-bottom: 10px; }
+  .r-bar-track { height: 5px; background: var(--gray-100); border-radius: 3px; overflow: hidden; }
+  .r-bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+
+  .breakdown-card {
+    background: #fff; border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .breakdown-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--text-muted); margin-bottom: 12px; font-weight: 500;
+  }
+  .cat-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .cat-row:last-child { margin-bottom: 0; }
+  .cat-row-name { font-size: 13px; color: var(--text-mid); width: 150px; flex-shrink: 0; }
+  .cat-mini-track { flex: 1; height: 4px; background: var(--gray-100); border-radius: 2px; overflow: hidden; }
+  .cat-mini-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+  .cat-row-pct { font-size: 12px; color: var(--text-muted); width: 32px; text-align: right; }
+
+  .ko-box {
+    background: var(--red-light); border: 1px solid #F09595;
+    border-radius: var(--radius-sm); padding: 1rem 1.125rem;
+    font-size: 13px; color: var(--red-dark); margin-bottom: 1rem; line-height: 1.55;
+  }
+  .ko-box strong { display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px; }
+  .ko-item { display: flex; align-items: flex-start; gap: 7px; margin-bottom: 4px; }
+  .ko-item:last-child { margin-bottom: 0; }
+  .ko-dash { flex-shrink: 0; }
+
+  .cta-card {
+    background: var(--green-light); border: 1px solid #5DCAA5;
+    border-radius: var(--radius); padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+  .cta-heading {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px; font-weight: 400; color: var(--green-dark); margin-bottom: 0.5rem;
+  }
+  .cta-desc { font-size: 14px; color: var(--green-mid); line-height: 1.65; margin-bottom: 1.25rem; }
+  .btn-apply {
+    display: inline-block; font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 500; padding: 11px 26px;
+    border-radius: var(--radius-sm); border: none;
+    background: var(--green); color: #fff;
+    cursor: pointer; text-decoration: none; transition: opacity 0.15s;
+  }
+  .btn-apply:hover { opacity: 0.88; }
+
+  .not-yet-card {
+    background: #fff; border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1rem;
+  }
+  .not-yet-heading {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px; font-weight: 400; margin-bottom: 0.5rem;
+  }
+  .not-yet-desc { font-size: 14px; color: var(--text-mid); line-height: 1.65; margin-bottom: 1rem; }
+  .btn-ghost-green {
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+    padding: 8px 18px; border-radius: var(--radius-sm);
+    border: 1px solid var(--green); background: transparent; color: var(--green);
+    cursor: pointer; text-decoration: none; display: inline-block; transition: all 0.15s;
+  }
+  .btn-ghost-green:hover { background: var(--green-light); }
+
+  .result-footer { text-align: center; margin-top: 1.5rem; }
+  .btn-restart {
+    font-family: 'DM Sans', sans-serif; font-size: 13px;
+    background: none; border: none; color: var(--text-muted);
+    cursor: pointer; text-decoration: underline;
+  }
+
+  /* ── FOOTER ── */
+  .site-footer {
+    text-align: center; padding: 1.5rem 2rem;
+    font-size: 12px; color: var(--text-muted);
+    border-top: 1px solid var(--border);
+  }
+  .site-footer a { color: var(--green); text-decoration: none; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 520px) {
+    .result-score-card { flex-direction: column; align-items: flex-start; gap: 1rem; }
+    .hero { padding: 2rem 1.25rem 1.75rem; }
+    .main { padding: 1.5rem 1rem 3rem; }
+    .cat-row-name { width: 110px; }
+    .q-btns { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <a class="site-logo" href="#">Urban <span>Sheds</span> Collective</a>
+</header>
+
+<div class="hero">
+  <p class="hero-eyebrow">Licensed Builder Program</p>
+  <h1>Is this the right fit for you?</h1>
+  <p>Answer a few honest questions across 5 areas. This works best when your answers reflect where you actually are — not where you hope to be.</p>
+  <div class="hero-meta">
+    <span id="total-q-count">19 questions</span>
+    <span class="dot">·</span>
+    <span>5 categories</span>
+    <span class="dot">·</span>
+    <span>~3 minutes</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- PROGRESS (hidden on intro) -->
+  <div class="progress-wrap" id="progress-wrap" style="display:none">
+    <div class="progress-labels">
+      <span class="progress-step-label" id="progress-step-label">Step 1 of 5</span>
+      <span class="progress-pct" id="progress-pct">0%</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="cat-tabs" id="cat-tabs"></div>
+  </div>
+
+  <!-- ── INTRO ── -->
+  <div class="screen active" id="screen-intro">
+    <div class="intro-card">
+      <div class="intro-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#1D9E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      </div>
+      <h2>Before you apply, find out if you're the right fit</h2>
+      <p>We're looking for a specific kind of builder — not just skilled with their hands, but ready to build something that lasts. These questions will tell you honestly where you stand.</p>
+      <ul class="checklist">
+        <li>
+          <span class="check-dot">
+            <svg viewBox="0 0 10 10" fill="none" stroke="#1D9E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,5 4,7 8,3"/></svg>
+          </span>
+          Answer every question — all responses are weighted
+        </li>
+        <li>
+          <span class="check-dot">
+            <svg viewBox="0 0 10 10" fill="none" stroke="#1D9E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,5 4,7 8,3"/></svg>
+          </span>
+          Some are key questions — answer those honestly
+        </li>
+        <li>
+          <span class="check-dot">
+            <svg viewBox="0 0 10 10" fill="none" stroke="#1D9E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,5 4,7 8,3"/></svg>
+          </span>
+          You'll get a score and a clear result at the end
+        </li>
+      </ul>
+      <button class="btn-primary" onclick="startAssessment()">Start the assessment →</button>
+    </div>
+  </div>
+
+  <!-- ── STEP ── -->
+  <div class="screen" id="screen-step">
+    <div class="cat-heading">
+      <div class="cat-eyebrow" id="cat-eyebrow"></div>
+      <div class="cat-title" id="cat-title"></div>
+    </div>
+    <div id="questions-container"></div>
+    <div class="nav-row">
+      <button class="btn-back" id="btn-back" onclick="goBack()">← Back</button>
+      <div class="nav-right">
+        <span class="remaining-note" id="remaining-note"></span>
+        <button class="btn-primary" id="btn-next" onclick="goNext()" disabled>Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RESULT ── -->
+  <div class="screen" id="screen-result">
+
+    <div class="result-score-card" id="result-score-card">
+      <div>
+        <div class="r-score-num" id="r-score-num">0</div>
+        <div class="r-score-denom" id="r-score-denom">/ 100</div>
+      </div>
+      <div class="r-right">
+        <div class="r-verdict" id="r-verdict"></div>
+        <div class="r-desc" id="r-desc"></div>
+        <div class="r-bar-track"><div class="r-bar-fill" id="r-bar-fill"></div></div>
+      </div>
+    </div>
+
+    <div class="ko-box" id="ko-box" style="display:none">
+      <strong>Key questions answered "No"</strong>
+      <div id="ko-list"></div>
+    </div>
+
+    <div class="breakdown-card">
+      <div class="breakdown-title">Category breakdown</div>
+      <div id="breakdown-rows"></div>
+    </div>
+
+    <div id="cta-area"></div>
+
+    <div class="result-footer">
+      <button class="btn-restart" onclick="restart()">Start over</button>
+    </div>
+
+  </div>
+
+</div><!-- /main -->
+
+<footer class="site-footer">
+  &copy; Urban Sheds Collective &nbsp;&middot;&nbsp; <a href="https://urban-sheds.com">urban-sheds.com</a>
+</footer>
+
+<script>
+var cats = [
+  {
+    id: "geo", title: "Where you're based", eyebrow: "Location", color: "#1D9E75",
+    questions: [
+      { id:"g1", text:"I live within 50 miles of a city with 100,000 or more people", weight:8, knockout:true },
+      { id:"g2", text:"I have a specific neighborhood or area I'd want to be known in", weight:4 },
+      { id:"g3", text:"Homeowners in my area invest in their outdoor spaces — decks, landscaping, quality finishes", weight:3 }
+    ]
+  },
+  {
+    id: "craft", title: "Your skills & setup", eyebrow: "Craft", color: "#378ADD",
+    questions: [
+      { id:"c1", text:"I have at least 3 years of carpentry or construction experience", weight:8, knockout:true },
+      { id:"c2", text:"I own a truck capable of hauling materials", weight:5, knockout:true },
+      { id:"c3", text:"I have the hand and power tools needed for framing and finish work", weight:4 },
+      { id:"c4", text:"I've built at least one structure from the ground up — shed, deck, addition, or garage", weight:3 }
+    ]
+  },
+  {
+    id: "financial", title: "Your financial situation", eyebrow: "Finances", color: "#BA7517",
+    questions: [
+      { id:"f1", text:"I'm not in financial survival mode — my current income covers my basic living expenses", weight:8, knockout:true },
+      { id:"f2", text:"I could handle a 30–90 day ramp-up period before this generates consistent income", weight:5 },
+      { id:"f3", text:"I'd rather build fewer, higher-margin projects than compete on price", weight:4 }
+    ]
+  },
+  {
+    id: "identity", title: "How you see your work", eyebrow: "Mindset", color: "#7F77DD",
+    questions: [
+      { id:"i1", text:"I don't have a strong existing brand or online presence I'd need to walk away from", weight:5 },
+      { id:"i2", text:"I'm ready to focus on this — not as a side hobby, but as my primary work", weight:5 },
+      { id:"i3", text:"I see the value in licensing an established brand rather than building one from scratch", weight:3 },
+      { id:"i4", text:"I'd be comfortable being the local face of a brand people recognize and trust", weight:2 }
+    ]
+  },
+  {
+    id: "mission", title: "What drives you", eyebrow: "Mission", color: "#D85A30",
+    questions: [
+      { id:"m1", text:"I can articulate why I do this work beyond the paycheck — craft, community, something that matters", weight:8, knockout:true },
+      { id:"m2", text:"I think of my work as building relationships with my neighborhood, not just completing jobs", weight:6 },
+      { id:"m3", text:"I'd rather build 12 sheds I'm proud of than 40 I rushed through", weight:5 },
+      { id:"m4", text:"I'm genuinely curious about the people I build for — not just the project specs", weight:4 },
+      { id:"m5", text:"I believe a local service business can actually strengthen the fabric of a community", weight:3 }
+    ]
+  }
+];
+
+var TOTAL_MAX = 0;
+cats.forEach(function(c){ c.questions.forEach(function(q){ TOTAL_MAX += q.weight; }); });
+
+var state = {};
+cats.forEach(function(c){ c.questions.forEach(function(q){ state[q.id] = null; }); });
+
+var currentStep = 0;
+
+// Count total questions
+var totalQ = cats.reduce(function(a,c){ return a + c.questions.length; }, 0);
+document.getElementById('total-q-count').textContent = totalQ + ' questions';
+document.getElementById('r-score-denom').textContent = '/ ' + TOTAL_MAX;
+
+// Build cat tabs
+var tabContainer = document.getElementById('cat-tabs');
+cats.forEach(function(c){
+  var t = document.createElement('div');
+  t.className = 'cat-tab';
+  t.id = 'tab-' + c.id;
+  tabContainer.appendChild(t);
+});
+
+function earned(q){
+  var v = state[q.id];
+  if(v === 1) return q.weight;
+  if(v === 0.5) return Math.round(q.weight * 0.5);
+  return 0;
+}
+
+function calcTotal(){
+  var t = 0;
+  cats.forEach(function(c){ c.questions.forEach(function(q){ t += earned(q); }); });
+  return t;
+}
+
+function calcCatScore(cat){
+  var e = 0, m = 0;
+  cat.questions.forEach(function(q){ e += earned(q); m += q.weight; });
+  return { earned: e, max: m, pct: m > 0 ? Math.round((e / m) * 100) : 0 };
+}
+
+function knockouts(){
+  var ko = [];
+  cats.forEach(function(c){
+    c.questions.forEach(function(q){
+      if(q.knockout && state[q.id] === 0) ko.push(q.text);
+    });
+  });
+  return ko;
+}
+
+function allAnswered(cat){
+  return cat.questions.every(function(q){ return state[q.id] !== null; });
+}
+
+function answeredCount(cat){
+  return cat.questions.filter(function(q){ return state[q.id] !== null; }).length;
+}
+
+function showScreen(name){
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  document.getElementById('screen-' + name).classList.add('active');
+}
+
+function updateProgress(){
+  var pct = Math.round((currentStep / cats.length) * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent = pct + '%';
+  document.getElementById('progress-step-label').textContent = 'Step ' + (currentStep + 1) + ' of ' + cats.length;
+  cats.forEach(function(c, i){
+    var tab = document.getElementById('tab-' + c.id);
+    if(!tab) return;
+    tab.className = 'cat-tab';
+    if(i < currentStep) tab.classList.add('done');
+    else if(i === currentStep) tab.classList.add('active');
+  });
+}
+
+function renderStep(){
+  var cat = cats[currentStep];
+  var isLast = currentStep === cats.length - 1;
+
+  document.getElementById('cat-eyebrow').textContent = cat.eyebrow;
+  document.getElementById('cat-eyebrow').style.color = cat.color;
+  document.getElementById('cat-title').textContent = cat.title;
+
+  var container = document.getElementById('questions-container');
+  container.innerHTML = '';
+
+  cat.questions.forEach(function(q){
+    var v = state[q.id];
+    var card = document.createElement('div');
+    card.className = 'q-card' + (v !== null ? ' answered' : '');
+    card.id = 'qcard-' + q.id;
+
+    var topHtml = '<div class="q-top">';
+    if(q.knockout) topHtml += '<span class="key-badge-wrap"><span class="key-dot"></span></span>';
+    topHtml += '<span class="q-text">' + q.text + '</span></div>';
+
+    var btnsHtml = '<div class="q-btns">' +
+      '<button class="q-btn' + (v===1?' sel-yes':'') + '" onclick="pick(\''+q.id+'\',1,this)">Yes</button>' +
+      '<button class="q-btn' + (v===0.5?' sel-partial':'') + '" onclick="pick(\''+q.id+'\',0.5,this)">Mostly</button>' +
+      '<button class="q-btn' + (v===0?' sel-no':'') + '" onclick="pick(\''+q.id+'\',0,this)">No</button>' +
+      '</div>';
+
+    card.innerHTML = topHtml + btnsHtml;
+    container.appendChild(card);
+  });
+
+  var btnNext = document.getElementById('btn-next');
+  var btnBack = document.getElementById('btn-back');
+  var allDone = allAnswered(cat);
+  var remaining = cat.questions.length - answeredCount(cat);
+
+  btnNext.textContent = isLast ? 'See my results →' : 'Next →';
+  btnNext.disabled = !allDone;
+  btnBack.style.visibility = currentStep > 0 ? 'visible' : 'hidden';
+
+  var note = document.getElementById('remaining-note');
+  note.textContent = !allDone ? remaining + ' left' : '';
+
+  updateProgress();
+}
+
+function renderResult(){
+  var total = calcTotal();
+  var pct = Math.round((total / TOTAL_MAX) * 100);
+  var ko = knockouts();
+  var hasKO = ko.length > 0;
+
+  var verdict, desc, barColor, eligible;
+  if(hasKO){
+    verdict = "Not the right fit right now";
+    desc = "One or more key questions came back as no. These aren't dealbreakers forever — but they do mean the timing isn't right yet.";
+    barColor = "#E24B4A"; eligible = false;
+  } else if(pct >= 80){
+    verdict = "You sound like one of us";
+    desc = "Your answers line up well with what makes a great Urban Sheds builder. We'd love to have a conversation.";
+    barColor = "#1D9E75"; eligible = true;
+  } else if(pct >= 60){
+    verdict = "There's something here — worth a conversation";
+    desc = "You've got a solid foundation. A call can help us both figure out if the timing and fit are right.";
+    barColor = "#BA7517"; eligible = true;
+  } else if(pct >= 40){
+    verdict = "Not quite yet — but maybe soon";
+    desc = "A few things aren't quite aligned right now. Check back when your situation shifts.";
+    barColor = "#378ADD"; eligible = false;
+  } else {
+    verdict = "This probably isn't the right fit right now";
+    desc = "That's okay — the model isn't for everyone, and timing matters.";
+    barColor = "#E24B4A"; eligible = false;
+  }
+
+  document.getElementById('r-score-num').textContent = total;
+  document.getElementById('r-score-num').style.color = barColor;
+  document.getElementById('r-verdict').textContent = verdict;
+  document.getElementById('r-verdict').style.color = barColor;
+  document.getElementById('r-desc').textContent = desc;
+  document.getElementById('r-bar-fill').style.width = pct + '%';
+  document.getElementById('r-bar-fill').style.background = barColor;
+
+  // Knockouts
+  var koBox = document.getElementById('ko-box');
+  if(hasKO){
+    var koList = document.getElementById('ko-list');
+    koList.innerHTML = ko.map(function(t){
+      return '<div class="ko-item"><span class="ko-dash">–</span><span>' + t + '</span></div>';
+    }).join('');
+    koBox.style.display = 'block';
+  } else {
+    koBox.style.display = 'none';
+  }
+
+  // Breakdown
+  var rows = document.getElementById('breakdown-rows');
+  rows.innerHTML = '';
+  cats.forEach(function(c){
+    var cs = calcCatScore(c);
+    var row = document.createElement('div');
+    row.className = 'cat-row';
+    row.innerHTML = '<span class="cat-row-name">' + c.title + '</span>' +
+      '<div class="cat-mini-track"><div class="cat-mini-fill" style="width:' + cs.pct + '%;background:' + c.color + '"></div></div>' +
+      '<span class="cat-row-pct">' + cs.pct + '%</span>';
+    rows.appendChild(row);
+  });
+
+  // CTA
+  var cta = document.getElementById('cta-area');
+  if(eligible){
+    cta.innerHTML = '<div class="cta-card">' +
+      '<div class="cta-heading">Ready to take the next step?</div>' +
+      '<div class="cta-desc">Fill out a short application and we\'ll follow up within a few days to schedule a call. No commitment required — just a conversation.</div>' +
+      '<a class="btn-apply" href="mailto:jeremy@urban-sheds.com?subject=Builder Program Application">Apply to the program →</a>' +
+    '</div>';
+  } else {
+    cta.innerHTML = '<div class="not-yet-card">' +
+      '<div class="not-yet-heading">Not quite the right fit right now</div>' +
+      '<div class="not-yet-desc">Bookmark this page and revisit when your situation shifts. Things change — and when they do, we want to hear from you.</div>' +
+      '<a class="btn-ghost-green" href="mailto:jeremy@urban-sheds.com?subject=Urban Sheds Question">Reach out anyway</a>' +
+    '</div>';
+  }
+
+  // Progress bar to 100%
+  document.getElementById('progress-fill').style.width = '100%';
+  document.getElementById('progress-pct').textContent = '100%';
+  document.getElementById('progress-step-label').textContent = 'Complete';
+  cats.forEach(function(c){
+    var tab = document.getElementById('tab-' + c.id);
+    if(tab){ tab.className = 'cat-tab done'; }
+  });
+
+  showScreen('result');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function startAssessment(){
+  document.getElementById('progress-wrap').style.display = 'block';
+  currentStep = 0;
+  renderStep();
+  showScreen('step');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function pick(id, val, btn){
+  state[id] = val;
+  var card = document.getElementById('qcard-' + id);
+  if(card){
+    card.className = 'q-card answered';
+    card.querySelectorAll('.q-btn').forEach(function(b){ b.className = 'q-btn'; });
+    btn.className = 'q-btn ' + (val===1 ? 'sel-yes' : val===0.5 ? 'sel-partial' : 'sel-no');
+  }
+  var cat = cats[currentStep];
+  var allDone = allAnswered(cat);
+  document.getElementById('btn-next').disabled = !allDone;
+  var remaining = cat.questions.filter(function(q){ return state[q.id] === null; }).length;
+  document.getElementById('remaining-note').textContent = remaining > 0 ? remaining + ' left' : '';
+}
+
+function goNext(){
+  if(currentStep < cats.length - 1){
+    currentStep++;
+    renderStep();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } else {
+    renderResult();
+  }
+}
+
+function goBack(){
+  if(currentStep > 0){
+    currentStep--;
+    renderStep();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } else {
+    document.getElementById('progress-wrap').style.display = 'none';
+    showScreen('intro');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+function restart(){
+  cats.forEach(function(c){ c.questions.forEach(function(q){ state[q.id] = null; }); });
+  document.getElementById('progress-wrap').style.display = 'none';
+  currentStep = 0;
+  showScreen('intro');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
