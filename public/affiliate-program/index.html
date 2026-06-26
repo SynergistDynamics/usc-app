@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Urban Sheds Collective — Builder Affiliate Program</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=Lora:ital,wght@0,400;0,600;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ─── RESET & BASE ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink:      #141E28;
+  --navy:     #1A2A3A;
+  --slate:    #243547;
+  --offwhite: #F5F0E8;
+  --parchmt:  #EDE6D8;
+  --teal:     #2D8B7A;
+  --teal-lt:  #3DB89E;
+  --gold:     #D4920A;
+  --gold-lt:  #F0B429;
+  --white:    #FFFFFF;
+  --muted:    #7A8D9E;
+  --lt-muted: #B8C8D5;
+  --dkcard:   #111A24;
+  --rust:     #7A3A10;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--ink);
+  color: var(--white);
+  overflow-x: hidden;
+}
+
+/* ─── PROGRESS BAR ─────────────────────────────────── */
+#progress-bar {
+  position: fixed;
+  top: 0; left: 0;
+  height: 3px;
+  width: 0%;
+  background: linear-gradient(90deg, var(--teal), var(--gold));
+  z-index: 1000;
+  transition: width 0.1s linear;
+}
+
+/* ─── NAV DOTS ──────────────────────────────────────── */
+#nav-dots {
+  position: fixed;
+  right: clamp(10px, 2vw, 20px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 999;
+}
+
+.nav-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--slate);
+  border: 1.5px solid var(--muted);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.nav-dot.active {
+  background: var(--gold);
+  border-color: var(--gold);
+  transform: scale(1.3);
+}
+
+@media (max-width: 480px) { #nav-dots { display: none; } }
+
+/* ─── SECTIONS ──────────────────────────────────────── */
+.slide {
+  min-height: 100vh;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(3.5rem, 8vw, 5.5rem) clamp(1.5rem, 7vw, 6rem);
+}
+
+.slide.dark  { background: var(--ink); }
+.slide.light { background: var(--offwhite); color: var(--ink); }
+
+/* ─── FADE-IN ON SCROLL ─────────────────────────────── */
+.fade-up {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.65s ease, transform 0.65s ease;
+}
+.fade-up.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.fade-up.delay-1 { transition-delay: 0.1s; }
+.fade-up.delay-2 { transition-delay: 0.2s; }
+.fade-up.delay-3 { transition-delay: 0.3s; }
+.fade-up.delay-4 { transition-delay: 0.4s; }
+
+/* ─── TYPOGRAPHY ────────────────────────────────────── */
+.eyebrow {
+  font-family: 'DM Sans', sans-serif;
+  font-size: clamp(0.55rem, 1.2vw, 0.68rem);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--teal);
+  margin-bottom: 0.8em;
+}
+
+.slide.light .eyebrow { color: var(--teal); }
+
+.display {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: clamp(2.2rem, 6vw, 4.2rem);
+  line-height: 1.05;
+  color: var(--white);
+  margin-bottom: 0.5em;
+}
+
+.display.light { color: var(--ink); }
+.display .gold  { color: var(--gold-lt); }
+
+.subhead {
+  font-family: 'Lora', serif;
+  font-style: italic;
+  font-size: clamp(1rem, 2.5vw, 1.35rem);
+  color: var(--gold-lt);
+  line-height: 1.55;
+  margin-bottom: 1em;
+}
+
+.body-copy {
+  font-family: 'DM Sans', sans-serif;
+  font-size: clamp(0.85rem, 1.8vw, 1rem);
+  color: var(--lt-muted);
+  line-height: 1.7;
+  max-width: 560px;
+}
+
+.footnote {
+  font-size: clamp(0.58rem, 1.1vw, 0.68rem);
+  color: var(--muted);
+  text-align: center;
+  padding: 1.5rem clamp(1.5rem, 7vw, 6rem);
+  background: inherit;
+}
+
+/* ─── DIAGONAL DECORATIONS ──────────────────────────── */
+.diag {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 4px;
+}
+
+/* ─── CORNER ACCENT ─────────────────────────────────── */
+.corner {
+  position: absolute;
+  top: 0; left: 0;
+  width: clamp(60px, 10vw, 100px);
+  height: clamp(60px, 10vw, 100px);
+  pointer-events: none;
+}
+.corner::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--gold);
+}
+.corner::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--gold);
+}
+
+/* ─── GHOST TEXT ────────────────────────────────────── */
+.ghost {
+  position: absolute;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  color: var(--parchmt);
+  pointer-events: none;
+  user-select: none;
+  line-height: 1;
+}
+
+/* ═══════════════════════════════════════════════════
+   SLIDE 1 — HERO
+═══════════════════════════════════════════════════ */
+#s1 { background: var(--ink); }
+
+#s1 .diag-1 {
+  top: -15%; right: -5%;
+  width: 42%; height: 130%;
+  background: var(--navy);
+  opacity: 0.5;
+  transform: rotate(8deg);
+}
+
+#s1 .content { position: relative; z-index: 1; max-width: 1200px; width: 100%; }
+
+#s1 .inner {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  #s1 .inner { grid-template-columns: 1fr; }
+  .stat-circle { margin: 0 auto; }
+}
+
+.stat-circle {
+  width: clamp(180px, 26vw, 260px);
+  height: clamp(180px, 26vw, 260px);
+  border-radius: 50%;
+  background: var(--dkcard);
+  border: 1.5px solid var(--gold);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-shadow: 0 0 60px rgba(212,146,10,0.1), 0 8px 40px rgba(0,0,0,0.5);
+  flex-shrink: 0;
+  padding: 1rem;
+}
+
+.stat-circle .label { font-size: clamp(0.55rem, 1vw, 0.65rem); color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+.stat-circle .num   { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: clamp(2rem, 4.5vw, 3rem); color: var(--gold-lt); line-height: 1.1; margin: 0.15em 0; }
+.stat-circle .divider { width: 55%; height: 1px; background: var(--slate); margin: 0.4em auto; }
+.stat-circle .note  { font-size: clamp(0.52rem, 0.9vw, 0.6rem); color: var(--muted); line-height: 1.5; }
+
+.pill-row { display: flex; flex-wrap: wrap; gap: 0.4em; margin-top: 1.2em; }
+.pill {
+  font-size: clamp(0.55rem, 1vw, 0.65rem);
+  color: var(--teal);
+  background: var(--slate);
+  border: 0.5px solid var(--teal);
+  border-radius: 4px;
+  padding: 0.25em 0.65em;
+  letter-spacing: 0.06em;
+}
+
+/* ═══════════════════════════════════════════════════
+   SLIDE 2 — THE MATH
+═══════════════════════════════════════════════════ */
+#s2 .content { max-width: 1000px; width: 100%; }
+
+.earn-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: clamp(0.72rem, 1.5vw, 0.92rem);
+  margin-top: 0.8em;
+}
+.earn-table thead tr { background: var(--teal); }
+.earn-table thead th {
+  color: var(--white);
+  font-weight: 600;
+  padding: clamp(0.4rem, 1vw, 0.6rem) clamp(0.5rem, 1.2vw, 0.8rem);
+  text-align: left;
+  font-family: 'DM Sans', sans-serif;
+}
+.earn-table thead th:not(:first-child) { text-align: center; }
+.earn-table tbody tr:nth-child(odd)  { background: var(--dkcard); }
+.earn-table tbody tr:nth-child(even) { background: var(--navy); }
+.earn-table tbody tr.hl              { background: #1C3040; }
+.earn-table tbody td {
+  color: var(--white);
+  padding: clamp(0.32rem, 0.8vw, 0.5rem) clamp(0.5rem, 1.2vw, 0.8rem);
+  border-bottom: 1px solid #1E2E3E;
+}
+.earn-table tbody tr.hl td { color: var(--gold-lt); font-weight: 600; }
+.earn-table tbody td:not(:first-child) { text-align: center; }
+.earn-table .rate { color: var(--teal); font-weight: 700; }
+.earn-table tr.hl .rate { color: var(--gold-lt); }
+.hl-bar { display: inline-block; width: 3px; height: 1em; background: var(--gold-lt); margin-right: 0.45em; vertical-align: middle; border-radius: 2px; }
+
+/* ═══════════════════════════════════════════════════
+   SLIDE 3 — WHY BUILDERS ONLY
+═══════════════════════════════════════════════════ */
+#s3 .content { max-width: 1100px; width: 100%; position: relative; z-index: 1; }
+
+.card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(0.7rem, 1.8vw, 1.1rem);
+  margin-top: 1em;
+}
+
+@media (max-width: 560px) { .card-grid { grid-template-columns: 1fr; } }
+
+.reason-card {
+  background: var(--white);
+  border-left: 4px solid var(--gold);
+  padding: clamp(0.8rem, 2vw, 1.1rem) clamp(0.9rem, 2.2vw, 1.3rem);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+}
+.reason-card h4 {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: clamp(0.95rem, 2vw, 1.15rem);
+  color: var(--ink);
+  margin-bottom: 0.4em;
+}
+.reason-card p {
+  font-size: clamp(0.72rem, 1.4vw, 0.85rem);
+  color: #3D4D5C;
+  line-height: 1.6;
+}
+
+.quote-bar {
+  margin-top: 1.4em;
+  font-family: 'Lora', serif;
+  font-style: italic;
+  font-size: clamp(0.75rem, 1.5vw, 0.9rem);
+  color: var(--teal);
+  text-align: center;
+  padding-top: 1em;
+  border-top: 1px solid #D5CFC5;
+}
+
+/* ═══════════════════════════════════════════════════
+   SLIDE 4 — HOW IT WORKS
+═══════════════════════════════════════════════════ */
+#s4 .content { max-width: 1100px; width: 100%; }
+
+.steps-flow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: clamp(1rem, 2.5vw, 1.8rem);
+  margin-top: 1.2em;
+  position: relative;
+}
+
+.steps-flow::before {
+  content: '';
+  position: absolute;
+  top: clamp(1.8rem, 4.5vw, 3rem);
+  left: 14%;
+  right: 14%;
+  height: 1.5px;
+  background: var(--slate);
+}
+
+@media (max-width: 600px) {
+  .steps-flow { grid-template-columns: 1fr 1fr; }
+  .steps-flow::before { display: none; }
+}
+
+.step { position: relative; }
+.step-num {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: clamp(3rem, 7vw, 5.5rem);
+  color: var(--slate);
+  line-height: 1;
+  margin-bottom: -0.1em;
+}
+.step-dot {
+  width: clamp(12px, 2.2vw, 18px);
+  height: clamp(12px, 2.2vw, 18px);
+  border-radius: 50%;
+  background: var(--teal);
+  margin: 0 0 0.6em clamp(0.6rem, 1.2vw, 1rem);
+}
+.step h4 {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
+  color: var(--white);
+  margin-bottom: 0.4em;
+  line-height: 1.2;
+}
+.step p {
+  font-size: clamp(0.68rem, 1.3vw, 0.8rem);
+  color: var(--lt-muted);
+  line-height: 1.55;
+}
+
+/* ═══════════════════════════════════════════════════
+   SLIDE 5 — TIER UNLOCK
+═══════════════════════════════════════════════════ */
+#s5 { padding: 0; background: var(--ink); }
+
+#s5 .slide-header {
+  padding: clamp(3rem, 6vw, 4.5rem) clamp(1.5rem, 7vw, 6rem) 0;
+}
+
+/* Desktop: side by side */
+.tier-split {
+  display: grid;
+  grid-template-columns: 1fr clamp(48px, 6vw, 72px) 1fr;
+  min-height: clamp(280px, 45vh, 400px);
+  margin-top: 1.2em;
+}
+
+.tier-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(2rem, 4vw, 3rem) clamp(1.5rem, 3vw, 2.5rem);
+  text-align: center;
+}
+.tier-box.t1 { background: var(--offwhite); }
+.tier-box.t2 { background: var(--navy); }
+
+.tier-label {
+  font-family: 'DM Sans', sans-serif;
+  font-size: clamp(0.58rem, 1vw, 0.68rem);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.5em;
+}
+.tier-box.t2 .tier-label { color: var(--gold); }
+
+.tier-pct {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: clamp(5.5rem, 13vw, 9rem);
+  line-height: 0.88;
+  color: var(--ink);
+}
+.tier-box.t2 .tier-pct { color: var(--gold-lt); }
+
+.tier-sub {
+  font-family: 'DM Sans', sans-serif;
+  font-size: clamp(0.72rem, 1.2vw, 0.85rem);
+  color: #5A6B7A;
+  margin-top: 0.7em;
+  line-height: 1.55;
+}
+.tier-box.t2 .tier-sub { color: var(--lt-muted); }
+
+.tier-divider {
+  background: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.arrow-circle {
+  width: clamp(36px, 5vw, 52px);
+  height: clamp(36px, 5vw, 52px);
+  border-radius: 50%;
+  background: var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: clamp(1rem, 1.8vw, 1.4rem);
+  color: var(--white);
+  flex-shrink: 0;
+}
+
+.arrow-circle::after {
+  content: '→';
+  font-size: clamp(1rem, 1.8vw, 1.4rem);
+  font-weight: 900;
+  color: var(--white);
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* Mobile: stack vertically */
+@media (max-width: 600px) {
+  .tier-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    min-height: unset;
+  }
+
+  .tier-box {
+    padding: 2.5rem 2rem;
+  }
+
+  .tier-pct {
+    font-size: 5.5rem;
+  }
+
+  .tier-divider {
+    padding: 1rem 0;
+    background: var(--ink);
+  }
+
+  .arrow-circle::after {
+    content: '↓';
+  }
+}
+
+.tier-footer {
+  background: var(--dkcard);
+  padding: clamp(0.7rem, 1.5vw, 1rem) clamp(1.5rem, 7vw, 6rem);
+  font-family: 'DM Sans', sans-serif;
+  font-size: clamp(0.65rem, 1.2vw, 0.78rem);
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* ═══════════════════════════════════════════════════
+   SLIDE 6 — PASSIVE STATUS
+═══════════════════════════════════════════════════ */
+#s6 .content { max-width: 1100px; width: 100%; position: relative; z-index: 1; }
+
+.passive-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(0.7rem, 1.8vw, 1.1rem);
+  margin-top: 1em;
+}
+
+@media (max-width: 640px) { .passive-grid { grid-template-columns: 1fr; } }
+
+.passive-col { background: var(--white); box-shadow: 0 2px 14px rgba(0,0,0,0.09); }
+.passive-col-header {
+  padding: clamp(0.4rem, 1vw, 0.55rem) clamp(0.8rem, 1.8vw, 1.1rem);
+  font-size: clamp(0.58rem, 1.1vw, 0.68rem);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--white);
+}
+.passive-col-body { padding: clamp(0.7rem, 1.5vw, 0.9rem) clamp(0.8rem, 1.8vw, 1.1rem); }
+.passive-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55em;
+  margin-bottom: 0.6em;
+  font-size: clamp(0.7rem, 1.3vw, 0.82rem);
+  color: #3A4A5A;
+  line-height: 1.5;
+}
+.passive-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 0.35em;
+}
+
+/* ═══════════════════════════════════════════════════
+   SLIDE 7 — TERMS
+═══════════════════════════════════════════════════ */
+#s7 .content { max-width: 1000px; width: 100%; }
+
+.terms-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(0.8rem, 2vw, 1.3rem);
+  margin-top: 0.9em;
+}
+
+@media (max-width: 560px) { .terms-grid { grid-template-columns: 1fr; } }
+
+.terms-card { background: var(--dkcard); border: 1px solid #1E2E3E; }
+.terms-card-header {
+  padding: clamp(0.38rem, 0.9vw, 0.5rem) clamp(0.8rem, 1.8vw, 1.1rem);
+  font-size: clamp(0.58rem, 1.1vw, 0.68rem);
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--white);
+}
+.terms-card-body { padding: clamp(0.7rem, 1.5vw, 1rem) clamp(0.8rem, 1.8vw, 1.1rem); }
+.terms-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55em;
+  margin-bottom: 0.65em;
+  font-size: clamp(0.7rem, 1.35vw, 0.85rem);
+  line-height: 1.5;
+}
+.terms-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 0.35em; }
+.terms-item strong { color: var(--white); }
+.terms-item span   { color: var(--muted); }
+
+/* ═══════════════════════════════════════════════════
+   SLIDE 8 — CLOSE
+═══════════════════════════════════════════════════ */
+#s8 {
+  background: var(--ink);
+  align-items: center;
+  text-align: center;
+  min-height: 100vh;
+}
+
+#s8::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(ellipse at 50% 45%, rgba(26,42,58,0.9) 0%, var(--ink) 68%);
+  pointer-events: none;
+}
+
+.top-line {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--gold), var(--teal));
+}
+
+#s8 .content { position: relative; z-index: 1; max-width: 820px; }
+
+.closing-hl {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: clamp(2.8rem, 7.5vw, 5.5rem);
+  line-height: 1.05;
+  color: var(--white);
+  margin-bottom: 0.2em;
+}
+
+.closing-gold {
+  color: var(--gold-lt);
+  display: block;
+}
+
+.closing-sub {
+  font-family: 'Lora', serif;
+  font-style: italic;
+  font-size: clamp(0.9rem, 2.2vw, 1.15rem);
+  color: var(--lt-muted);
+  line-height: 1.7;
+  margin: 1em auto 1.8em;
+  max-width: 520px;
+}
+
+.cta-btn {
+  display: inline-block;
+  background: var(--teal);
+  color: var(--white);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
+  padding: clamp(0.75rem, 1.8vw, 1rem) clamp(2rem, 4.5vw, 2.8rem);
+  text-decoration: none;
+  box-shadow: 0 4px 24px rgba(45,139,122,0.3);
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  letter-spacing: 0.02em;
+}
+
+.cta-btn:hover {
+  background: var(--teal-lt);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(45,139,122,0.4);
+}
+
+/* ─── SCROLL DOWN HINT ──────────────────────────────── */
+.scroll-hint {
+  position: absolute;
+  bottom: clamp(1.2rem, 3vw, 2rem);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4em;
+  color: var(--muted);
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  animation: bounce 2s infinite;
+  cursor: pointer;
+  z-index: 2;
+}
+.scroll-hint svg { width: 18px; height: 18px; fill: none; stroke: var(--gold); stroke-width: 2; }
+
+@keyframes bounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%       { transform: translateX(-50%) translateY(6px); }
+}
+</style>
+</head>
+
+<body>
+
+<!-- Progress bar -->
+<div id="progress-bar"></div>
+
+<!-- Nav dots -->
+<div id="nav-dots">
+  <div class="nav-dot active" data-target="s1" title="Intro"></div>
+  <div class="nav-dot" data-target="s2" title="The Math"></div>
+  <div class="nav-dot" data-target="s3" title="Why Builders"></div>
+  <div class="nav-dot" data-target="s4" title="How It Works"></div>
+  <div class="nav-dot" data-target="s5" title="Tier Unlock"></div>
+  <div class="nav-dot" data-target="s6" title="Passive Status"></div>
+  <div class="nav-dot" data-target="s7" title="Terms"></div>
+  <div class="nav-dot" data-target="s8" title="Close"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     SLIDE 1 — HOOK
+════════════════════════════════════════════════════ -->
+<section class="slide dark" id="s1">
+  <div class="diag dark" style="position:absolute;top:-15%;right:-5%;width:42%;height:130%;background:var(--navy);opacity:0.45;transform:rotate(8deg);border-radius:4px;pointer-events:none;"></div>
+  <div class="corner"></div>
+
+  <div class="content" id="s1-content" style="max-width:1200px;width:100%;position:relative;z-index:1;">
+    <div class="eyebrow fade-up">Urban Sheds Collective &nbsp;·&nbsp; Builder Affiliate Program</div>
+
+    <div class="inner" id="s1-inner">
+      <div>
+        <div class="display fade-up delay-1">
+          You know the Urban Sheds brand<br>better than anyone.
+        </div>
+        <div class="subhead fade-up delay-2">
+          Earn passive income recruiting<br>other talented craftsmen.
+        </div>
+        <div class="body-copy fade-up delay-3">
+          The Builder Affiliate Program pays you automatically on every shed your referred builders sell — for as long as they're on the platform.
+        </div>
+        <div class="pill-row fade-up delay-4">
+          <span class="pill">automatic</span>
+          <span class="pill">lifetime</span>
+          <span class="pill">no admin</span>
+        </div>
+      </div>
+
+      <div class="stat-circle fade-up delay-2">
+        <div class="label">up to</div>
+        <div class="num">$86,400</div>
+        <div class="label">per year</div>
+        <div class="divider"></div>
+        <div class="note">from 10 referred builders<br>avg. $12K · 3 jobs/mo</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroll-hint" onclick="document.getElementById('s2').scrollIntoView({behavior:'smooth'})">
+    <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"></polyline></svg>
+    scroll
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     SLIDE 2 — THE MATH
+════════════════════════════════════════════════════ -->
+<section class="slide dark" id="s2">
+  <div style="position:absolute;top:-10%;right:-5%;width:38%;height:120%;background:var(--teal);opacity:0.06;transform:rotate(6deg);pointer-events:none;border-radius:4px;"></div>
+
+  <div class="content">
+    <div class="eyebrow fade-up">The Math</div>
+    <div class="display fade-up delay-1">Here's what your network is worth.</div>
+    <div class="body-copy fade-up delay-1" style="font-style:italic;color:var(--muted);margin-bottom:0.6em;max-width:none;">
+      Based on avg. Urban Sheds job value of $12,000 &nbsp;·&nbsp; 3 jobs/month per referred builder
+    </div>
+
+    <div class="fade-up delay-2">
+      <table class="earn-table">
+        <thead>
+          <tr>
+            <th>Referred Builders</th>
+            <th>Monthly</th>
+            <th>Annual</th>
+            <th>Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>1 referred builder</td><td>$540</td><td>$6,480</td><td class="rate">1.5%</td></tr>
+          <tr><td>3 referred builders</td><td>$1,620</td><td>$19,440</td><td class="rate">1.5%</td></tr>
+          <tr><td>5 referred builders</td><td>$2,700</td><td>$32,400</td><td class="rate">1.5%</td></tr>
+          <tr class="hl"><td><span class="hl-bar"></span>6+ builders &nbsp;↑&nbsp; TIER 2</td><td>$4,320+</td><td>$51,840+</td><td class="rate">2%</td></tr>
+          <tr class="hl"><td><span class="hl-bar"></span>10 referred builders</td><td>$7,200</td><td>$86,400</td><td class="rate">2%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="footnote fade-up delay-3">Illustrative only. Results vary by market, builder volume, and pricing decisions.</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     SLIDE 3 — WHY BUILDERS ONLY
+════════════════════════════════════════════════════ -->
+<section class="slide light" id="s3">
+  <div class="ghost" style="font-size:clamp(8rem,22vw,18rem);top:-0.05em;right:-0.04em;opacity:0.55;">WHY</div>
+
+  <div class="content">
+    <div class="eyebrow fade-up">Why Builders Only</div>
+    <div class="display light fade-up delay-1" style="max-width:80%;">
+      The best person to recruit a craftsman<br>is another craftsman.
+    </div>
+
+    <div class="card-grid fade-up delay-2">
+      <div class="reason-card">
+        <h4>You pre-qualify leads</h4>
+        <p>No builder refers someone they wouldn't trust on a job site. Your referral arrives with built-in vetting — no screening needed.</p>
+      </div>
+      <div class="reason-card">
+        <h4>Your pitch is credible</h4>
+        <p>You've run the platform. You know what $1,495/month replaces. That conversation lands differently from someone who's lived it.</p>
+      </div>
+      <div class="reason-card">
+        <h4>You protect the brand</h4>
+        <p>You have your own reputation in the trade. You care who you bring in because misaligned recruits reflect on you too.</p>
+      </div>
+      <div class="reason-card">
+        <h4>You build the community</h4>
+        <p>A network where builders recruited each other is a network that stays. The Collective compounds because the relationships are real.</p>
+      </div>
+    </div>
+
+    <div class="quote-bar fade-up delay-3">
+      "We're not looking for the most builders. We're looking for the right ones."
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     SLIDE 4 — HOW IT WORKS
+════════════════════════════════════════════════════ -->
+<section class="slide dark" id="s4">
+  <div style="position:absolute;bottom:0;left:0;right:0;height:30%;background:rgba(45,139,122,0.04);pointer-events:none;"></div>
+
+  <div class="content">
+    <div class="eyebrow fade-up">How It Works</div>
+    <div class="display fade-up delay-1">Four steps. Stripe handles the rest.</div>
+
+    <div class="steps-flow fade-up delay-2">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-dot"></div>
+        <h4>You recruit<br>a builder</h4>
+        <p>Introduce a builder and register the referral before they sign. Unregistered referrals don't qualify.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-dot"></div>
+        <h4>They license<br>the brand</h4>
+        <p>They execute a BLA and activate their territory. You don't have to do anything further.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-dot"></div>
+        <h4>They make<br>their first sale</h4>
+        <p>First confirmed sale recorded — your earnings begin immediately. That's the trigger.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <div class="step-dot"></div>
+        <h4>Stripe pays<br>you per job</h4>
+        <p>1.5% routes to you automatically on every transaction. No invoices. No follow-up. No admin.</p>
+      </div>
+    </div>
+  </div>
+  <div class="footnote fade-up delay-3">Eligibility: Active builder &nbsp;·&nbsp; 12 months on platform &nbsp;·&nbsp; In good standing</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     SLIDE 5 — TIER UNLOCK
+════════════════════════════════════════════════════ -->
+<section class="slide" id="s5" style="padding:0;background:var(--ink);justify-content:flex-start;">
+  <div class="slide-header fade-up" style="padding:clamp(3rem,6vw,4.5rem) clamp(1.5rem,7vw,6rem) 0;">
+    <div class="eyebrow">The Tier Unlock</div>
+    <div class="display">Six active builders. Everything jumps to 2%.</div>
+  </div>
+
+  <div class="tier-split fade-up delay-1">
+    <div class="tier-box t1">
+      <div class="tier-label">Tier 1</div>
+      <div class="tier-pct">1.5%</div>
+      <div class="tier-sub">per referred builder's shed sales<br><br>Builders 1–5</div>
+    </div>
+    <div class="tier-divider">
+      <div class="arrow-circle" aria-label="leads to"></div>
+    </div>
+    <div class="tier-box t2">
+      <div class="tier-label">Tier 2 — Unlocked at Builder #6</div>
+      <div class="tier-pct">2%</div>
+      <div class="tier-sub">across ALL active referred builders<br><br>Builder #6 onward</div>
+    </div>
+  </div>
+
+  <div class="tier-footer fade-up delay-2">
+    Rate reverts to 1.5% if active referred builders drop below 6 — this keeps the incentive on quality, not just headcount.
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     SLIDE 6 — PASSIVE STATUS
+════════════════════════════════════════════════════ -->
+<section class="slide light" id="s6">
+  <div class="ghost" style="font-size:clamp(5rem,15vw,11rem);bottom:-0.05em;right:-0.04em;opacity:0.5;">PASSIVE</div>
+
+  <div class="content">
+    <div class="eyebrow fade-up">Passive Builder Status</div>
+    <div class="display light fade-up delay-1">Done building.<br>Not done earning.</div>
+    <div class="body-copy fade-up delay-1" style="font-family:'Lora',serif;font-style:italic;color:#4A5A6A;max-width:none;margin-bottom:1em;">
+      Step back from active building for $500/month. Keep your referral income — indefinitely.
+    </div>
+
+    <div class="passive-grid fade-up delay-2">
+      <div class="passive-col">
+        <div class="passive-col-header" style="background:var(--teal);">You Keep</div>
+        <div class="passive-col-body">
+          <div class="passive-item"><div class="passive-dot" style="background:var(--teal);"></div>Referral commissions on all active referred builders</div>
+          <div class="passive-item"><div class="passive-dot" style="background:var(--teal);"></div>Right to recruit and register new referrals</div>
+          <div class="passive-item"><div class="passive-dot" style="background:var(--teal);"></div>Monthly builder calls + annual Summit invitation</div>
+        </div>
+      </div>
+      <div class="passive-col">
+        <div class="passive-col-header" style="background:var(--rust);">You Give Up</div>
+        <div class="passive-col-body">
+          <div class="passive-item"><div class="passive-dot" style="background:var(--rust);"></div>Licensed territory (opens for a new builder)</div>
+          <div class="passive-item"><div class="passive-dot" style="background:var(--rust);"></div>Platform tools — Shed Pro, configurator, CRM, academy, WhatsApp</div>
+          <div class="passive-item"><div class="passive-dot" style="background:var(--rust);"></div>Active USC brand operations</div>
+        </div>
+      </div>
+      <div class="passive-col">
+        <div class="passive-col-header" style="background:var(--ink);">The Door Stays Open</div>
+        <div class="passive-col-body">
+          <div class="passive-item"><div class="passive-dot" style="background:var(--ink);border:1px solid var(--muted);"></div>Re-enter active status at any time</div>
+          <div class="passive-item"><div class="passive-dot" style="background:var(--ink);border:1px solid var(--muted);"></div>Standard onboarding fee applies</div>
+          <div class="passive-item"><div class="passive-dot" style="background:var(--ink);border:1px solid var(--muted);"></div>Subject to territory availability</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footnote fade-up delay-3" style="color:var(--muted);">60-day cure period on missed payments before permanent termination</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     SLIDE 7 — TERMS
+════════════════════════════════════════════════════ -->
+<section class="slide dark" id="s7">
+  <div style="position:absolute;top:-20%;right:-5%;width:32%;height:90%;background:var(--gold);opacity:0.05;transform:rotate(12deg);pointer-events:none;border-radius:4px;"></div>
+
+  <div class="content">
+    <div class="eyebrow fade-up">Eligibility &amp; Terms</div>
+    <div class="display fade-up delay-1">What it takes to qualify.<br>How it works once you do.</div>
+
+    <div class="terms-grid fade-up delay-2">
+      <div class="terms-card">
+        <div class="terms-card-header" style="background:var(--teal);">To Qualify</div>
+        <div class="terms-card-body">
+          <div class="terms-item"><div class="terms-dot" style="background:var(--teal);"></div><span style="color:var(--white);">Active BLA for 12+ consecutive months</span></div>
+          <div class="terms-item"><div class="terms-dot" style="background:var(--teal);"></div><span style="color:var(--white);">In good standing — no outstanding fees or notices</span></div>
+          <div class="terms-item"><div class="terms-dot" style="background:var(--teal);"></div><span style="color:var(--white);">Referral registered before the new builder signs</span></div>
+          <div class="terms-item"><div class="terms-dot" style="background:var(--teal);"></div><span style="color:var(--white);">Referred builder must make at least one confirmed sale to count toward the 6-builder threshold</span></div>
+        </div>
+      </div>
+      <div class="terms-card">
+        <div class="terms-card-header" style="background:var(--slate);">How It Pays</div>
+        <div class="terms-card-body">
+          <div class="terms-item"><div class="terms-dot" style="background:var(--muted);"></div><strong>Drawn from USC's 10% IP fee —</strong><span> no extra cost to the referred builder</span></div>
+          <div class="terms-item"><div class="terms-dot" style="background:var(--muted);"></div><strong>Paid automatically via Stripe —</strong><span> per transaction, no invoicing</span></div>
+          <div class="terms-item"><div class="terms-dot" style="background:var(--muted);"></div><strong>Duration —</strong><span> lifetime of the referred builder's active license</span></div>
+          <div class="terms-item"><div class="terms-dot" style="background:var(--muted);"></div><strong>Program exit —</strong><span> USC may discontinue with 60 days notice; earnings cease on that date</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footnote fade-up delay-3">Full terms in Addendum B of the Brand License Agreement &nbsp;·&nbsp; Consult your own advisor before making business decisions.</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     SLIDE 8 — CLOSE
+════════════════════════════════════════════════════ -->
+<section class="slide" id="s8">
+  <div class="top-line"></div>
+
+  <div class="content" style="text-align:center;">
+    <div class="eyebrow fade-up" style="color:var(--muted);justify-content:center;display:block;text-align:center;">Builder Affiliate Program</div>
+
+    <div class="closing-hl fade-up delay-1">
+      Good builders<br>know good builders.<br>
+      <span class="closing-gold">Now that's worth something.</span>
+    </div>
+
+    <div class="closing-sub fade-up delay-2">
+      Your knowledge of this brand is an asset.<br>
+      The Affiliate Program lets you put it to work.
+    </div>
+
+    <a href="https://urban-sheds.com/builders" class="cta-btn fade-up delay-3">
+      urban-sheds.com/builders
+    </a>
+  </div>
+  <div class="footnote fade-up delay-4">Illustrative only — not a guarantee of earnings. Review Addendum B before making business decisions.</div>
+</section>
+
+<script>
+// ── PROGRESS BAR ────────────────────────────────────
+const bar = document.getElementById('progress-bar');
+function updateProgress() {
+  const scrollTop = window.scrollY;
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+  bar.style.width = (scrollTop / docHeight * 100) + '%';
+}
+
+// ── NAV DOTS ─────────────────────────────────────────
+const dots = document.querySelectorAll('.nav-dot');
+const sections = ['s1','s2','s3','s4','s5','s6','s7','s8'].map(id => document.getElementById(id));
+
+dots.forEach(dot => {
+  dot.addEventListener('click', () => {
+    document.getElementById(dot.dataset.target).scrollIntoView({ behavior: 'smooth' });
+  });
+});
+
+function updateDots() {
+  const mid = window.scrollY + window.innerHeight / 2;
+  let active = 0;
+  sections.forEach((sec, i) => {
+    if (sec && sec.offsetTop <= mid) active = i;
+  });
+  dots.forEach((d, i) => d.classList.toggle('active', i === active));
+}
+
+// ── FADE-UP ON SCROLL ─────────────────────────────────
+const fadeEls = document.querySelectorAll('.fade-up');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+fadeEls.forEach(el => observer.observe(el));
+
+// ── EVENTS ────────────────────────────────────────────
+window.addEventListener('scroll', () => { updateProgress(); updateDots(); }, { passive: true });
+
+// Init
+updateProgress();
+updateDots();
+</script>
+</body>
+</html>
