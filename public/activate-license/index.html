@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Activate Your License — Urban Sheds Collective</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=Lora:ital,wght@0,400;0,600;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink:      #141E28;
+  --navy:     #1A2A3A;
+  --slate:    #243547;
+  --teal:     #2D8B7A;
+  --teal-lt:  #3DB89E;
+  --gold:     #D4920A;
+  --gold-lt:  #F0B429;
+  --white:    #FFFFFF;
+  --muted:    #7A8D9E;
+  --lt-muted: #B8C8D5;
+  --dkcard:   #111A24;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'DM Sans', sans-serif;
+  background: var(--ink);
+  color: var(--white);
+  overflow-x: hidden;
+}
+
+.top-bar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--gold), var(--teal));
+  z-index: 100;
+}
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: clamp(5rem, 10vw, 7rem) clamp(1.5rem, 6vw, 3rem) clamp(3rem, 6vw, 4rem);
+}
+
+.card {
+  width: 100%;
+  max-width: 580px;
+  background: var(--dkcard);
+  border: 1px solid var(--slate);
+  padding: clamp(2rem, 6vw, 3.5rem);
+  position: relative;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadein 0.55s ease 0.1s forwards;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px;
+  height: clamp(40px, 8vw, 60px);
+  background: var(--gold);
+}
+.card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: clamp(40px, 8vw, 60px);
+  height: 3px;
+  background: var(--gold);
+}
+
+.wordmark {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: clamp(0.75rem, 1.8vw, 0.88rem);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: clamp(1.8rem, 4vw, 2.5rem);
+}
+.wordmark span { color: var(--gold); }
+
+.headline {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: clamp(2.4rem, 7vw, 3.8rem);
+  line-height: 1;
+  color: var(--white);
+  margin-bottom: 0.35em;
+}
+.headline .teal { color: var(--teal-lt); }
+
+.sub {
+  font-family: 'Lora', serif;
+  font-style: italic;
+  font-size: clamp(0.9rem, 2vw, 1.05rem);
+  color: var(--lt-muted);
+  line-height: 1.7;
+  margin-bottom: clamp(1.8rem, 4vw, 2.5rem);
+}
+
+.includes {
+  border-top: 1px solid var(--slate);
+  border-bottom: 1px solid var(--slate);
+  padding: clamp(1.2rem, 3vw, 1.6rem) 0;
+  margin-bottom: clamp(1.8rem, 4vw, 2.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55em;
+}
+
+.include-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65em;
+  font-size: clamp(0.75rem, 1.5vw, 0.86rem);
+  color: var(--lt-muted);
+  line-height: 1.45;
+}
+.include-check { color: var(--teal-lt); font-weight: 700; flex-shrink: 0; font-size: 0.8em; }
+.include-plus  { color: var(--gold-lt);  font-weight: 700; flex-shrink: 0; font-size: 0.8em; }
+.include-divider { border: none; border-top: 1px solid var(--slate); margin: 0.3em 0; }
+.include-row.plus-row { color: var(--muted); font-size: clamp(0.68rem, 1.3vw, 0.78rem); }
+
+.pricing-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  flex-wrap: wrap;
+  margin-bottom: clamp(1.8rem, 4vw, 2.5rem);
+}
+.price-main {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: clamp(2rem, 5vw, 2.8rem);
+  color: var(--white);
+  line-height: 1;
+}
+.price-period { font-size: clamp(0.7rem, 1.4vw, 0.82rem); color: var(--muted); }
+.price-sep    { color: var(--slate); font-size: 1.2rem; margin: 0 0.1em; }
+.price-ip     { font-size: clamp(0.72rem, 1.4vw, 0.84rem); color: var(--muted); }
+.price-ip strong { color: var(--lt-muted); }
+
+.cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75em;
+  width: 100%;
+  background: var(--teal);
+  color: var(--white);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: clamp(1rem, 2.5vw, 1.2rem);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: clamp(1rem, 2.5vw, 1.25rem) 2rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.15s ease;
+  position: relative;
+  overflow: hidden;
+  animation: pulse-ring 2.8s ease-out infinite;
+}
+.cta::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent, rgba(255,255,255,0.07), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.45s ease;
+}
+.cta:hover { background: var(--teal-lt); transform: translateY(-1px); }
+.cta:hover::after { transform: translateX(100%); }
+.cta svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.5; flex-shrink: 0; transition: transform 0.18s ease; }
+.cta:hover svg { transform: translateX(3px); }
+
+.footer-note {
+  margin-top: clamp(1.2rem, 2.5vw, 1.6rem);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5em;
+}
+.secure {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: clamp(0.58rem, 1.1vw, 0.68rem);
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+.secure svg { width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.support { font-size: clamp(0.58rem, 1.1vw, 0.68rem); color: var(--muted); }
+.support a { color: var(--teal); text-decoration: none; border-bottom: 1px solid rgba(45,139,122,0.3); }
+
+.legal {
+  margin-top: clamp(2rem, 4vw, 3rem);
+  font-size: 0.6rem;
+  color: var(--muted);
+  opacity: 0.5;
+  text-align: center;
+  max-width: 580px;
+  line-height: 1.7;
+}
+
+@keyframes fadein { to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(45,139,122,0.45); }
+  70%  { box-shadow: 0 0 0 14px rgba(45,139,122,0); }
+  100% { box-shadow: 0 0 0 0 rgba(45,139,122,0); }
+}
+</style>
+</head>
+<body>
+
+<div class="top-bar"></div>
+
+<div class="page">
+  <div class="card">
+
+    <div class="wordmark">Urban Sheds<span> · </span>Collective</div>
+
+    <h1 class="headline">You're approved.<br><span class="teal">Activate your license.</span></h1>
+
+    <p class="sub">Your territory is reserved and your platform is ready. Complete your first monthly payment below and we'll have you live within 48 hours.</p>
+
+    <div class="includes">
+      <div class="include-row"><span class="include-check">✓</span> Zip code territory locked in — your market, exclusively yours</div>
+      <div class="include-row"><span class="include-check">✓</span> 3D Shed Configurator login credentials — live and ready to quote</div>
+      <div class="include-row"><span class="include-check">✓</span> ShedPro ad campaigns actively managed and pointed at your territory</div>
+      <div class="include-row"><span class="include-check">✓</span> CRM seat and login credentials — 75-day automated follow-up running from day one</div>
+      <div class="include-row"><span class="include-check">✓</span> Set as Active Builder in the project management app</div>
+      <div class="include-row"><span class="include-check">✓</span> Social media posts — you get tagged as the builder</div>
+      <div class="include-row"><span class="include-check">✓</span> Licensed rights to the blueprints, material lists, and cut lists for USC's top-selling designs</div>
+      <div class="include-row"><span class="include-check">✓</span> Member in the Urban Sheds Builders WhatsApp group chat</div>
+      <hr class="include-divider">
+      <div class="include-row plus-row"><span class="include-plus">+</span> Full platform access: brand assets, photography, SEO content, Shed Builders Academy, builder peer network, onboarding</div>
+    </div>
+
+    <div class="pricing-line">
+      <div class="price-main">$1,495</div>
+      <div class="price-period">/ month</div>
+      <div class="price-sep">·</div>
+      <div class="price-ip"><strong>10%</strong> IP licensing fee per completed project</div>
+    </div>
+
+    <a href="https://buy.stripe.com/8x25kD3daecH1Q8fyl2B200" class="cta">
+      Activate My License
+      <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </a>
+
+    <div class="footer-note">
+      <span class="secure">
+        <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+        Secured by Stripe
+      </span>
+      <span class="support">Questions? <a href="mailto:support@urban-sheds.com">support@urban-sheds.com</a></span>
+    </div>
+
+  </div>
+
+  <div class="legal">
+    $1,495/month flat fee · 10% IP licensing fee per completed project · Territory locked exclusively for 6 months, then month-to-month · GL insurance required · Lead flow ramp takes 30–60 days of market activation. Urban Sheds Collective is a brand licensing program. This is not a franchise offer.
+  </div>
+</div>
+
+</body>
+</html>

@@ -137,12 +137,13 @@ export default function AdminPanel() {
       {/* Tabs — Tech Stack only visible to super admins */}
       {isSuperAdmin && (
         <div style={{ display:'flex', flexWrap:'wrap', gap:0, marginBottom:24, borderBottom:`2px solid ${C.linenDarker}` }}>
-          {[['users','Users'],['tech','Tech Stack']].map(([key,label]) => (
+          {[['users','Users'],['onboarding','Builder Onboarding'],['tech','Tech Stack']].map(([key,label]) => (
             <button key={key} onClick={() => setActiveTab(key)} style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, padding:'10px 20px', border:'none', cursor:'pointer', background:'transparent', color:activeTab===key?C.sage:'#aaa', borderBottom:activeTab===key?`2px solid ${C.sage}`:'2px solid transparent', marginBottom:-2, transition:'all 0.15s' }}>{label}</button>
           ))}
         </div>
       )}
 
+      {isSuperAdmin && activeTab === 'onboarding' && <BuilderOnboardingTab />}
       {isSuperAdmin && activeTab === 'tech' && <TechStackTab isSuperAdmin={isSuperAdmin} />}
 
       {activeTab === 'users' && (loading ? (
@@ -240,6 +241,71 @@ export default function AdminPanel() {
       </>
       ))}
     </div>
+  );
+}
+
+// ── Builder Onboarding tab (super admin only) ─────────────────
+// Links to the public payment pages served as static HTML from /public.
+// Keep `path` values in sync with the folders in public/ (and any route checks).
+const ONBOARDING_PAGES = [
+  {
+    key:   'onboarding-fee',
+    title: 'Builder Onboarding Fee',
+    price: '$499 one-time',
+    desc:  'New builder pays the one-time setup fee. We configure the platform for their market (territory zips, pricing, configurator, CRM, ads, profile) before the territory goes live.',
+    path:  '/onboarding-fee',
+  },
+  {
+    key:   'activate-license',
+    title: 'License Activation',
+    price: '$1,495 / month + 10% IP fee',
+    desc:  'Approved builder pays their first monthly license payment to activate their territory and go live (typically within 48 hours).',
+    path:  '/activate-license',
+  },
+];
+
+function BuilderOnboardingTab() {
+  const [copied, setCopied] = useState(null);
+
+  const fullUrl = (path) => (typeof window !== 'undefined' ? window.location.origin : '') + path;
+
+  async function copyLink(page) {
+    try {
+      await navigator.clipboard.writeText(fullUrl(page.path));
+      setCopied(page.key);
+      setTimeout(() => setCopied(null), 1800);
+    } catch {
+      /* clipboard unavailable — ignore */
+    }
+  }
+
+  return (
+    <Card>
+      <h3 style={sh3}>Builder Onboarding</h3>
+      <p style={{ fontFamily:'DM Sans', fontSize:12, color:'#888', margin:'6px 0 20px', lineHeight:1.6 }}>
+        Public payment pages for bringing a new builder online. Open a page to preview it, or copy its
+        link to send to the builder when they reach that step. Visible only to super admins.
+      </p>
+
+      <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+        {ONBOARDING_PAGES.map(page => (
+          <div key={page.key} style={{ border:`1px solid ${C.linenDarker}`, borderRadius:6, padding:'16px 18px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, flexWrap:'wrap' }}>
+              <h4 style={{ fontFamily:'DM Sans', fontSize:15, fontWeight:700, color:C.charcoal, margin:0 }}>{page.title}</h4>
+              <span style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, color:C.sage }}>{page.price}</span>
+            </div>
+            <p style={{ fontFamily:'DM Sans', fontSize:13, color:'#666', margin:'8px 0 14px', lineHeight:1.6 }}>{page.desc}</p>
+            <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+              <Button size="sm" onClick={() => window.open(page.path, '_blank', 'noopener')}>Open page ↗</Button>
+              <Button size="sm" variant="secondary" onClick={() => copyLink(page)}>
+                {copied === page.key ? 'Copied ✓' : 'Copy link'}
+              </Button>
+              <code style={{ fontFamily:'monospace', fontSize:12, color:'#999' }}>{page.path}</code>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 

@@ -30,15 +30,19 @@ resources, and financing info.
     (Vercel auto-detects the Vite framework, build command, and `dist` output, but `vercel.json` pins them
     explicitly) — this is what makes deep links / refresh resolve to the SPA. The old `public/_redirects`
     (`/* /index.html 200`) was Netlify-specific and has been removed now that Netlify is fully retired.
-  - **Public marketing pages:** three builder-recruitment landing pages live as plain static HTML in
-    `public/` and are served publicly, with NO login: `/assessment` (a JS-driven self-assessment quiz),
-    `/licensing` (licensing-program page), and `/affiliate-program` (affiliate-program page). They were
-    migrated off Netlify in 2026-06. Because Vercel serves real files in `public/` BEFORE applying the
-    SPA `rewrites` rule, these bypass React and the auth gate entirely — no route changes needed. Each is
-    a single self-contained file (inline CSS/JS, Google Fonts via CDN, no backend). GOTCHA: a public
-    page's folder name must NOT collide with a React route in `ROUTES` (App.jsx) — that's why the
-    affiliate page is at `/affiliate-program`, since `/affiliate` is the in-app Affiliate Resources page.
-    The share/copy links in `AffiliateResources.jsx` point at these `build.urban-sheds.com/...` URLs.
+  - **Public marketing & payment pages:** several standalone pages live as plain static HTML in
+    `public/` and are served publicly, with NO login. Three are builder-recruitment marketing pages —
+    `/assessment` (a JS-driven self-assessment quiz), `/licensing`, and `/affiliate-program` — first
+    migrated off Netlify in 2026-06. Two are Stripe **payment** pages — `/onboarding-fee` ($499 one-time
+    setup) and `/activate-license` ($1,495/mo license activation); each has a live Stripe Payment Link as
+    its CTA and no backend. Because Vercel serves real files in `public/` BEFORE applying the SPA
+    `rewrites` rule, all of these bypass React and the auth gate entirely — no route changes needed. Each
+    is a single self-contained file (inline CSS/JS, Google Fonts via CDN). GOTCHA: a public page's folder
+    name must NOT collide with a React route in `ROUTES` (App.jsx) — that's why the affiliate page is at
+    `/affiliate-program`, since `/affiliate` is the in-app Affiliate Resources page. The share/copy links
+    in `AffiliateResources.jsx` point at the `build.urban-sheds.com/...` marketing URLs; the two payment
+    pages are surfaced (open + copy-link) in the super-admin **Admin → Builder Onboarding** tab
+    (`ONBOARDING_PAGES` in `AdminPanel.jsx` — keep its `path` values in sync with the `public/` folders).
 - **Env:** requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. In Vercel these live in the project's
   Environment Variables; for local dev put them in `.env` (see `.env.example`). `.env` is gitignored — never commit it.
 
@@ -47,9 +51,11 @@ resources, and financing info.
 /index.html                  — Vite entry HTML (loads /src/main.jsx)
 /package.json, vite.config.js, eslint.config.js
 /public/                     — static assets (favicon.svg, hero.png, icons.svg, etc.)
-/public/assessment/          — PUBLIC marketing pages (see "Public marketing pages" below):
+/public/assessment/          — PUBLIC pages (see "Public marketing & payment pages" below):
 /public/licensing/             self-contained static HTML served as-is, no login. Vite copies
-/public/affiliate-program/     public/ to dist/ root; Vercel serves real files before the SPA rewrite.
+/public/affiliate-program/     public/ to dist/ root; Vercel serves real files before the SPA
+/public/onboarding-fee/        rewrite. The last two are Stripe payment pages linked from the
+/public/activate-license/      super-admin "Builder Onboarding" tab in Admin.
 src/
   App.jsx                    — shell, sidebar nav (NavLink), data loading, <Routes> definitions, mobile hamburger
   main.jsx                   — entry point; wraps <App/> in <BrowserRouter>
