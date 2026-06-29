@@ -84,15 +84,19 @@ src/
                                Updated dates and the admin "Builder" assign dropdown (builders see owner read-only).
                                Loads contact (lib/contacts) AND its projects (lib/projects) at the parent. The
                                **Projects** section ("+ New project") is **grouped**: a **"Sold (n)" header with the
-                               summed sold total** pinned on top (rows highlighted with a sage accent), then a
-                               **"Quotes & Drafts (n)"** group — each newest-first; rows show name, spec, date (sold
-                               date if sold else created), sale price, status. RLS scopes who can load/edit.
+                               summed sold total** pinned on top (cards highlighted with a sage left accent), then a
+                               **"Quotes & Drafts (n)"** group — each newest-first. Each project renders as a
+                               **compact horizontal card (`ProjectRow`) matching the Sold Projects list**: a small
+                               shed-rendering thumbnail (first of `rendering_url_1..4`, `object-fit:contain`; 🏠
+                               placeholder) on the left, then project name, `sale price | size style #project_number`,
+                               and the date (sold date if sold else created), with the status as small uppercase
+                               colored text top-right. RLS scopes who can load/edit.
                                **Mobile pass (2026-06-29):** the quick-action bar is a fixed bottom sticky bar with
                                stacked icon+label buttons and iOS safe-area padding (`env(safe-area-inset-bottom)`);
                                the StatusPicker opens as a **bottom sheet** on mobile (dropdown on desktop); detail
                                rows are calm, **full-row-tappable** (≥46px, value in charcoal not loud links — the
-                               action bar owns the loud actions); project rows render as **stacked cards** on mobile
-                               (name+badge / spec / price+date) instead of one cramped row; Card padding + the quiet
+                               action bar owns the loud actions); project rows are the compact image-led cards
+                               described above (2026-06-29) on both mobile and desktop; Card padding + the quiet
                                icon-only ✎ Edit button tighten on mobile (`isMobile`).
     Projects.jsx             — Projects list (/projects) and Sold Projects list (/sold-projects, `soldOnly`
                                prop). NOTE: the all-projects "/projects" view is no longer linked from the
