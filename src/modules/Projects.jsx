@@ -165,13 +165,14 @@ export default function Projects({ soldOnly = false }) {
           </div>
         </Card>
       ) : soldOnly ? (
-        // Sold Projects: a grid of larger cards, each led by the shed's perspective
-        // rendering. One column on mobile (the priority), auto-fitting columns on
-        // desktop. Far more scannable on a phone than a cramped table row.
+        // Sold Projects: compact horizontal cards — a small shed-rendering thumbnail
+        // on the left, details on the right. One column on mobile (the priority),
+        // two columns on wider screens. Far more scannable than a cramped table row,
+        // without the big image-led cards cropping the renderings.
         <div style={{
           display:'grid',
-          gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))',
-          gap: isMobile ? 14 : 18,
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(420px, 1fr))',
+          gap: isMobile ? 12 : 14,
         }}>
           {filtered.map(p => (
             <ProjectCard
@@ -338,10 +339,12 @@ function NewProjectModal({ onClose, onCreated }) {
   );
 }
 
-// A large, image-led card for the Sold Projects grid. Leads with the shed's
-// perspective rendering (rendering_url_1, falling back to the other renders),
-// then project name, contact, spec, status, sale price + sold date. Built to be
-// tapped on a phone (the whole card navigates to the project).
+// A compact horizontal card for the Sold Projects grid: a small shed-rendering
+// thumbnail on the left, details on the right. Leads with the contact name, then
+// price · spec, location · sold date, and (admins) the builder; the project status
+// shows as small uppercase colored text top-right. The thumbnail uses object-fit
+// CONTAIN so the whole shed rendering shows (cover cropped the product shots). The
+// whole card navigates to the project — built to be tapped on a phone.
 function ProjectCard({ project: p, isAdmin, isMobile, onOpen }) {
   const [hover, setHover] = useState(false);
 
@@ -350,8 +353,18 @@ function ProjectCard({ project: p, isAdmin, isMobile, onOpen }) {
     .find(Boolean) || null;
 
   const contactName = p.contact?.full_name || p.contact?.company_name || p.contact?.email || p.customer_email || '—';
-  const spec = [p.shed_size, p.style_package?.name].filter(Boolean).join(' · ');
+  const specBits = [p.shed_size, p.style_package?.name].filter(Boolean).join(' ');
+  const spec = [specBits, p.project_number ? `#${p.project_number}` : null].filter(Boolean).join(' ');
+  const cityState = [p.contact?.city, p.contact?.state].filter(Boolean).join(', ');
+  const soldStr = p.sold_at ? `Sold: ${new Date(p.sold_at).toLocaleDateString()}` : null;
   const ownerName = p.contact?.owner?.full_name || p.contact?.owner?.email || 'Unassigned';
+
+  const priceLine = [p.sale_price != null ? fmt(p.sale_price) : null, spec].filter(Boolean).join('  |  ');
+  const metaLine  = [cityState, soldStr].filter(Boolean).join('  |  ');
+
+  // Status as uppercase colored text (like the reference design), tinted by status.
+  const statusColor = { sold:C.sageDark, scheduled:C.sand, completed:C.sageDark, cancelled:'#991B1B' }[p.status] || '#999';
+  const thumb = isMobile ? 92 : 104;
 
   return (
     <div
@@ -361,15 +374,15 @@ function ProjectCard({ project: p, isAdmin, isMobile, onOpen }) {
       style={{
         cursor:'pointer', background:'#fff', borderRadius:10, overflow:'hidden',
         border:`1px solid ${C.linenDarker}`,
-        boxShadow: hover ? '0 8px 22px rgba(26,21,16,0.12)' : '0 1px 3px rgba(26,21,16,0.06)',
-        transform: hover && !isMobile ? 'translateY(-2px)' : 'none',
+        boxShadow: hover ? '0 6px 18px rgba(26,21,16,0.10)' : '0 1px 3px rgba(26,21,16,0.06)',
+        transform: hover && !isMobile ? 'translateY(-1px)' : 'none',
         transition:'box-shadow 0.18s, transform 0.18s',
-        display:'flex', flexDirection:'column',
+        display:'flex', alignItems:'stretch', position:'relative',
       }}
     >
-      {/* Perspective image (or a styled placeholder when none) */}
+      {/* Thumbnail — whole shed visible (contain), light backdrop */}
       <div style={{
-        position:'relative', width:'100%', aspectRatio:'4 / 3',
+        flexShrink:0, width:thumb, alignSelf:'stretch',
         background:`linear-gradient(135deg, ${C.linenDark}, ${C.linenDarker})`,
         display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden',
       }}>
@@ -378,45 +391,32 @@ function ProjectCard({ project: p, isAdmin, isMobile, onOpen }) {
             src={img}
             alt={p.name || 'Shed rendering'}
             loading="lazy"
-            style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
+            style={{ width:'100%', height:'100%', objectFit:'contain', display:'block', padding:6 }}
           />
         ) : (
-          <div style={{ textAlign:'center', color:C.sage, fontFamily:'DM Sans', fontSize:12 }}>
-            <div style={{ fontSize:34, lineHeight:1 }}>🏠</div>
-            <div style={{ marginTop:6, color:'#9a8f80' }}>No rendering</div>
+          <div style={{ textAlign:'center', color:C.sage, fontFamily:'DM Sans', fontSize:10 }}>
+            <div style={{ fontSize:26, lineHeight:1 }}>🏠</div>
           </div>
         )}
-        {/* Status badge floats over the image, top-right */}
-        <div style={{ position:'absolute', top:10, right:10 }}>
-          <Badge color={PROJECT_STATUS_COLORS[p.status] || 'ghost'}>{PROJECT_STATUS_LABELS[p.status] || p.status}</Badge>
-        </div>
       </div>
 
-      {/* Card body */}
-      <div style={{ padding: isMobile ? '13px 15px 15px' : '14px 16px 16px', display:'flex', flexDirection:'column', gap:5, flex:1 }}>
-        <div style={{ fontFamily:'DM Sans', fontWeight:700, fontSize: isMobile ? 16 : 15, color:C.charcoal, lineHeight:1.25 }}>
-          {p.name || 'Untitled project'}
+      {/* Details */}
+      <div style={{ flex:1, minWidth:0, padding: isMobile ? '11px 13px' : '12px 15px', display:'flex', flexDirection:'column', gap:3 }}>
+        {/* Status, top-right */}
+        <div style={{ position:'absolute', top: isMobile ? 11 : 12, right: isMobile ? 13 : 15, fontFamily:'DM Sans', fontSize:11, fontWeight:700, letterSpacing:'0.06em', color:statusColor }}>
+          {(PROJECT_STATUS_LABELS[p.status] || p.status || '').toUpperCase()}
         </div>
-        <div style={{ fontFamily:'DM Sans', fontSize:13, color:'#6b6258' }}>{contactName}</div>
-        {spec && (
-          <div style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#9a8f80' }}>{spec}</div>
+
+        <div style={{ fontFamily:'DM Sans', fontWeight:700, fontSize: isMobile ? 17 : 16, color:C.charcoal, lineHeight:1.2, paddingRight:64, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+          {contactName}
+        </div>
+        <div style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal }}>{priceLine || '—'}</div>
+        {metaLine && (
+          <div style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#8a8175' }}>{metaLine}</div>
         )}
-
-        {/* Price + sold date, pinned to the bottom of the card */}
-        <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:10, marginTop:'auto', paddingTop:8 }}>
-          <div style={{ fontFamily:'DM Sans', fontWeight:700, fontSize: isMobile ? 17 : 16, color:C.sageDark }}>
-            {p.sale_price != null ? fmt(p.sale_price) : '—'}
-          </div>
-          {p.sold_at && (
-            <div style={{ fontFamily:'DM Sans', fontSize:11.5, color:'#aaa' }}>
-              Sold {new Date(p.sold_at).toLocaleDateString()}
-            </div>
-          )}
-        </div>
-
         {isAdmin && (
-          <div style={{ fontFamily:'DM Sans', fontSize:11.5, color:'#b3a88f', marginTop:2 }}>
-            Builder: {ownerName}
+          <div style={{ fontFamily:'DM Sans', fontSize:12.5, fontWeight:600, color:C.sage, marginTop:1 }}>
+            {ownerName}
           </div>
         )}
       </div>

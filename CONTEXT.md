@@ -102,14 +102,16 @@ src/
                                only projects whose contact they own (RLS). Loads its own data via lib/projects.js.
                                "+ New project" opens a contact picker. Sold view filters to sold/completed, is
                                sorted most-recently-sold first, and shows a total-sold sum. **The Sold Projects
-                               list renders as a responsive grid of large image-led cards (`ProjectCard`), NOT a
+                               list renders as a responsive grid of compact horizontal cards (`ProjectCard`), NOT a
                                table** (UX redesign 2026-06-29, built mobile-first): one column on mobile,
-                               `repeat(auto-fill, minmax(300px,1fr))` on desktop. Each card leads with the shed's
-                               **perspective rendering** (first available of `rendering_url_1..4`; a styled 🏠
-                               placeholder when none), with the status Badge floated over the image; the body shows
-                               project name, contact, spec (size · style), sale price + sold date, and (admins) the
-                               builder. The whole card navigates to the project. The all-projects `/projects` view
-                               (route-only) keeps the plain table. The Sold Projects view has an **Open/Closed tab strip**
+                               `repeat(auto-fill, minmax(420px,1fr))` on wider screens. Each card has a **small shed
+                               thumbnail on the left** (first available of `rendering_url_1..4`, `object-fit:contain`
+                               so the whole rendering shows — `cover` cropped the product shots; a 🏠 placeholder when
+                               none) and details on the right: **contact name** headline, `sale price | size style
+                               #project_number`, `City, ST | Sold: date`, and (admins) the builder in green; the
+                               status shows as small uppercase colored text top-right. The whole card navigates to the
+                               project. The all-projects `/projects` view (route-only) keeps the plain table. The Sold
+                               Projects view has an **Open/Closed tab strip**
                                (shown to everyone): **Open** = status `sold` (won, job in progress), **Closed** =
                                status `completed` (job finished); tab counts + the total-sold sum reflect the active
                                tab. It ALSO shows an **admin-only builder tab strip** below it (All + one tab per
