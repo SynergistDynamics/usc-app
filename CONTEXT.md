@@ -82,7 +82,8 @@ src/
                                the everyday way to reach a contact's projects is via their contact profile.
                                A project is a shed job tied to a contact; admins see all, builders see
                                only projects whose contact they own (RLS). Loads its own data via lib/projects.js.
-                               "+ New project" opens a contact picker. Sold view filters to sold/completed and
+                               "+ New project" opens a contact picker. Sold view filters to sold/completed, adds a
+                               **Sold (date)** column (from sold_at), is sorted most-recently-sold first, and
                                shows a total-sold sum. The Sold Projects view has an **Open/Closed tab strip**
                                (shown to everyone): **Open** = status `sold` (won, job in progress), **Closed** =
                                status `completed` (job finished); tab counts + the total-sold sum reflect the active
