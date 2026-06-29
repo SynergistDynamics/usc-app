@@ -162,7 +162,9 @@ src/
     Financing.jsx            — Financing (idx 9)
   lib/contacts.js            — Contacts data/service layer (fetch w/ 1000-row paging, get, create, update,
                                delete) + CONTACT_STATUSES / STATUS_LABELS / STATUS_COLORS constants.
-  lib/projects.js            — Projects data/service layer (fetchProjects w/ 1000-row paging + soldOnly filter,
+  lib/projects.js            — Projects data/service layer (fetchProjects w/ 1000-row paging + soldOnly filter;
+                               soldOnly sorts most-recently-sold first — sold_at desc, unknown sold dates last, then
+                               created_at desc — while the all-projects view sorts created_at desc;
                                fetchProjectsForContact, get, create, update, delete) + PROJECT_STATUSES /
                                LABELS / COLORS, SOLD_STATUSES, isSoldStatus. Embeds the parent contact — incl.
                                full contact details (phone, address, city, state, zip) so ProjectDetail can

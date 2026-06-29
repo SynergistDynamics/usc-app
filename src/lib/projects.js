@@ -59,18 +59,23 @@ const SELECT =
 // Fetch every project the current user can see. Pages in 1000-row chunks because
 // PostgREST caps SELECTs at 1000 rows and .range() does NOT bypass that cap
 // (CONTEXT.md gotcha) — projects will grow past 1000. `soldOnly` filters to the
-// Sold Projects page.
+// Sold Projects page and sorts by most-recently-sold (sold_at desc, unknown sold
+// dates last, then newest-created); the all-projects view sorts by newest-created.
 export async function fetchProjects({ soldOnly = false } = {}) {
   const pageSize = 1000;
   let from = 0;
   let all = [];
   for (;;) {
-    let query = supabase
-      .from('projects')
-      .select(SELECT)
-      .order('created_at', { ascending: false })
-      .range(from, from + pageSize - 1);
-    if (soldOnly) query = query.in('status', SOLD_STATUSES);
+    let query = supabase.from('projects').select(SELECT);
+    if (soldOnly) {
+      query = query
+        .in('status', SOLD_STATUSES)
+        .order('sold_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false });
+    } else {
+      query = query.order('created_at', { ascending: false });
+    }
+    query = query.range(from, from + pageSize - 1);
     const { data, error } = await query;
     if (error) return { data: all, error };
     all = all.concat(data || []);
