@@ -75,7 +75,8 @@ src/
     ContactProfile.jsx       — A single contact's profile page (/contacts/:id) — editable contact info,
                                status, address, notes; delete. Admins get an "Assigned to" builder dropdown.
                                RLS scopes who can load/edit it. Also shows this contact's **Projects** list
-                               (ContactProjects helper) with a "+ New project" button (a contact can have many).
+                               (ContactProjects helper) with a "+ New project" button (a contact can have many);
+                               each row shows name, spec, **created date**, sale price, and status.
     Projects.jsx             — Projects list (/projects) and Sold Projects list (/sold-projects, `soldOnly`
                                prop). NOTE: the all-projects "/projects" view is no longer linked from the
                                sidebar nav (only "Sold Projects" is) — the route still exists and resolves, but
