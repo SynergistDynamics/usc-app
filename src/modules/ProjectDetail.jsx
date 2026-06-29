@@ -179,7 +179,9 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
           <div style={{ minWidth:200 }}>
             <div style={{ fontFamily:'Cormorant Garamond, serif', fontSize:26, fontWeight:600, color:C.charcoal, lineHeight:1.1 }}>{title}</div>
             <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-              <Badge color={PROJECT_STATUS_COLORS[status] || 'ghost'}>{PROJECT_STATUS_LABELS[status] || status}</Badge>
+              {project?.sold_at && (
+                <Badge color="sage">Sold {new Date(project.sold_at).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' })}</Badge>
+              )}
               <span style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#888' }}>
                 for <Link to={`/contacts/${contact?.id}`} style={{ color:C.sage, textDecoration:'none', fontWeight:600 }}>{contactName}</Link>
               </span>
