@@ -9,8 +9,11 @@ just reads the `contacts` table that Zapier fills). For the table itself see `CO
 ShedPro (new/updated customer)  →  Zapier  →  Supabase REST API  →  contacts table
 ```
 
-Each lead is **upserted on `shedpro_id`**, so re-sending the same ShedPro customer updates
-their existing row instead of creating a duplicate.
+Each lead is **upserted on `email`**, so re-sending the same ShedPro customer updates
+their existing row instead of creating a duplicate. (Dedup moved from `shedpro_id` → `email`
+on 2026-06-29: every ShedPro contact has an email, but `shedpro_id` was sent for very few
+leads and sometimes arrived as the junk value `'0'`, which made leads overwrite each other
+or vanish. Email is normalized to lowercase/trimmed in the DB so the match is case-insensitive.)
 
 ---
 
@@ -45,7 +48,7 @@ Add an action step → app **"Webhooks by Zapier"** → event **"POST"**.
 
 | Field | Value |
 |---|---|
-| **URL** | `https://ywboyreznmuaddprkycm.supabase.co/rest/v1/contacts?on_conflict=shedpro_id` |
+| **URL** | `https://ywboyreznmuaddprkycm.supabase.co/rest/v1/contacts?on_conflict=email` |
 | **Payload Type** | `json` |
 | **Data** | the field mapping below |
 | **Wrap Request In Array** | **No** |
@@ -61,15 +64,15 @@ Add an action step → app **"Webhooks by Zapier"** → event **"POST"**.
 | `Content-Type` | `application/json` |
 | `Prefer` | `resolution=merge-duplicates,return=minimal` |
 
-`resolution=merge-duplicates` is what turns the POST into an upsert on `shedpro_id`.
+`resolution=merge-duplicates` is what turns the POST into an upsert on `email`.
 
 ### Data (map ShedPro fields → contacts columns)
 
 | Data key (left) | Value (map from the ShedPro trigger) |
 |---|---|
-| `shedpro_id` | ShedPro's unique customer/lead **id** *(required — this is the dedup key)* |
+| `email` | email *(**required — this is the dedup key**; normalized to lowercase in the DB)* |
 | `full_name` | customer name |
-| `email` | email |
+| `shedpro_id` | ShedPro's customer/lead id *(optional now — stored for reference, no longer the dedup key)* |
 | `phone` | phone |
 | `address` | street address |
 | `city` | city |
@@ -92,8 +95,8 @@ Add an action step → app **"Webhooks by Zapier"** → event **"POST"**.
    (updated) with an empty body (because of `return=minimal`).
 2. Open the app at **`/contacts`** (as the admin) — the test lead should appear at the top
    (the list is sorted newest-first). It'll show a small **`shedpro`** source tag.
-3. Run the test again with the **same** ShedPro id → it should update the same row, not add a
-   second one. Different id → a new row. That confirms the upsert is working.
+3. Run the test again with the **same** email (any case) → it should update the same row, not add a
+   second one. Different email → a new row. That confirms the upsert is working.
 4. Turn the Zap **on**.
 
 ---
@@ -121,20 +124,26 @@ just type the exact territory value ShedPro will send.
   - `401 / "Invalid API key"` → wrong key, or the `Authorization` header isn't `Bearer <key>`.
     Both `apikey` and `Authorization` must carry the **service_role** key.
   - `400 / "no unique or exclusion constraint matching the ON CONFLICT specification"` → the
-    `shedpro_id` unique index is missing/partial. It must be the plain unique index from
-    `MIGRATION_contacts_shedpro_upsert_index.sql` (already applied 2026-06-25).
+    `email` unique index is missing. It must be the plain unique index `contacts_email_key` from
+    `MIGRATION_contacts_dedup_by_email.sql` (applied 2026-06-29). (The old `shedpro_id` unique
+    index from `MIGRATION_contacts_shedpro_upsert_index.sql` was downgraded to a plain index then.)
   - `405` from the agent proxy / form-encoded body → make sure **Payload Type = json**, not
     form. The body must be JSON.
-- **`shedpro_id` is required for dedup.** If ShedPro doesn't expose a stable id and you map
-  nothing, every sync inserts a new row (NULL shedpro_ids don't conflict). Prefer a real id.
-- **Placeholder ids (`'0'` / blank) are normalized to NULL (fixed 2026-06-29).** ShedPro sometimes
-  sends `0` (or empty) when a lead has no real id. Without protection, the upsert on `shedpro_id`
-  treats every `'0'` as the SAME row, so each such lead silently OVERWRITES the previous one (Zapier
-  reports HTTP 200 success but no new contact appears — this is how a lead can "run in Zapier" yet be
-  missing). The `contacts_normalize_shedpro_id` trigger now coerces blank/`'0'` → NULL so these leads
-  insert as fresh rows instead. Consequence: an id-less lead won't dedup on re-sync (re-syncing inserts
-  a new row) — preferable to clobbering an unrelated contact. See
-  `MIGRATION_contacts_normalize_shedpro_id.sql`.
+- **`email` is required for dedup (the conflict key).** If a lead arrives with no email, it inserts a
+  new row every sync (NULL emails don't conflict). Email is stored lowercased/trimmed (DB trigger), so
+  matching is case-insensitive.
+- **Email uniqueness is GLOBAL.** The unique index covers ALL contacts (manual + every builder). If the
+  same email ever arrives for two builders, the second sync MERGES onto the first row (and the
+  auto-assign trigger could move ownership). None existed at switch time; "one person = one contact" is
+  usually what you want.
+- **Email is mutable.** If a customer changes their email in ShedPro, a re-sync inserts a NEW row rather
+  than updating the old one (the old email no longer matches). De-dup by hand if it happens.
+- **Why not `shedpro_id`?** It used to be the dedup key, but ShedPro sends a real id for very few leads
+  and sometimes the junk value `'0'` — every `'0'` collapsed onto one row and silently OVERWROTE it
+  (Zapier reported HTTP 200 but no new contact appeared — that's how a lead could "run in Zapier" yet be
+  missing). `shedpro_id` is still stored; the `contacts_normalize_shedpro_id` trigger still coerces
+  blank/`'0'` → NULL. See `MIGRATION_contacts_normalize_shedpro_id.sql` and
+  `MIGRATION_contacts_dedup_by_email.sql`.
 - **Seed vs. live overlap.** The 686 rows seeded on 2026-06-25 have `shedpro_id = NULL`. A
   customer who was in that seed AND comes through Zapier will appear twice (the seed row won't
   match by shedpro_id). That's expected; clean up later if needed, or one-time backfill

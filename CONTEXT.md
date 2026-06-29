@@ -271,10 +271,19 @@ Notes:
   policy "Builders manage own contacts, admins all" — a builder reads/writes only rows where
   `user_id = auth.uid()`, admins read/write all (same shape as referrals). Restricted to `authenticated`.
   See `MIGRATION_contacts.sql` (applied 2026-06-25). **ShedPro → Zapier → Supabase REST** integration:
-  Zapier (ShedPro native "New Customer" trigger) POSTs to `/rest/v1/contacts?on_conflict=shedpro_id` with
-  the service_role key + `Prefer: resolution=merge-duplicates`, upserting on `shedpro_id`. Setup steps live
+  Zapier (ShedPro native "New Customer" trigger) POSTs to `/rest/v1/contacts?on_conflict=email` with
+  the service_role key + `Prefer: resolution=merge-duplicates`, upserting on **`email`**. Setup steps live
   in `ZAPIER_CONTACTS.md`. The write bypasses RLS (service_role), so incoming leads land with `user_id` null
   (admin-only) unless Zapier sets an owner.
+  - **Dedup key = email (changed 2026-06-29).** Originally the upsert deduped on `shedpro_id`, but ShedPro
+    sends a real id for very few leads (and sometimes the junk value `'0'`), so leads silently overwrote each
+    other / never appeared. Since every ShedPro contact has an email, dedup moved to `email`:
+    `contacts_email_key` UNIQUE index + a `contacts_normalize_email` BEFORE INSERT/UPDATE trigger that
+    lowercases/trims email (blank → NULL) so the key is case-insensitive and email-less rows stay distinct.
+    `shedpro_id` is still stored (now a plain `contacts_shedpro_id_idx` index, no longer UNIQUE) and its
+    `'0'`/blank normalizer trigger remains. Caveats: email uniqueness is GLOBAL (same email for two builders
+    merges onto one row — none existed at switch); a customer changing their email re-syncs as a new row.
+    See `MIGRATION_contacts_dedup_by_email.sql`.
   **Seeded 2026-06-25** with 698 rows from a ShedPro customer export (`source='shedpro'`, `shedpro_id` null,
   `user_id` null = admin-only until assigned to builders; ZIP leading zeros recovered; status defaulted to
   `lead`). 12 test/internal rows (mail-tester.com, seadev.us/shedpro.co staff, "test"/"Test Name", city="Test")
