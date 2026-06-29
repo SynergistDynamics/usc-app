@@ -138,7 +138,7 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
     const { error: e } = await deleteProject(id);
     setDeleting(false);
     if (e) { setError(e.message); setConfirmDelete(false); return; }
-    navigate('/projects');
+    navigate('/sold-projects');
   }
 
   if (loading) return <div style={{ display:'flex', justifyContent:'center', paddingTop:80 }}><Spinner size={32} /></div>;
@@ -310,8 +310,8 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
 
 function BackLink() {
   return (
-    <Link to="/projects" style={{ fontFamily:'DM Sans', fontSize:13, color:C.sage, textDecoration:'none', display:'inline-flex', alignItems:'center', gap:6 }}>
-      ← All projects
+    <Link to="/sold-projects" style={{ fontFamily:'DM Sans', fontSize:13, color:C.sage, textDecoration:'none', display:'inline-flex', alignItems:'center', gap:6 }}>
+      ← All sold projects
     </Link>
   );
 }
