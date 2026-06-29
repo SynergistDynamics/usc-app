@@ -96,7 +96,8 @@ Add an action step → app **"Webhooks by Zapier"** → event **"POST"**.
 | `builder_email` | ShedPro "User/Builder" (kept for reconciliation) |
 | `shed_style` | raw style name (e.g. "Tall Modern") |
 | `shed_size` | shed size (e.g. `10x12`) if ShedPro provides it |
-| `sale_price` | the project total / sale price (number) |
+| `sale_price` | the **all-in price** (the big headline number, e.g. `15547.19` — digits only, no `$`/commas) |
+| `monthly_payment` | the "from $X/mo" financing figure (e.g. `186.59`) |
 | `construction_date` | construction date (date) |
 | `shedpro_created` | ShedPro "Created" timestamp |
 | `siding_type` | siding |
@@ -106,6 +107,8 @@ Add an action step → app **"Webhooks by Zapier"** → event **"POST"**.
 | `rendering_url_1` … `rendering_url_4`, `layout_rendering_url`, `details_url` | renderings & links |
 | `work_order_pdf` | raw work-order text/URL if available |
 | `notes` | any notes |
+| `shedpro_options` | the **itemized options list with prices** — see "Sending the itemized options" below |
+| `options_summary` | OR the same list as one block of plain text (simpler fallback — see below) |
 
 **Do not send** `id`, `contact_id`, `user_id`, `status`, `sold_at`, `created_at`, or `updated_at`:
 - `id` is auto-generated; `created_at`/`updated_at` default automatically.

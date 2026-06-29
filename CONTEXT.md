@@ -103,7 +103,9 @@ src/
                                  #work-order-print) showing every relevant detail: customer (name/company/full
                                  mailing address/phone/email, from the embedded contact), builder, shed spec
                                  (size/style/siding/multiplier), selected option packages, ShedPro finishes &
-                                 colors, renderings, pricing (material/labor/calc + sale price) and notes. A
+                                 colors, the **ShedPro itemized options & pricing** list (shedpro_options →
+                                 "Options & Pricing" table, or the options_summary text fallback), renderings,
+                                 pricing (material/labor/calc + sale price + "from $X/mo" financing) and notes. A
                                  "🖨 Print work order" button opens it in a clean print window (same new-window
                                  innerHTML technique as PricingTool's printList). The page only DISPLAYS the saved
                                  project — all editing is in a modal (see below).
@@ -328,6 +330,18 @@ Notes:
   shedpro_created, rendering_url_1..4 + layout_rendering_url + details_url, work_order_pdf (raw text blob),
   siding_type, overhang_size, doors, windows, transom_package, vents, roof, floor, siding_color, trim_color,
   door_color, roof_color, site_prep, building_permit, access, additional_features.
+  **Itemized options + pricing (added 2026-06-29, MIGRATION_projects_shedpro_lineitems.sql):** the ShedPro
+  quote's open-ended "What's included" list (Frame, vents, doors + sub-details, transom, workbench, shelf,
+  hinge, loft, overhang, foundation, permit, access, travel time, …) — each with its quoted price — is stored
+  as **`shedpro_options`** (jsonb array of `{label, detail, price}`; `price` kept as the raw text ShedPro shows,
+  e.g. `"$550.00"`/`"Included"`/`"0"`, so the work order prints exactly what was quoted). A fixed column per
+  option can't keep up with ShedPro's list, hence jsonb (same pattern as selected_packages/package_overrides).
+  **`options_summary`** (text) is a plain-text fallback for the same list (shown only when shedpro_options is
+  empty); **`monthly_payment`** (numeric) is the quote's "from $X/mo" financing figure. The ShedPro all-in
+  price still maps to `sale_price`. ProjectDetail's work order renders these in an **"Options & Pricing"**
+  section (priced table from shedpro_options, or the text fallback) + a "or from $X/mo" line under Sale price;
+  the renderer (`normalizeShedproOptions`) is tolerant of how Zapier delivers the array (objects with
+  label/name/option + price/amount/cost key variants, plain strings, or a JSON string).
   **RLS enabled**: one ALL policy "Builders manage own projects, admins all" — **admins see ALL projects**
   (incl. contact-less ones); a builder reads/writes a project when they own its linked contact
   (`projects.contact_id` → `contacts.user_id = auth.uid()`). Restricted to `authenticated`. The app reads

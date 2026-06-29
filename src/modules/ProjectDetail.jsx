@@ -40,6 +40,37 @@ import {
 const STATUS_OPTIONS = PROJECT_STATUSES.map(s => ({ value: s, label: PROJECT_STATUS_LABELS[s] }));
 const TABS = [['work-order', 'Work Order'], ['materials', 'Materials List']];
 
+// ShedPro's itemized options-with-prices (the "What's included" list on a ShedPro
+// quote), stored in projects.shedpro_options. Tolerant of however Zapier delivers
+// them: an array of objects ({label/name/option/title, detail/sub/color/note,
+// price/amount/cost/value}), an array of plain strings, or a JSON string we parse.
+// Returns a clean [{label, detail, price}] with blank items dropped.
+function normalizeShedproOptions(raw) {
+  let arr = raw;
+  if (typeof arr === 'string') {
+    const s = arr.trim();
+    if (!s) return [];
+    try { arr = JSON.parse(s); } catch { return []; }
+  }
+  if (!Array.isArray(arr)) return [];
+  return arr.map(it => {
+    if (it == null) return null;
+    if (typeof it === 'string') {
+      const label = it.trim();
+      return label ? { label, detail: '', price: '' } : null;
+    }
+    if (typeof it === 'object') {
+      const label  = (it.label ?? it.name ?? it.option ?? it.title ?? '').toString().trim();
+      const detail = (it.detail ?? it.sub ?? it.color ?? it.note ?? '').toString().trim();
+      const priceRaw = it.price ?? it.amount ?? it.cost ?? it.value ?? '';
+      const price = priceRaw == null ? '' : priceRaw.toString().trim();
+      if (!label && !price) return null;
+      return { label: label || '—', detail, price };
+    }
+    return null;
+  }).filter(Boolean);
+}
+
 // project row → calculator cfg shape (see PricingTool).
 function toCfg(project, stylePkgs) {
   return {
@@ -166,6 +197,12 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
     .filter(p => !p.siding_type && !p.is_style && (cfg?.selectedPkgs?.[p.id] || 0) > 0)
     .map(p => ({ name: p.name, count: cfg.selectedPkgs[p.id] }));
 
+  // ShedPro's itemized options-with-prices (from the quote), the plain-text fallback,
+  // and the financing figure — all straight from the synced project.
+  const shedproOptions = normalizeShedproOptions(project?.shedpro_options);
+  const optionsSummary = project?.options_summary?.trim() || '';
+  const monthlyPayment = project?.monthly_payment;
+
   return (
     <div>
       <BackLink />
@@ -234,6 +271,9 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
             styleMult={styleMult}
             out={out}
             selectedOptions={selectedOptions}
+            shedproOptions={shedproOptions}
+            optionsSummary={optionsSummary}
+            monthlyPayment={monthlyPayment}
             isMobile={isMobile}
           />
         </>
@@ -664,7 +704,7 @@ function printWorkOrder() {
 // ── Work order document (printable) ───────────────────────────────────────────
 // A formatted work order with every relevant project detail. Rendered on screen
 // inside #work-order-print and copied verbatim into the print window.
-function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, isMobile }) {
+function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, shedproOptions = [], optionsSummary = '', monthlyPayment, isMobile }) {
   const dateStr = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
   const woNumber = project?.project_number ? `#${project.project_number}` : `#${String(project?.id || '').slice(0, 8).toUpperCase()}`;
 
@@ -775,6 +815,37 @@ function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, 
         </div>
       )}
 
+      {/* ShedPro itemized options & pricing (the "What's included" list on the quote).
+          Prefer the structured shedpro_options array; fall back to the plain-text
+          options_summary if that's all that synced. */}
+      {shedproOptions.length > 0 ? (
+        <div style={{ marginBottom:16 }}>
+          <WoSection title="Options & Pricing" />
+          <table style={{ width:'100%', borderCollapse:'collapse' }}>
+            <tbody>
+              {shedproOptions.map((o, i) => (
+                <tr key={i} style={{ borderBottom:`1px solid ${C.linen}` }}>
+                  <td style={{ ...woTd, paddingRight:12 }}>
+                    {o.label}
+                    {o.detail && (
+                      <span style={{ color:'#888' }}> — {o.detail}</span>
+                    )}
+                  </td>
+                  <td style={{ ...woTd, textAlign:'right', whiteSpace:'nowrap', fontWeight:600 }}>
+                    {o.price ? o.price : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : optionsSummary ? (
+        <div style={{ marginBottom:16 }}>
+          <WoSection title="Options & Pricing" />
+          <div style={{ fontFamily:'DM Sans', fontSize:13, color:C.charcoal, whiteSpace:'pre-wrap', lineHeight:1.6 }}>{optionsSummary}</div>
+        </div>
+      ) : null}
+
       {/* Renderings */}
       {renders.length > 0 && (
         <div style={{ marginBottom:16 }}>
@@ -805,6 +876,14 @@ function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, 
               {salePriceNum != null ? fmt(salePriceNum) : '—'}
             </td>
           </tr>
+          {monthlyPayment != null && String(monthlyPayment).trim() !== '' && (
+            <tr>
+              <td />
+              <td style={{ padding:'2px 0 0', fontFamily:'DM Sans', fontSize:12, color:'#888', textAlign:'right' }}>
+                or from {fmt(parseFloat(monthlyPayment))}/mo with financing
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 
