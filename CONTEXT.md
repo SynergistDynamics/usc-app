@@ -249,8 +249,10 @@ Notes:
     transom sizes, door sizes, shelf length — is collapsed onto the single package, NOT split). **TODO:** set
     real prices + add the bill of materials in Configurator Pricing → Packages so the list is accurate (until
     then those items add $0 and no materials). Names match the configurator labels so the ShedPro→package
-    mapping is a name match. NOTE: the legacy **"Paint"** package has no matching configurator option (LP
-    siding ships pre-finished) — pending confirmation whether it's retired.
+    mapping is a name match. NOTE: the **"Paint"** package = the configurator's **Siding Color** charge (its
+    per-shed paint cost); the Edge Function adds Paint to selected_packages whenever a siding color is set
+    (skipped for Western Red Cedar, which is natural/quote-only). It's NOT in shedpro_option_map (siding color
+    is a flat field, not an option array) — handled in code, same as loft.
 - `package_materials` — components per package (fixed_quantity for non-size-variable; null for size-variable)
 - `package_quantities` — per-size quantities for size-variable packages (incl. styles & add-ons). Large table
   (3000+ rows); App.jsx loads it via **pagination** (see gotcha below), not a single `.range()`.
@@ -421,7 +423,8 @@ Notes:
   sale_price, Model Url→details_url, Billing Email→customer_email, Reference Order Num→project_number,
   images[]→rendering_url_*) and walks the option arrays (`components[]`, `interior_components[]`, `overhang[]`,
   `loft[]`, `frame`, `other_upgrades[]`) through `shedpro_option_map` into `selected_packages {package_id:count}`
-  (loft resolved by style), stores the raw options in `shedpro_options`, and **upserts on `shedpro_project_id`**
+  (loft resolved by style; the **"Paint"** package added whenever a siding color is set — Paint = the siding-color
+  charge — skipped for Western Red Cedar), stores the raw options in `shedpro_options`, and **upserts on `shedpro_project_id`**
   (top-level ShedPro `Id`). On UPDATE it deliberately omits `status`/`sold_at`/`contact_id` so the app keeps
   control of the pipeline + contact linking; on INSERT it sets status from ShedPro (quote-request→quoted) and
   the `projects_auto_link_contact` BEFORE INSERT trigger links the contact by email. **Why an Edge Function
