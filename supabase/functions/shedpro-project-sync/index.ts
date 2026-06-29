@@ -237,8 +237,11 @@ Deno.serve(async (req) => {
     layout_rendering_url: imgByKey["2d floor plan"] || imgByKey["floor plan"] || null,
   };
 
-  const name = (shedSize && description) ? `${shedSize} ${description}`
-    : (projectNumber ? `Design #${projectNumber}` : (billingName || "ShedPro project"));
+  const baseName = (shedSize && description) ? `${shedSize} ${description}`
+    : (description || shedSize || billingName || "");
+  const name = baseName
+    ? (projectNumber ? `${baseName} #${projectNumber}` : baseName)
+    : (projectNumber ? `Design #${projectNumber}` : "ShedPro project");
 
   // Fields safe to (re)write on every sync. status/sold_at/contact_id are deliberately omitted
   // so the app stays in control of the pipeline + linking on UPDATES.
