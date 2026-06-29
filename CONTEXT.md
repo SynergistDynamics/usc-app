@@ -83,12 +83,21 @@ src/
                                A project is a shed job tied to a contact; admins see all, builders see
                                only projects whose contact they own (RLS). Loads its own data via lib/projects.js.
                                "+ New project" opens a contact picker. Sold view filters to sold/completed and
-                               shows a total-sold sum. The Sold Projects view also shows an **admin-only tab strip**
-                               (All + one tab per builder who owns a sold project + Unassigned) that filters the
-                               list by builder; the total-sold sum reflects the selected tab. (Builders only see
-                               their own projects via RLS, so the tabs are an admin convenience.)
-    ProjectDetail.jsx        — A single project's page (/projects/:id), presented as a printable WORK ORDER
-                               with TWO TABS:
+                               shows a total-sold sum. The Sold Projects view has an **Open/Closed tab strip**
+                               (shown to everyone): **Open** = status `sold` (won, job in progress), **Closed** =
+                               status `completed` (job finished); tab counts + the total-sold sum reflect the active
+                               tab. It ALSO shows an **admin-only builder tab strip** below it (All + one tab per
+                               builder who owns a sold project + Unassigned) that filters the list by builder; the
+                               two tab strips compose (builder filter is applied first, then Open/Closed). (Builders
+                               only see their own projects via RLS, so the builder tabs are an admin convenience.)
+    ProjectDetail.jsx        — A single project's page (/projects/:id), presented as a printable WORK ORDER.
+                               Above the tabs sits an **editable milestone stepper** (StatusMilestones): the four
+                               pipeline stages **Quoted → Sold → Scheduled → Completed** as clickable circles —
+                               one click sets the project's status (reached stages fill sage, current one is ringed),
+                               saving inline via updateProject (RLS-scoped; stamps sold_at the first time it reaches a
+                               sold status). draft/cancelled live OFF this track (set via the Edit modal's Status
+                               dropdown): a draft shows nothing reached yet, a cancelled project shows a red flag with
+                               steps dimmed (clicking one reactivates it to that stage). Below the stepper are TWO TABS:
                                • "Work Order" — a formatted, printable work-order document (rendered inside
                                  #work-order-print) showing every relevant detail: customer (name/company/full
                                  mailing address/phone/email, from the embedded contact), builder, shed spec
@@ -294,7 +303,10 @@ Notes:
   territory (see `territory_routing` + trigger below) or manually in the UI.
 - `projects` — shed jobs (ARCHITECTURE.md step 3). Columns: contact_id (→ contacts, **NULLABLE, ON DELETE SET
   NULL** — a contact can have many projects; a ShedPro order may arrive before its customer is a known contact,
-  so a null-contact project is admin-only until linked), name, status (draft|quoted|sold|completed|cancelled),
+  so a null-contact project is admin-only until linked), name, status (draft|quoted|sold|scheduled|completed|cancelled
+  — **no DB check constraint**, so new status values need no migration; the four-stage pipeline Quoted→Sold→Scheduled
+  →Completed is the editable milestone stepper on ProjectDetail. SOLD_STATUSES = sold|scheduled|completed drives the
+  Sold Projects page, which splits Open = sold|scheduled vs Closed = completed),
   plus the **Materials Calculator inputs** so a materials list can be generated: shed_size, style_package_id (→
   packages, ON DELETE SET NULL), siding, selected_packages (jsonb `{package_id: count}`), package_overrides
   (jsonb `{package_id: unit_price_override}`); sale_price, sold_at (stamped the first time status becomes
@@ -312,7 +324,7 @@ Notes:
   (incl. contact-less ones); a builder reads/writes a project when they own its linked contact
   (`projects.contact_id` → `contacts.user_id = auth.uid()`). Restricted to `authenticated`. The app reads
   projects via `lib/projects.js` (1000-row paging; embeds contact+owner and style package name). The Sold
-  Projects page filters status ∈ {sold, completed}; ProjectDetail shows a read-only "ShedPro order details"
+  Projects page filters status ∈ {sold, scheduled, completed}; ProjectDetail shows a read-only "ShedPro order details"
   card (renderings + configured options/colors). See `MIGRATION_projects.sql` + `MIGRATION_projects_shedpro.sql`
   + `MIGRATION_projects_style_mapping.sql` + `MIGRATION_projects_siding_mapping.sql` (all applied 2026-06-25). **Seeded 2026-06-25** with **870 rows** from a
   ShedPro "Shed Projects" export (`source='shedpro'`; 37 with a Date Sold → status `sold`, the other 833 →

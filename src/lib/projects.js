@@ -13,13 +13,24 @@
 import { supabase } from './supabase';
 
 // Project lifecycle. The Sold Projects page shows the SOLD_STATUSES.
-export const PROJECT_STATUSES = ['draft', 'quoted', 'sold', 'completed', 'cancelled'];
-export const SOLD_STATUSES = ['sold', 'completed'];
+export const PROJECT_STATUSES = ['draft', 'quoted', 'sold', 'scheduled', 'completed', 'cancelled'];
+
+// The four pipeline milestones shown as the editable stepper above the work order
+// (ProjectDetail), in order. draft/cancelled are valid statuses but live off this
+// linear track (set via the Edit modal's full Status dropdown).
+export const PROJECT_MILESTONES = ['quoted', 'sold', 'scheduled', 'completed'];
+
+// A won deal that shows on the Sold Projects page: sold, scheduled (build booked),
+// and completed. "Open" sold work = sold + scheduled; "Closed" = completed.
+export const SOLD_STATUSES = ['sold', 'scheduled', 'completed'];
+export const OPEN_SOLD_STATUSES = ['sold', 'scheduled'];
+export const CLOSED_SOLD_STATUSES = ['completed'];
 
 export const PROJECT_STATUS_LABELS = {
   draft:     'Draft',
   quoted:    'Quoted',
   sold:      'Sold',
+  scheduled: 'Scheduled',
   completed: 'Completed',
   cancelled: 'Cancelled',
 };
@@ -29,6 +40,7 @@ export const PROJECT_STATUS_COLORS = {
   draft:     'ghost',
   quoted:    'blue',
   sold:      'green',
+  scheduled: 'sand',
   completed: 'sage',
   cancelled: 'red',
 };
