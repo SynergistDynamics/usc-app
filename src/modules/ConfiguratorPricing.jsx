@@ -1,6 +1,6 @@
 // src/modules/ConfiguratorPricing.jsx
 import { useState, useEffect } from 'react';
-import { supabase, SHED_SIZES, C, fmt, applyOverride, packageMaterialCost } from '../lib/supabase';
+import { supabase, SHED_SIZES, C, fmt, applyOverride, packageMaterialCost, canManagePackages } from '../lib/supabase';
 import { useAuth } from '../components/Auth';
 import { SectionHeader, Button, ErrorBanner, SuccessBanner, WarningBanner } from '../components/UI';
 import MaterialPriceManager from './MaterialPriceManager';
@@ -9,6 +9,7 @@ import PackageManager from './PackageManager';
 export default function ConfiguratorPricing({ materials, overrides, setOverrides, packages, pkgMaterials, pkgQuantities, styleMults, onRefresh }) {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
+  const canPackages = canManagePackages(profile); // admin OR builder_pro
 
   const [activeTab,         setActiveTab]         = useState('base');
   const [isMobile,          setIsMobile]          = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
@@ -263,7 +264,7 @@ export default function ConfiguratorPricing({ materials, overrides, setOverrides
   // Tabs: the four pricing views, plus the management tools (Material Prices for
   // everyone, Packages for admins) that used to live in the sidebar submenu.
   const PRICING_TABS = [['base','Base Pricing'],['siding','Siding'],['fixed','Fixed Price Options'],['variable','Size-Variable Options']];
-  const MANAGE_TABS  = isAdmin ? [['materials','Material Prices'],['packages','Packages']] : [['materials','Material Prices']];
+  const MANAGE_TABS  = canPackages ? [['materials','Material Prices'],['packages','Packages']] : [['materials','Material Prices']];
   const TABS = [...PRICING_TABS, ...MANAGE_TABS];
   const isPricingTab = PRICING_TABS.some(([key]) => key === activeTab);
 
@@ -310,7 +311,7 @@ export default function ConfiguratorPricing({ materials, overrides, setOverrides
       {activeTab==='materials' && (
         <MaterialPriceManager materials={materials} overrides={overrides} setOverrides={setOverrides} onMasterUpdated={onRefresh} />
       )}
-      {activeTab==='packages' && isAdmin && (
+      {activeTab==='packages' && canPackages && (
         <PackageManager materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} onRefresh={onRefresh} />
       )}
     </div>

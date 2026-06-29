@@ -1,7 +1,7 @@
 // src/App.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, NavLink, Link } from 'react-router-dom';
-import { supabase, C } from './lib/supabase';
+import { supabase, C, canManagePackages } from './lib/supabase';
 import { AuthProvider, useAuth, LoginPage, LoadingScreen, BlockedScreen } from './components/Auth';
 import { Spinner, Button } from './components/UI';
 import Dashboard             from './modules/Dashboard';
@@ -117,6 +117,7 @@ function UserAvatar({ profile, size = 32 }) {
 function AppInner() {
   const { profile, signOut } = useAuth();
   const isAdmin = profile?.role === 'admin';
+  const canPackages = canManagePackages(profile);
 
   const [sidebarOpen,  setSidebarOpen]  = useState(true);
   const [isMobile,     setIsMobile]     = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
@@ -314,7 +315,7 @@ function AppInner() {
             <Route path={`${ROUTES.projects}/:id`} element={<ProjectDetail materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styleMults={styleMults} />} />
             <Route path={ROUTES.calculator} element={<PricingTool materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} styleMults={styleMults} />} />
             <Route path={ROUTES.matPrices} element={<MaterialPriceManager materials={materials} overrides={overrides} setOverrides={setOverrides} onMasterUpdated={loadData} />} />
-            <Route path={ROUTES.packages} element={isAdmin ? <PackageManager materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} onRefresh={loadData} /> : <Navigate to={ROUTES.calculator} replace />} />
+            <Route path={ROUTES.packages} element={canPackages ? <PackageManager materials={materials} overrides={overrides} packages={packages} pkgMaterials={pkgMaterials} pkgQuantities={pkgQuantities} onRefresh={loadData} /> : <Navigate to={ROUTES.calculator} replace />} />
             <Route path={ROUTES.affiliate} element={<AffiliateResources />} />
             <Route path={ROUTES.admin} element={isAdmin ? <AdminPanel /> : <Navigate to={ROUTES.calculator} replace />} />
             <Route path={ROUTES.blueprints} element={<Blueprints />} />
