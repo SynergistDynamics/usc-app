@@ -45,6 +45,18 @@ export const PROJECT_STATUS_COLORS = {
   cancelled: 'red',
 };
 
+// Ambient status accent color (the thin left edge + the status label tint on the
+// project cards). A restrained, on-brand set — one job per color, distinct enough
+// to read at a glance without shouting.
+export const PROJECT_STATUS_EDGE = {
+  draft:     '#C8C0B2', // muted linen
+  quoted:    '#6E8BA3', // slate blue
+  sold:      '#7A9B76', // sage
+  scheduled: '#B8986A', // sand
+  completed: '#5C7A58', // deep sage
+  cancelled: '#B5524A', // muted red
+};
+
 export const isSoldStatus = (s) => SOLD_STATUSES.includes(s);
 
 // Columns + embeds shared by the list/detail reads. We embed the parent contact

@@ -13,7 +13,7 @@
 // Loads contact (lib/contacts) + its projects (lib/projects) at the parent. RLS scopes access.
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { C, fmt } from '../lib/supabase';
+import { C, fmt, fmtMoneyShort, fmtShortDate } from '../lib/supabase';
 import { useAuth } from '../components/Auth';
 import {
   getContact, updateContact, deleteContact, assignContact, fetchAssignableBuilders,
@@ -21,12 +21,17 @@ import {
 } from '../lib/contacts';
 import {
   fetchProjectsForContact, createProject, isSoldStatus,
-  PROJECT_STATUS_LABELS,
+  PROJECT_STATUS_LABELS, PROJECT_STATUS_EDGE,
 } from '../lib/projects';
 import {
   Card, Button, Badge, Input, Select, FormField, Label, Modal,
-  ErrorBanner, SuccessBanner, Spinner,
+  ErrorBanner, SuccessBanner, Spinner, ShedIcon,
 } from '../components/UI';
+
+// Muted text tones for the project cards — one secondary, one tertiary (kept in sync
+// with the Sold Projects list).
+const CARD_SECONDARY = '#8C8478';
+const CARD_TERTIARY  = '#B3AC9F';
 
 const STATUS_OPTIONS = CONTACT_STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s] }));
 const FIELDS = ['full_name','company_name','email','phone','market','address','city','state','zip','status','notes'];
@@ -623,22 +628,22 @@ function GroupHeader({ label, right }) {
   );
 }
 
-// A compact horizontal card matching the Sold Projects list: a small shed-rendering
-// thumbnail (object-fit:contain so it's never cropped; 🏠 placeholder when none) on
-// the left, details on the right. Leads with the PROJECT name (the contact is already
-// known on this page), then price | spec, the date, and the status as small uppercase
-// colored text top-right. Sold projects keep a sage left accent to set the group apart.
+// A compact horizontal card matching the Sold Projects list. Leads with the PROJECT
+// name (the contact is already known on this page) as the left anchor, with the price
+// as the bold right anchor; spec + status·date recede to one muted tone. A thin
+// status-colored LEFT EDGE encodes the stage ambiently (the group header already says
+// "Sold"). Flat thumbnail panel with the rendering bottom-aligned (line-icon when
+// none); a chevron hints it's tappable.
 function ProjectRow({ p, sold, navigate, isMobile }) {
   const [hover, setHover] = useState(false);
   const img = [p.rendering_url_1, p.rendering_url_2, p.rendering_url_3, p.rendering_url_4].find(Boolean) || null;
 
-  const specBits = [p.shed_size, p.style_package?.name].filter(Boolean).join(' ');
-  const spec = [specBits, p.project_number ? `#${p.project_number}` : null].filter(Boolean).join(' ');
-  const priceLine = [p.sale_price != null ? fmt(p.sale_price) : null, spec || 'No spec yet'].filter(Boolean).join('  |  ');
-  const dateStr = sold && p.sold_at ? `Sold ${fmtDate(p.sold_at)}` : (p.created_at ? fmtDate(p.created_at) : '');
-
-  const statusColor = { sold:C.sageDark, scheduled:C.sand, completed:C.sageDark, cancelled:'#991B1B' }[p.status] || '#999';
-  const thumb = isMobile ? 80 : 88;
+  const spec = [p.shed_size, p.style_package?.name].filter(Boolean).join(' ');
+  // No "Sold" prefix — the status label beside it already says so.
+  const dateStr = sold && p.sold_at ? fmtShortDate(p.sold_at) : (p.created_at ? fmtShortDate(p.created_at) : '');
+  const statusLabel = PROJECT_STATUS_LABELS[p.status] || p.status || '';
+  const edge = PROJECT_STATUS_EDGE[p.status] || CARD_TERTIARY;
+  const thumb = isMobile ? 84 : 92;
 
   return (
     <div
@@ -646,39 +651,52 @@ function ProjectRow({ p, sold, navigate, isMobile }) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        cursor:'pointer', borderRadius:8, overflow:'hidden', position:'relative',
-        border:`1px solid ${sold ? C.sage : C.linenDarker}`,
-        borderLeft:`4px solid ${sold ? C.sage : C.linenDarker}`,
-        background: hover ? C.linen : (sold ? C.linen : '#fff'),
+        cursor:'pointer', borderRadius:8, overflow:'hidden',
+        border:`1px solid ${C.linenDarker}`, borderLeft:`3px solid ${edge}`,
+        background: hover ? C.linen : '#fff',
         boxShadow: hover ? '0 4px 14px rgba(26,21,16,0.08)' : 'none',
         transition:'box-shadow 0.16s, background 0.16s',
         display:'flex', alignItems:'stretch',
       }}
     >
-      {/* Thumbnail */}
+      {/* Thumbnail — flat panel, rendering on a consistent ground line */}
       <div style={{
-        flexShrink:0, width:thumb, alignSelf:'stretch',
-        background:`linear-gradient(135deg, ${C.linenDark}, ${C.linenDarker})`,
-        display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden',
+        flexShrink:0, width:thumb, alignSelf:'stretch', background:'#F4F1EA',
+        display:'flex', alignItems:'flex-end', justifyContent:'center', overflow:'hidden',
       }}>
         {img ? (
           <img src={img} alt={p.name || 'Shed rendering'} loading="lazy"
-            style={{ width:'100%', height:'100%', objectFit:'contain', display:'block', padding:5 }} />
+            style={{ width:'100%', height:'100%', objectFit:'contain', objectPosition:'center bottom', display:'block', padding:6 }} />
         ) : (
-          <div style={{ fontSize:22, lineHeight:1 }}>🏠</div>
+          <div style={{ alignSelf:'stretch', flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <ShedIcon size={isMobile ? 26 : 28} />
+          </div>
         )}
       </div>
 
       {/* Details */}
-      <div style={{ flex:1, minWidth:0, padding:'10px 12px', display:'flex', flexDirection:'column', gap:2 }}>
-        <div style={{ position:'absolute', top:10, right:12, fontFamily:'DM Sans', fontSize:10.5, fontWeight:700, letterSpacing:'0.06em', color:statusColor }}>
-          {(PROJECT_STATUS_LABELS[p.status] || p.status || '').toUpperCase()}
+      <div style={{ flex:1, minWidth:0, padding: isMobile ? '10px 6px 10px 12px' : '11px 6px 11px 13px', display:'flex', flexDirection:'column', justifyContent:'center', gap:3 }}>
+        <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:10 }}>
+          <span style={{ fontFamily:'DM Sans', fontWeight:600, fontSize:14.5, color:C.charcoal, lineHeight:1.2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+            {p.name || 'Untitled project'}
+          </span>
+          {p.sale_price != null && (
+            <span style={{ fontFamily:'DM Sans', fontWeight:700, fontSize:14.5, color:C.sageDark, flexShrink:0, fontVariantNumeric:'tabular-nums' }}>
+              {fmtMoneyShort(p.sale_price)}
+            </span>
+          )}
         </div>
-        <div style={{ fontFamily:'DM Sans', fontSize:14.5, fontWeight:700, color:C.charcoal, lineHeight:1.2, paddingRight:74, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-          {p.name || 'Untitled project'}
+        <div style={{ fontFamily:'DM Sans', fontSize:12.5, color:CARD_SECONDARY, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+          {spec || 'No spec yet'}
         </div>
-        <div style={{ fontFamily:'DM Sans', fontSize:13, color:C.charcoal }}>{priceLine}</div>
-        {dateStr && <div style={{ fontFamily:'DM Sans', fontSize:12, color:'#8a8175' }}>{dateStr}</div>}
+        <div style={{ fontFamily:'DM Sans', fontSize:12, color:CARD_SECONDARY, fontVariantNumeric:'tabular-nums', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+          <span style={{ color:edge, fontWeight:600 }}>{statusLabel}</span>{dateStr && `  ·  ${dateStr}`}
+        </div>
+      </div>
+
+      {/* Tappable affordance */}
+      <div style={{ flexShrink:0, display:'flex', alignItems:'center', paddingRight:11, paddingLeft:2, color: hover ? C.sage : '#CFC8BB', fontSize:19, transition:'color 0.15s' }}>
+        ›
       </div>
     </div>
   );

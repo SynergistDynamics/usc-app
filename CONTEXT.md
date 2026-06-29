@@ -84,13 +84,15 @@ src/
                                Updated dates and the admin "Builder" assign dropdown (builders see owner read-only).
                                Loads contact (lib/contacts) AND its projects (lib/projects) at the parent. The
                                **Projects** section ("+ New project") is **grouped**: a **"Sold (n)" header with the
-                               summed sold total** pinned on top (cards highlighted with a sage left accent), then a
-                               **"Quotes & Drafts (n)"** group — each newest-first. Each project renders as a
-                               **compact horizontal card (`ProjectRow`) matching the Sold Projects list**: a small
-                               shed-rendering thumbnail (first of `rendering_url_1..4`, `object-fit:contain`; 🏠
-                               placeholder) on the left, then project name, `sale price | size style #project_number`,
-                               and the date (sold date if sold else created), with the status as small uppercase
-                               colored text top-right. RLS scopes who can load/edit.
+                               summed sold total** pinned on top, then a **"Quotes & Drafts (n)"** group — each
+                               newest-first. Each project renders as a **compact horizontal card (`ProjectRow`)
+                               matching the Sold Projects list** (same professional design pass): flat-panel shed
+                               thumbnail (bottom-aligned `contain`; `<ShedIcon>` line-icon when none) on the left, then
+                               two anchors — **project name** (the contact is already known here) on the left and
+                               **sale price** (bold, `fmtMoneyShort`, tabular) on the right — spec below, then a muted
+                               `Status · date` line (status word tinted by `PROJECT_STATUS_EDGE`), a **thin
+                               status-colored left edge** (replaces the old heavy sage accent), and a `›` chevron. RLS
+                               scopes who can load/edit.
                                **Mobile pass (2026-06-29):** the quick-action bar is a fixed bottom sticky bar with
                                stacked icon+label buttons and iOS safe-area padding (`env(safe-area-inset-bottom)`);
                                the StatusPicker opens as a **bottom sheet** on mobile (dropdown on desktop); detail
@@ -107,14 +109,21 @@ src/
                                "+ New project" opens a contact picker. Sold view filters to sold/completed, is
                                sorted most-recently-sold first, and shows a total-sold sum. **The Sold Projects
                                list renders as a responsive grid of compact horizontal cards (`ProjectCard`), NOT a
-                               table** (UX redesign 2026-06-29, built mobile-first): one column on mobile,
-                               `repeat(auto-fill, minmax(420px,1fr))` on wider screens. Each card has a **small shed
-                               thumbnail on the left** (first available of `rendering_url_1..4`, `object-fit:contain`
-                               so the whole rendering shows — `cover` cropped the product shots; a 🏠 placeholder when
-                               none) and details on the right: **contact name** headline, `sale price | size style
-                               #project_number`, `City, ST | Sold: date`, and (admins) the builder in green; the
-                               status shows as small uppercase colored text top-right. The whole card navigates to the
-                               project. The all-projects `/projects` view (route-only) keeps the plain table. The Sold
+                               table** (UX redesign 2026-06-29, built mobile-first; **professional design pass same
+                               day**): one column on mobile, `repeat(auto-fill, minmax(420px,1fr))` on wider screens.
+                               Each card has a **small shed thumbnail on the left** (first available of
+                               `rendering_url_1..4`, `object-fit:contain` + bottom-aligned on a flat `#F4F1EA` panel so
+                               renderings share a "ground line" and aren't cropped; a `<ShedIcon>` line-icon, NOT an
+                               emoji, when none) and details on the right built around **two anchors**: the **contact
+                               name** (left) and the **sale price** (right, bold, `fmtMoneyShort` — no cents, tabular
+                               figures). Below: spec (`size style` + a dimmed `#project_number`), then a single muted
+                               meta line `Status · date · City, ST` (`fmtShortDate`, status word tinted by
+                               `PROJECT_STATUS_EDGE`; ellipsizes so cards stay equal height), and (admins) the builder
+                               in the tertiary tone. A **thin status-colored left edge** (`PROJECT_STATUS_EDGE`) encodes
+                               the stage ambiently (no shouty corner badge); a `›` chevron hints it's tappable. Palette
+                               is disciplined to charcoal + one secondary gray (`#8C8478`) + one tertiary (`#B3AC9F`) +
+                               one sage accent (the price). The whole card navigates to the project. The all-projects
+                               `/projects` view (route-only) keeps the plain table. The Sold
                                Projects view has an **Open/Closed tab strip**
                                (shown to everyone): **Open** = status `sold` (won, job in progress), **Closed** =
                                status `completed` (job finished); tab counts + the total-sold sum reflect the active

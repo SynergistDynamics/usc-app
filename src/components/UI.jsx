@@ -1,6 +1,20 @@
 // src/components/UI.jsx
 import { C } from '../lib/supabase';
 
+// A simple line-drawn shed (mono-pitch roof) — the placeholder when a project has
+// no ShedPro rendering. A real icon, not an emoji, so it renders identically on
+// every device and stays on-brand.
+export function ShedIcon({ size = 30, color = '#A7B3A1' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth="1.4" strokeLinejoin="round" strokeLinecap="round">
+      <path d="M3 10.2 L12 4.5 L21 8.4" />
+      <path d="M5.2 9.5 V19.5 H18.8 V8.2" />
+      <path d="M10 19.5 V13.5 H14 V19.5" />
+    </svg>
+  );
+}
+
 export function Spinner({ size = 20 }) {
   return (
     <div style={{
