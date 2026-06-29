@@ -175,6 +175,7 @@ export default function Projects({ soldOnly = false }) {
                   {!isMobile && <Th>Size</Th>}
                   {!isMobile && <Th>Style</Th>}
                   <Th>Status</Th>
+                  {soldOnly && <Th>Sold</Th>}
                   {(soldOnly || !isMobile) && <Th>Sale price</Th>}
                   {isAdmin && !isMobile && <Th>Owner</Th>}
                 </tr>
@@ -198,6 +199,7 @@ export default function Projects({ soldOnly = false }) {
                     {!isMobile && <Td>{p.shed_size || '—'}</Td>}
                     {!isMobile && <Td>{p.style_package?.name || '—'}</Td>}
                     <Td><Badge color={PROJECT_STATUS_COLORS[p.status] || 'ghost'}>{PROJECT_STATUS_LABELS[p.status] || p.status}</Badge></Td>
+                    {soldOnly && <Td>{p.sold_at ? new Date(p.sold_at).toLocaleDateString() : '—'}</Td>}
                     {(soldOnly || !isMobile) && <Td>{p.sale_price != null ? fmt(p.sale_price) : '—'}</Td>}
                     {isAdmin && !isMobile && <Td>{p.contact?.owner?.full_name || p.contact?.owner?.email || '— Unassigned —'}</Td>}
                   </tr>

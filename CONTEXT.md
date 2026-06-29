@@ -82,7 +82,8 @@ src/
                                the everyday way to reach a contact's projects is via their contact profile.
                                A project is a shed job tied to a contact; admins see all, builders see
                                only projects whose contact they own (RLS). Loads its own data via lib/projects.js.
-                               "+ New project" opens a contact picker. Sold view filters to sold/completed and
+                               "+ New project" opens a contact picker. Sold view filters to sold/completed, adds a
+                               **Sold (date)** column (from sold_at), is sorted most-recently-sold first, and
                                shows a total-sold sum. The Sold Projects view has an **Open/Closed tab strip**
                                (shown to everyone): **Open** = status `sold` (won, job in progress), **Closed** =
                                status `completed` (job finished); tab counts + the total-sold sum reflect the active
@@ -162,7 +163,9 @@ src/
     Financing.jsx            — Financing (idx 9)
   lib/contacts.js            — Contacts data/service layer (fetch w/ 1000-row paging, get, create, update,
                                delete) + CONTACT_STATUSES / STATUS_LABELS / STATUS_COLORS constants.
-  lib/projects.js            — Projects data/service layer (fetchProjects w/ 1000-row paging + soldOnly filter,
+  lib/projects.js            — Projects data/service layer (fetchProjects w/ 1000-row paging + soldOnly filter;
+                               soldOnly sorts most-recently-sold first — sold_at desc, unknown sold dates last, then
+                               created_at desc — while the all-projects view sorts created_at desc;
                                fetchProjectsForContact, get, create, update, delete) + PROJECT_STATUSES /
                                LABELS / COLORS, SOLD_STATUSES, isSoldStatus. Embeds the parent contact — incl.
                                full contact details (phone, address, city, state, zip) so ProjectDetail can
