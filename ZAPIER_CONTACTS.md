@@ -127,6 +127,14 @@ just type the exact territory value ShedPro will send.
     form. The body must be JSON.
 - **`shedpro_id` is required for dedup.** If ShedPro doesn't expose a stable id and you map
   nothing, every sync inserts a new row (NULL shedpro_ids don't conflict). Prefer a real id.
+- **Placeholder ids (`'0'` / blank) are normalized to NULL (fixed 2026-06-29).** ShedPro sometimes
+  sends `0` (or empty) when a lead has no real id. Without protection, the upsert on `shedpro_id`
+  treats every `'0'` as the SAME row, so each such lead silently OVERWRITES the previous one (Zapier
+  reports HTTP 200 success but no new contact appears — this is how a lead can "run in Zapier" yet be
+  missing). The `contacts_normalize_shedpro_id` trigger now coerces blank/`'0'` → NULL so these leads
+  insert as fresh rows instead. Consequence: an id-less lead won't dedup on re-sync (re-syncing inserts
+  a new row) — preferable to clobbering an unrelated contact. See
+  `MIGRATION_contacts_normalize_shedpro_id.sql`.
 - **Seed vs. live overlap.** The 686 rows seeded on 2026-06-25 have `shedpro_id = NULL`. A
   customer who was in that seed AND comes through Zapier will appear twice (the seed row won't
   match by shedpro_id). That's expected; clean up later if needed, or one-time backfill

@@ -260,7 +260,12 @@ Notes:
   (owner → profiles.id, defaults to auth.uid()), full_name, email, phone, company_name, address, city,
   state, zip, market, status (lead|quoted|customer|closed|lost), source (manual|shedpro|zapier|…),
   **shedpro_id** (external id for Zapier upserts/dedup — plain UNIQUE index so PostgREST can use it as an
-  `on_conflict` arbiter; NULLs allowed and distinct — see MIGRATION_contacts_shedpro_upsert_index.sql),
+  `on_conflict` arbiter; NULLs allowed and distinct — see MIGRATION_contacts_shedpro_upsert_index.sql.
+  **GOTCHA (fixed 2026-06-29):** a placeholder id like `'0'`/blank is NOT distinct, so every lead carrying
+  it collapsed onto the one `shedpro_id='0'` row and silently OVERWROTE it instead of inserting (Zapier
+  still got HTTP 200). The `contacts_normalize_shedpro_id` BEFORE INSERT/UPDATE trigger now coerces
+  blank/whitespace/`'0'` → NULL so placeholder-id leads insert fresh rows; real ids still dedup. See
+  `MIGRATION_contacts_normalize_shedpro_id.sql`),
   **shedpro_territory** (ShedPro territory tag, set by Zapier; drives owner auto-routing),
   notes, created_at, updated_at (auto via `contacts_set_updated_at` trigger). **RLS enabled**: one ALL
   policy "Builders manage own contacts, admins all" — a builder reads/writes only rows where
