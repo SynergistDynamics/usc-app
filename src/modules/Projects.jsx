@@ -164,6 +164,25 @@ export default function Projects({ soldOnly = false }) {
                     : 'No projects match your search.')}
           </div>
         </Card>
+      ) : soldOnly ? (
+        // Sold Projects: a grid of larger cards, each led by the shed's perspective
+        // rendering. One column on mobile (the priority), auto-fitting columns on
+        // desktop. Far more scannable on a phone than a cramped table row.
+        <div style={{
+          display:'grid',
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))',
+          gap: isMobile ? 14 : 18,
+        }}>
+          {filtered.map(p => (
+            <ProjectCard
+              key={p.id}
+              project={p}
+              isAdmin={isAdmin}
+              isMobile={isMobile}
+              onOpen={() => navigate(`/projects/${p.id}`)}
+            />
+          ))}
+        </div>
       ) : (
         <Card style={{ padding:0, overflow:'hidden' }}>
           <div className="usc-table-scroll">
@@ -175,8 +194,7 @@ export default function Projects({ soldOnly = false }) {
                   {!isMobile && <Th>Size</Th>}
                   {!isMobile && <Th>Style</Th>}
                   <Th>Status</Th>
-                  {soldOnly && <Th>Sold</Th>}
-                  {(soldOnly || !isMobile) && <Th>Sale price</Th>}
+                  {!isMobile && <Th>Sale price</Th>}
                   {isAdmin && !isMobile && <Th>Owner</Th>}
                 </tr>
               </thead>
@@ -199,8 +217,7 @@ export default function Projects({ soldOnly = false }) {
                     {!isMobile && <Td>{p.shed_size || '—'}</Td>}
                     {!isMobile && <Td>{p.style_package?.name || '—'}</Td>}
                     <Td><Badge color={PROJECT_STATUS_COLORS[p.status] || 'ghost'}>{PROJECT_STATUS_LABELS[p.status] || p.status}</Badge></Td>
-                    {soldOnly && <Td>{p.sold_at ? new Date(p.sold_at).toLocaleDateString() : '—'}</Td>}
-                    {(soldOnly || !isMobile) && <Td>{p.sale_price != null ? fmt(p.sale_price) : '—'}</Td>}
+                    {!isMobile && <Td>{p.sale_price != null ? fmt(p.sale_price) : '—'}</Td>}
                     {isAdmin && !isMobile && <Td>{p.contact?.owner?.full_name || p.contact?.owner?.email || '— Unassigned —'}</Td>}
                   </tr>
                 ))}
@@ -318,6 +335,92 @@ function NewProjectModal({ onClose, onCreated }) {
         <Button onClick={create} loading={saving} disabled={!contactId}>Create project</Button>
       </div>
     </Modal>
+  );
+}
+
+// A large, image-led card for the Sold Projects grid. Leads with the shed's
+// perspective rendering (rendering_url_1, falling back to the other renders),
+// then project name, contact, spec, status, sale price + sold date. Built to be
+// tapped on a phone (the whole card navigates to the project).
+function ProjectCard({ project: p, isAdmin, isMobile, onOpen }) {
+  const [hover, setHover] = useState(false);
+
+  // The perspective rendering — first available of the ShedPro render URLs.
+  const img = [p.rendering_url_1, p.rendering_url_2, p.rendering_url_3, p.rendering_url_4]
+    .find(Boolean) || null;
+
+  const contactName = p.contact?.full_name || p.contact?.company_name || p.contact?.email || p.customer_email || '—';
+  const spec = [p.shed_size, p.style_package?.name].filter(Boolean).join(' · ');
+  const ownerName = p.contact?.owner?.full_name || p.contact?.owner?.email || 'Unassigned';
+
+  return (
+    <div
+      onClick={onOpen}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        cursor:'pointer', background:'#fff', borderRadius:10, overflow:'hidden',
+        border:`1px solid ${C.linenDarker}`,
+        boxShadow: hover ? '0 8px 22px rgba(26,21,16,0.12)' : '0 1px 3px rgba(26,21,16,0.06)',
+        transform: hover && !isMobile ? 'translateY(-2px)' : 'none',
+        transition:'box-shadow 0.18s, transform 0.18s',
+        display:'flex', flexDirection:'column',
+      }}
+    >
+      {/* Perspective image (or a styled placeholder when none) */}
+      <div style={{
+        position:'relative', width:'100%', aspectRatio:'4 / 3',
+        background:`linear-gradient(135deg, ${C.linenDark}, ${C.linenDarker})`,
+        display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden',
+      }}>
+        {img ? (
+          <img
+            src={img}
+            alt={p.name || 'Shed rendering'}
+            loading="lazy"
+            style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
+          />
+        ) : (
+          <div style={{ textAlign:'center', color:C.sage, fontFamily:'DM Sans', fontSize:12 }}>
+            <div style={{ fontSize:34, lineHeight:1 }}>🏠</div>
+            <div style={{ marginTop:6, color:'#9a8f80' }}>No rendering</div>
+          </div>
+        )}
+        {/* Status badge floats over the image, top-right */}
+        <div style={{ position:'absolute', top:10, right:10 }}>
+          <Badge color={PROJECT_STATUS_COLORS[p.status] || 'ghost'}>{PROJECT_STATUS_LABELS[p.status] || p.status}</Badge>
+        </div>
+      </div>
+
+      {/* Card body */}
+      <div style={{ padding: isMobile ? '13px 15px 15px' : '14px 16px 16px', display:'flex', flexDirection:'column', gap:5, flex:1 }}>
+        <div style={{ fontFamily:'DM Sans', fontWeight:700, fontSize: isMobile ? 16 : 15, color:C.charcoal, lineHeight:1.25 }}>
+          {p.name || 'Untitled project'}
+        </div>
+        <div style={{ fontFamily:'DM Sans', fontSize:13, color:'#6b6258' }}>{contactName}</div>
+        {spec && (
+          <div style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#9a8f80' }}>{spec}</div>
+        )}
+
+        {/* Price + sold date, pinned to the bottom of the card */}
+        <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:10, marginTop:'auto', paddingTop:8 }}>
+          <div style={{ fontFamily:'DM Sans', fontWeight:700, fontSize: isMobile ? 17 : 16, color:C.sageDark }}>
+            {p.sale_price != null ? fmt(p.sale_price) : '—'}
+          </div>
+          {p.sold_at && (
+            <div style={{ fontFamily:'DM Sans', fontSize:11.5, color:'#aaa' }}>
+              Sold {new Date(p.sold_at).toLocaleDateString()}
+            </div>
+          )}
+        </div>
+
+        {isAdmin && (
+          <div style={{ fontFamily:'DM Sans', fontSize:11.5, color:'#b3a88f', marginTop:2 }}>
+            Builder: {ownerName}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
