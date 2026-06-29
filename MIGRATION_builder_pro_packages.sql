@@ -6,8 +6,11 @@
 -- A Builder Pro is a builder who can ALSO manage package master data
 -- (packages, package_materials, package_quantities) — otherwise identical to a
 -- builder (own data only, no Admin panel). It is just a new value of
--- profiles.role ('builder_pro'); there is NO check constraint on profiles.role,
--- so no ALTER of the column is needed.
+-- profiles.role ('builder_pro').
+--
+-- profiles.role HAS a check constraint (profiles_role_check), so the allowed
+-- set must be widened to include 'builder_pro' or the Admin → Users role
+-- dropdown errors with "violates check constraint profiles_role_check" (step 0).
 --
 -- The packages tables' write policies were hard-coded to role = 'admin'. This
 -- migration widens them to role IN ('admin','builder_pro') so a Builder Pro's
@@ -18,6 +21,11 @@
 -- Helper predicate used below: current user is an admin OR a builder_pro.
 --   exists (select 1 from profiles p
 --           where p.id = auth.uid() and p.role in ('admin','builder_pro'))
+
+-- 0) Allow 'builder_pro' as a profiles.role value (widen the check constraint).
+alter table profiles drop constraint if exists profiles_role_check;
+alter table profiles add constraint profiles_role_check
+  check (role = any (array['admin','builder_pro','builder','blocked']));
 
 -- 1) packages — split INSERT / UPDATE / DELETE policies
 drop policy if exists "Admin can insert packages" on packages;

@@ -202,10 +202,11 @@ Notes:
 - **The `/packages` route + the Configurator Pricing → Packages tab** are gated by
   `canManagePackages(profile)` (admin OR `builder_pro`), defined in `lib/supabase.js` — NOT plain
   `isAdmin`. A **Builder Pro** is otherwise identical to a builder (own data only, no Admin panel); the
-  only extra power is creating/editing packages. The matching RLS widening lives in
-  `MIGRATION_builder_pro_packages.sql` (packages/package_materials/package_quantities write policies now
-  allow `role in ('admin','builder_pro')`; **applied to the live project 2026-06-29**) — without it a
-  builder_pro's package writes silently fail.
+  only extra power is creating/editing packages. The matching DB changes live in
+  `MIGRATION_builder_pro_packages.sql` — it (a) widens the `profiles_role_check` constraint to allow the
+  `builder_pro` value, and (b) widens the packages/package_materials/package_quantities write policies to
+  `role in ('admin','builder_pro')`; **applied to the live project 2026-06-29**. Without (a) the Admin role
+  dropdown can't save `builder_pro`; without (b) a builder_pro's package writes silently fail.
 - **Material Prices + Packages** used to live in a collapsible "Calculator Settings" sidebar submenu.
   That submenu is gone — both are now tabs inside the Configurator Pricing page. Their routes
   (`/material-prices`, `/packages`) still resolve so old direct links keep working.
@@ -234,8 +235,10 @@ Notes:
   but CANNOT escalate privileges (see `MIGRATION_lock_profile_role.sql`). Admins still change roles via
   the separate "Admin can update any profile" policy. **`role='builder_pro'`** is a builder who can ALSO
   create/edit packages (gated by `canManagePackages` in lib/supabase.js + the widened packages RLS in
-  `MIGRATION_builder_pro_packages.sql`); otherwise identical to `builder`. There is **no CHECK constraint on
-  `profiles.role`**, so adding `builder_pro` needed no column ALTER. Role labels + per-role descriptions live
+  `MIGRATION_builder_pro_packages.sql`); otherwise identical to `builder`. **`profiles.role` HAS a check
+  constraint (`profiles_role_check`)** — it was widened to include `builder_pro` in that same migration;
+  without that the Admin role dropdown errors with "violates check constraint profiles_role_check". Role
+  labels + per-role descriptions live
   in `ROLE_LABELS` / `ROLE_DESCRIPTIONS` (lib/supabase.js), surfaced in the Admin → Users "Access Levels"
   card and the role dropdown (`ASSIGNABLE_ROLES`). `is_super_admin` is a flag layered on top of role=admin (NOT a new role value, so
   normal admin access is unaffected); it gates the Admin → Tech Stack tab. Super admins can grant/revoke
