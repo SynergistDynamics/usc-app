@@ -313,6 +313,11 @@ function ContactProjects({ contactId, navigate }) {
                   {[p.shed_size, p.style_package?.name, p.siding].filter(Boolean).join(' · ') || 'No spec yet'}
                 </div>
               </div>
+              {p.created_at && (
+                <span style={{ fontFamily:'DM Sans', fontSize:12, color:'#aaa', whiteSpace:'nowrap' }}>
+                  {new Date(p.created_at).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' })}
+                </span>
+              )}
               {p.sale_price != null && (
                 <span style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, color:C.sageDark }}>{fmt(p.sale_price)}</span>
               )}
