@@ -135,10 +135,15 @@ Each step unblocks the next; build in this order.
    **Expanded for ShedPro (2026-06-25):** `projects` now carries the full ShedPro order record (renderings,
    configured options, colors, fees) and was **seeded with 870 rows from a ShedPro export**; `contact_id` is
    now nullable (link by customer email; contact-less = admin-only) and RLS updated so admins always see all.
-   This is the same shape the future Zapier feed will use (`MIGRATION_projects_shedpro.sql`). Next here:
-   generate/export saved materials lists in bulk; map raw ShedPro siding/style strings onto the calculator's
-   packages so the materials list auto-fills; use the project owner's sales-tax for the preview (today it
-   uses the viewer's, same as the calculator).
+   This is the same shape the Zapier feed uses (`MIGRATION_projects_shedpro.sql`).
+   **ShedPro → Zapier → projects feed is now LIVE (2026-06-29):** Zapier upserts each ShedPro project to
+   the Supabase REST API on `shedpro_project_id` (the order # repeats across price revisions, so a dedicated
+   dedup key was added), and a `projects_auto_link_contact` trigger attaches each incoming project to its
+   customer contact by email so the right builder sees it — the project analog of the contacts sync. No app
+   code (the app just reads the table). See `ZAPIER_PROJECTS.md` + `MIGRATION_projects_zapier_upsert.sql`.
+   Next here: generate/export saved materials lists in bulk; map raw ShedPro siding/style strings onto the
+   calculator's packages so the materials list auto-fills; use the project owner's sales-tax for the preview
+   (today it uses the viewer's, same as the calculator).
 4. **Customer reviews + public builder profiles** — depends on (3) and on the public/private
    split (§3.5). Public read RLS; likely surfaced on the marketing domain for SEO.
 5. **ShedPro Configurator integration** — external dependency; do once the internal data model is
@@ -148,10 +153,12 @@ Each step unblocks the next; build in this order.
      `ContactProfile.jsx`, `lib/contacts.js`, `MIGRATION_contacts.sql`, 2026-06-25). Contacts are entered
      manually today; the table carries `source` + a unique `shedpro_id` so ShedPro leads can be upserted
      in later.
-   - **Sync mechanism: Zapier** (decided 2026-06). Rather than a custom Edge Function for the *initial*
-     lead sync, ShedPro → Zapier → Supabase REST API will insert/upsert contacts (upsert on `shedpro_id`).
-     This sidesteps shipping a ShedPro secret to the browser (§3.4) without us hosting the integration.
-     A dedicated Edge Function can still replace Zapier later if we outgrow it.
+   - **Sync mechanism: Zapier** (decided 2026-06; LIVE). ShedPro → Zapier → Supabase REST API
+     inserts/upserts records directly — no custom Edge Function. **Contacts** upsert on `email`
+     (`ZAPIER_CONTACTS.md`) and **projects** upsert on `shedpro_project_id` (`ZAPIER_PROJECTS.md`), both
+     auto-routed to the right builder by DB triggers. This sidesteps shipping a ShedPro secret to the
+     browser (§3.4) without us hosting the integration. A dedicated Edge Function can still replace Zapier
+     later if we outgrow it.
 
 Parallel track (independent of the app): **rebuild the marketing site** off Wix onto Vercel.
 

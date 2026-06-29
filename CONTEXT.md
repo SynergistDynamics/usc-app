@@ -310,12 +310,17 @@ Notes:
   — **no DB check constraint**, so new status values need no migration; the four-stage pipeline Quoted→Sold→Scheduled
   →Completed is the editable milestone stepper on ProjectDetail. SOLD_STATUSES = sold|scheduled|completed drives the
   Sold Projects page, which splits Open = sold|scheduled vs Closed = completed),
+  **shedpro_project_id** (external id — the dedup key for the Zapier project upsert; plain UNIQUE index
+  `projects_shedpro_project_id_key` so PostgREST can use it as an `on_conflict` arbiter; NULLs allowed
+  and distinct; a `projects_normalize_shedpro_project_id` BEFORE INSERT/UPDATE trigger coerces
+  blank/`'0'` → NULL like contacts do — see MIGRATION_projects_zapier_upsert.sql),
   plus the **Materials Calculator inputs** so a materials list can be generated: shed_size, style_package_id (→
   packages, ON DELETE SET NULL), siding, selected_packages (jsonb `{package_id: count}`), package_overrides
   (jsonb `{package_id: unit_price_override}`); sale_price, sold_at (stamped the first time status becomes
   sold/completed by the app), notes, created_at, updated_at (auto via `projects_set_updated_at` trigger).
-  **Raw ShedPro columns** (today seeded from a CSV export, in future fed via Zapier like contacts): source
-  (manual|shedpro), project_number (the ShedPro order/project #, e.g. 5826 — **NOT unique**: the export has price
+  **Raw ShedPro columns** (seeded from a CSV export 2026-06-25; LIVE feed via Zapier since 2026-06-29 — see
+  the ShedPro → Zapier integration note at the end of this bullet): source
+  (manual|shedpro|zapier), project_number (the ShedPro order/project #, e.g. 5826 — **NOT unique**: the export has price
   REVISIONS sharing a number; was `shedpro_order_id`, renamed in MIGRATION_projects_style_mapping.sql), shed_style
   (raw style name, e.g. "Tall Modern" — mapped to a style_package_id where ShedPro "Tall" = the app's "High Wall"),
   customer_email (links a project to a contact by
@@ -339,6 +344,21 @@ Notes:
   Clapboard, LP Smart*/`*T1-11*`→T1-11, Board & Batten→B&B, Western Red Cedar→Western Red Cedar; blanks left
   unset) so the materials list resolves siding too. A few test/internal rows (seadev/shedpro.co/mail-tester) came
   along in the export and are harmless admin-only noise.
+  - **ShedPro → Zapier → Supabase REST integration (LIVE 2026-06-29).** Same shape as contacts: Zapier
+    POSTs each ShedPro project to `/rest/v1/projects?on_conflict=shedpro_project_id` with the
+    service_role key + `Prefer: resolution=merge-duplicates`, **upserting on `shedpro_project_id`** (a
+    re-sync UPDATES the same row instead of duplicating). `project_number` (the order #) can't be the
+    dedup key — it repeats across price revisions (755 distinct across 870 seed rows) — so a dedicated
+    `shedpro_project_id` was added; all seed rows have it NULL (distinct), so seed rows never collide and
+    the index can still arbitrate the live upsert. The write bypasses RLS (service_role), so a project
+    arrives with `contact_id` NULL; a **`projects_auto_link_contact` BEFORE INSERT trigger** (SECURITY
+    DEFINER) sets `contact_id` by matching `customer_email` to a contact (case/whitespace-insensitive;
+    contacts.email is normalized lowercased) — so the contact's builder sees it immediately (ownership is
+    derived from the contact). No match → contact-less/admin-only until linked. INSERT-only so manual
+    unlinks in the app aren't undone. **status is NOT sent by Zapier** (defaults `draft` on insert,
+    preserved on update since merge-duplicates only sets sent columns) — the milestone stepper stays in
+    control. No app code — the React app just reads the table Zapier fills. Setup steps + field mapping
+    live in `ZAPIER_PROJECTS.md`. See `MIGRATION_projects_zapier_upsert.sql` (applied 2026-06-29).
 - `territory_routing` — admin-managed map of ShedPro **territory → builder** (`territory` PK, `user_id` →
   profiles). A `BEFORE INSERT` trigger `contacts_auto_assign` (SECURITY DEFINER) sets a new contact's
   `user_id` from this map when `user_id` is null and `shedpro_territory` is set — so Zapier-inserted leads
