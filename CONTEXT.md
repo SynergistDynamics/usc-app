@@ -72,17 +72,21 @@ src/
                                Status (+ Owner for admins) — Company was removed 2026-06-29. Search matches name/
                                email/phone/market/state. The "Add contact" modal has a State field (no Company).
                                Admins also get an inline owner-assign dropdown per row and a "Lead routing" button.
-    ContactProfile.jsx       — A single contact's profile page (/contacts/:id). Redesigned 2026-06-29 as a
-                               **compact, tappable card**: avatar + name + status, then contact-detail rows that
-                               are native links — **tap-to-call** (`tel:`) + **Text** (`sms:`), **email** (`mailto:`),
-                               and **address → Google Maps directions** (maps search URL). Editing is a **popup**
-                               (EditContactModal — name/company/email/phone/market/status/address/notes; Delete in
-                               its footer). Admins get an "Assigned to" builder dropdown in the card footer (builders
-                               see their owner read-only). RLS scopes who can load/edit it. Below is this contact's
-                               **Projects** list (ContactProjects helper, "+ New project"): **sold projects
-                               (sold/scheduled/completed) are pinned + highlighted (sage accent) at the top**, the
-                               rest follow newest-first; each row shows name, spec, date (sold date if sold, else
-                               created), sale price, and status.
+    ContactProfile.jsx       — A single contact's profile page (/contacts/:id). UX overhaul 2026-06-29 — a
+                               **compact card**: name-colored avatar, name, a tap-to-change **StatusPicker** (badge
+                               dropdown → updateContact), and a one-line **summary strip** (project count · sold
+                               count + total · last-active date). **Quick-action buttons** (📞 Call / 💬 Text / ✉️
+                               Email / 🧭 Directions) render inline on desktop and as a **fixed bottom sticky bar on
+                               mobile** (`isMobile` state) — native `tel:`/`sms:`/`mailto:`/Google-Maps links. Detail
+                               rows are tappable links with **copy buttons on desktop** (CopyBtn → clipboard); missing
+                               phone/email/address show a **"+ Add …" prompt** that opens the edit popup. Editing is a
+                               **popup** (EditContactModal — all fields; Delete in its footer). Footer shows Added +
+                               Updated dates and the admin "Builder" assign dropdown (builders see owner read-only).
+                               Loads contact (lib/contacts) AND its projects (lib/projects) at the parent. The
+                               **Projects** section ("+ New project") is **grouped**: a **"Sold (n)" header with the
+                               summed sold total** pinned on top (rows highlighted with a sage accent), then a
+                               **"Quotes & Drafts (n)"** group — each newest-first; rows show name, spec, date (sold
+                               date if sold else created), sale price, status. RLS scopes who can load/edit.
     Projects.jsx             — Projects list (/projects) and Sold Projects list (/sold-projects, `soldOnly`
                                prop). NOTE: the all-projects "/projects" view is no longer linked from the
                                sidebar nav (only "Sold Projects" is) — the route still exists and resolves, but
