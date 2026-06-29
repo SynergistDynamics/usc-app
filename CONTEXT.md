@@ -133,11 +133,14 @@ src/
     MaterialPriceManager.jsx — Material Prices — local price overrides + sales tax input. No longer in the
                                sidebar; rendered as the "Material Prices" tab inside Configurator Pricing
                                (route /material-prices still resolves for direct links).
-    PackageManager.jsx       — Packages (admin only) — 4 tabs: Shed Styles, Siding, Fixed, Size-Variable.
-                               No longer in the sidebar; rendered as the "Packages" tab inside Configurator
-                               Pricing (route /packages still resolves for direct links).
+    PackageManager.jsx       — Packages (admin + builder pro) — 4 tabs: Shed Styles, Siding, Fixed,
+                               Size-Variable. No longer in the sidebar; rendered as the "Packages" tab inside
+                               Configurator Pricing (route /packages still resolves for direct links).
+                               Access = canManagePackages(profile) (admin OR builder_pro), not just admin.
     AffiliateResources.jsx   — Affiliate Resources (idx 4) — 3 tabs
-    AdminPanel.jsx           — Admin (idx 5, admin only) — Users tab; Tech Stack tab (super admin only)
+    AdminPanel.jsx           — Admin (idx 5, admin only) — Users tab (role dropdown: Builder / Builder Pro /
+                               Admin, plus an "Access Levels" reference card describing each role); Builder
+                               Onboarding + Tech Stack tabs (super admin only)
     Blueprints.jsx           — Blueprints (idx 6)
     ConfiguratorPricing.jsx  — Configurator Pricing — 4 pricing tabs (Base/Siding/Fixed/Variable) PLUS the
                                "Material Prices" tab (everyone) and "Packages" tab (admin only), which embed
@@ -183,7 +186,7 @@ Route Map:
 | `/projects/:id` | Project detail (shed spec + materials list) | all (contacts they own; admin sees all) |
 | `/calculator` | Materials Calculator (PricingTool) | all |
 | `/material-prices` | Material Prices (route only — now a tab in Configurator Pricing) | all |
-| `/packages` | Packages (PackageManager) (route only — now a tab in Configurator Pricing) | admin |
+| `/packages` | Packages (PackageManager) (route only — now a tab in Configurator Pricing) | admin + builder pro |
 | `/affiliate` | Affiliate Resources | all |
 | `/admin` | Admin Panel | admin |
 | `/blueprints` | Blueprints | all |
@@ -196,6 +199,12 @@ Notes:
 - **Admin-only routes** render `<Navigate to="/calculator" replace />` when `profile.role !== 'admin'`
   (defense-in-depth on top of the sidebar hiding those links). The real security boundary is still
   Supabase RLS — route guards are UX, not authorization.
+- **The `/packages` route + the Configurator Pricing → Packages tab** are gated by
+  `canManagePackages(profile)` (admin OR `builder_pro`), defined in `lib/supabase.js` — NOT plain
+  `isAdmin`. A **Builder Pro** is otherwise identical to a builder (own data only, no Admin panel); the
+  only extra power is creating/editing packages. The matching RLS widening lives in
+  `MIGRATION_builder_pro_packages.sql` (packages/package_materials/package_quantities write policies now
+  allow `role in ('admin','builder_pro')`) — without it a builder_pro's package writes silently fail.
 - **Material Prices + Packages** used to live in a collapsible "Calculator Settings" sidebar submenu.
   That submenu is gone — both are now tabs inside the Configurator Pricing page. Their routes
   (`/material-prices`, `/packages`) still resolve so old direct links keep working.
@@ -216,13 +225,18 @@ Notes:
   (3000+ rows); App.jsx loads it via **pagination** (see gotcha below), not a single `.range()`.
 - `style_multipliers` — **per-builder** multiplier for a style package (user_id + package_id, unique). A builder's
   value overrides the style package's default `multiplier`. Managed on Configurator Pricing → Base Pricing.
-- `profiles` — users (id, email, role: admin|builder|blocked, full_name, market, multiplier, sales_tax,
+- `profiles` — users (id, email, role: admin|builder_pro|builder|blocked, full_name, market, multiplier, sales_tax,
   **is_super_admin**, plus profile-page fields: **avatar_url, phone, company_name, website, bio**).
   The profile-page fields are edited by each user on `/profile` (My Profile); the RLS policy
   "Users can update own profile" (`USING auth.uid() = id`) scopes those writes. Its **WITH CHECK pins
   `role` and `is_super_admin` to their current values**, so a self-update can change any other field
   but CANNOT escalate privileges (see `MIGRATION_lock_profile_role.sql`). Admins still change roles via
-  the separate "Admin can update any profile" policy. `is_super_admin` is a flag layered on top of role=admin (NOT a new role value, so
+  the separate "Admin can update any profile" policy. **`role='builder_pro'`** is a builder who can ALSO
+  create/edit packages (gated by `canManagePackages` in lib/supabase.js + the widened packages RLS in
+  `MIGRATION_builder_pro_packages.sql`); otherwise identical to `builder`. There is **no CHECK constraint on
+  `profiles.role`**, so adding `builder_pro` needed no column ALTER. Role labels + per-role descriptions live
+  in `ROLE_LABELS` / `ROLE_DESCRIPTIONS` (lib/supabase.js), surfaced in the Admin → Users "Access Levels"
+  card and the role dropdown (`ASSIGNABLE_ROLES`). `is_super_admin` is a flag layered on top of role=admin (NOT a new role value, so
   normal admin access is unaffected); it gates the Admin → Tech Stack tab. Super admins can grant/revoke
   it on other users via a toggle in the Admin → Users tab (granting also promotes the user to admin).
   `profiles.multiplier` is now legacy (seed source for style_multipliers); no longer used directly in pricing.

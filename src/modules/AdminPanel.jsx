@@ -1,6 +1,6 @@
 // src/modules/AdminPanel.jsx
 import { useState, useEffect } from 'react';
-import { supabase, C } from '../lib/supabase';
+import { supabase, C, ASSIGNABLE_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS } from '../lib/supabase';
 import { useAuth } from '../components/Auth';
 import {
   Card, SectionHeader, Button, Badge, Input, FormField,
@@ -185,6 +185,9 @@ export default function AdminPanel() {
         </table>
         </div>
       </Card>
+
+      {/* ── Access levels reference ── */}
+      <AccessLevelsCard />
 
       {/* ── Pending invitations ── */}
       {invitations.filter(i => !i.accepted).length > 0 && (
@@ -464,6 +467,39 @@ function TechStackTab() {
   );
 }
 
+// ── Access levels reference ───────────────────────────────────
+// A short, plain-language summary of what each role can do. Text lives in
+// ROLE_DESCRIPTIONS (lib/supabase.js) so it stays in one place.
+const ACCESS_LEVELS = [
+  { role: 'admin',       color: 'blue' },
+  { role: 'builder_pro', color: 'sage' },
+  { role: 'builder',     color: 'sand' },
+  { role: 'blocked',     color: 'ghost' },
+];
+
+function AccessLevelsCard() {
+  return (
+    <Card style={{ marginBottom:24 }}>
+      <h3 style={sh3}>Access Levels</h3>
+      <p style={{ fontFamily:'DM Sans', fontSize:12, color:'#888', margin:'6px 0 18px', lineHeight:1.6 }}>
+        What each role can do. Set a user's role in the table above.
+      </p>
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        {ACCESS_LEVELS.map(({ role, color }) => (
+          <div key={role} style={{ display:'flex', gap:14, alignItems:'flex-start', flexWrap:'wrap' }}>
+            <div style={{ minWidth:110, flexShrink:0 }}>
+              <Badge color={color}>{ROLE_LABELS[role] || role}</Badge>
+            </div>
+            <p style={{ fontFamily:'DM Sans', fontSize:13, color:'#555', margin:0, lineHeight:1.6, flex:1, minWidth:200 }}>
+              {ROLE_DESCRIPTIONS[role]}
+            </p>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function BuilderRow({ builder, isSuperAdmin, onRoleChange, onMarketChange, onSuperAdminChange, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [market,  setMarket]  = useState(builder.market || '');
@@ -483,8 +519,9 @@ function BuilderRow({ builder, isSuperAdmin, onRoleChange, onMarketChange, onSup
           onChange={e => onRoleChange(builder.id, e.target.value)}
           style={{ fontFamily:'DM Sans', fontSize:12, padding:'3px 8px', border:`1px solid ${C.linenDarker}`, borderRadius:3, background:C.linen, color:C.charcoal, cursor:'pointer' }}
         >
-          <option value="builder">builder</option>
-          <option value="admin">admin</option>
+          {ASSIGNABLE_ROLES.map(r => (
+            <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>
+          ))}
         </select>
       </td>
       <td style={td}>

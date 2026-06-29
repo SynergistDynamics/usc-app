@@ -10,6 +10,31 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// ── ROLES / ACCESS ───────────────────────────────────────────
+// Values stored in profiles.role. `builder_pro` is a builder who can ALSO
+// create/edit packages (package master data) — otherwise identical to a
+// builder (own data only, no Admin panel). `is_super_admin` is a separate flag
+// layered on top of role='admin' (see CONTEXT.md), not a role value here.
+// Roles assignable from the Admin → Users role dropdown (excludes 'blocked',
+// which is set by the access/invite flow, not chosen here).
+export const ASSIGNABLE_ROLES = ['builder', 'builder_pro', 'admin'];
+export const ROLE_LABELS = {
+  builder:     'Builder',
+  builder_pro: 'Builder Pro',
+  admin:       'Admin',
+  blocked:     'Blocked',
+};
+// Short description of what each access level can do (shown on the Admin page).
+export const ROLE_DESCRIPTIONS = {
+  builder:     'Full access to their own data — dashboard, contacts, projects, materials calculator, configurator pricing (their own prices), and resources. Cannot edit packages or manage users.',
+  builder_pro: 'Everything a Builder can do, PLUS create and edit packages (shed styles, siding, fixed and size-variable option packages) on Configurator Pricing → Packages. Still sees only their own data; no user management.',
+  admin:       'Full access to everything: manages every builder\'s data, edits packages, and runs the Admin panel (invite/remove users, change roles, view all pricing).',
+  blocked:     'No access — sees the “access restricted” screen. Set automatically for un-invited sign-ins; an admin can also block a user here.',
+};
+// Who can create/edit packages: admins and builder pros.
+export const canManagePackages = (profile) =>
+  profile?.role === 'admin' || profile?.role === 'builder_pro';
+
 // ── SHED DATA ────────────────────────────────────────────────
 export const SHED_SIZES = [
   '4x6','4x8','4x10','4x12','4x14','4x16',
