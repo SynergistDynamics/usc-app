@@ -29,12 +29,12 @@ import { useAuth } from '../components/Auth';
 import { buildOutput, ConfigPanel, MaterialsListTab } from './PricingTool';
 import {
   getProject, updateProject, deleteProject,
-  PROJECT_STATUSES, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, PROJECT_MILESTONES, isSoldStatus,
+  PROJECT_STATUSES, PROJECT_STATUS_LABELS, PROJECT_MILESTONES, isSoldStatus,
 } from '../lib/projects';
 import { assignContact, fetchAssignableBuilders, fetchContacts } from '../lib/contacts';
 import {
   Card, Button, Badge, Input, Select, FormField, Label, Modal,
-  ErrorBanner, SuccessBanner, WarningBanner, Spinner,
+  ErrorBanner, SuccessBanner, WarningBanner, Spinner, ShedIcon,
 } from '../components/UI';
 
 const STATUS_OPTIONS = PROJECT_STATUSES.map(s => ({ value: s, label: PROJECT_STATUS_LABELS[s] }));
@@ -203,8 +203,14 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const optionsSummary = project?.options_summary?.trim() || '';
   const monthlyPayment = project?.monthly_payment;
 
+  // Shared props for both work-order renderings (the paper doc + the mobile view).
+  const woProps = {
+    project, contact, title, status, salePrice, notes, cfg, size: cfg?.size,
+    styleLabel, styleMult, out, selectedOptions, shedproOptions, optionsSummary, monthlyPayment,
+  };
+
   return (
-    <div>
+    <div style={{ paddingBottom: isMobile ? 92 : 0 }}>
       <BackLink />
 
       {error   && <ErrorBanner onDismiss={() => setError('')}>{error}</ErrorBanner>}
@@ -219,17 +225,17 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
               {project?.sold_at && (
                 <Badge color="sage">Sold {new Date(project.sold_at).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' })}</Badge>
               )}
-              <span style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#888' }}>
+              <span style={{ fontFamily:'DM Sans', fontSize: isMobile ? 13.5 : 12.5, color:'#8C8478' }}>
                 for <Link to={`/contacts/${contact?.id}`} style={{ color:C.sage, textDecoration:'none', fontWeight:600 }}>{contactName}</Link>
               </span>
               {isAdmin && (
-                <span style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#aaa' }}>
-                  · builder: <strong style={{ color:'#888', fontWeight:600 }}>{ownerName || 'Unassigned'}</strong>
+                <span style={{ fontFamily:'DM Sans', fontSize: isMobile ? 13.5 : 12.5, color:'#8C8478' }}>
+                  · builder: <strong style={{ color:C.inkLight, fontWeight:600 }}>{ownerName || 'Unassigned'}</strong>
                 </span>
               )}
             </div>
           </div>
-          <Button onClick={() => setShowEdit(true)}>✎ Edit project</Button>
+          {!isMobile && <Button onClick={() => setShowEdit(true)}>✎ Edit project</Button>}
         </div>
       </Card>
 
@@ -241,42 +247,31 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
         isMobile={isMobile}
       />
 
-      {/* Tabs */}
-      <div style={{ display:'flex', gap:0, marginBottom:20, borderBottom:`2px solid ${C.linenDarker}`, flexWrap:'nowrap', overflowX: isMobile ? 'auto' : 'visible', overflowY:'hidden' }}>
+      {/* Tabs — two tabs, so on mobile they split the width evenly (no scrolling). */}
+      <div style={{ display:'flex', gap:0, marginBottom:20, borderBottom:`2px solid ${C.linenDarker}`, flexWrap:'nowrap', overflowY:'hidden' }}>
         {TABS.map(([key, label]) => (
           <button key={key} onClick={() => setActiveTab(key)}
-            style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, padding: isMobile ? '10px 16px' : '10px 22px', border:'none', cursor:'pointer', background:'transparent', color: activeTab===key ? C.sage : '#aaa', borderBottom: activeTab===key ? `2px solid ${C.sage}` : '2px solid transparent', marginBottom:-2, transition:'all 0.15s', whiteSpace:'nowrap', flexShrink:0 }}>
+            style={{ fontFamily:'DM Sans', fontSize: isMobile ? 13.5 : 13, fontWeight:600, padding: isMobile ? '13px 16px' : '10px 22px', border:'none', cursor:'pointer', background:'transparent', color: activeTab===key ? C.sage : '#8C8478', borderBottom: activeTab===key ? `2px solid ${C.sage}` : '2px solid transparent', marginBottom:-2, transition:'all 0.15s', whiteSpace:'nowrap', flex: isMobile ? '1 1 0' : '0 0 auto', textAlign:'center' }}>
             {label}
           </button>
         ))}
       </div>
 
       {/* ── Work Order tab ── */}
+      {/* Mobile gets an app-style reading view; desktop gets the printable paper doc.
+          The paper doc is ALSO the print/share source — on mobile it's rendered
+          hidden at the bottom of the page (so #work-order-print always exists). */}
       {activeTab === 'work-order' && (
-        <>
-          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:14 }}>
-            <Button variant="secondary" onClick={printWorkOrder} style={isMobile ? { width:'100%' } : {}}>🖨 Print work order</Button>
-          </div>
-
-          <WorkOrderDoc
-            project={project}
-            contact={contact}
-            title={title}
-            status={status}
-            salePrice={salePrice}
-            notes={notes}
-            cfg={cfg}
-            size={cfg?.size}
-            styleLabel={styleLabel}
-            styleMult={styleMult}
-            out={out}
-            selectedOptions={selectedOptions}
-            shedproOptions={shedproOptions}
-            optionsSummary={optionsSummary}
-            monthlyPayment={monthlyPayment}
-            isMobile={isMobile}
-          />
-        </>
+        isMobile ? (
+          <MobileWorkOrder {...woProps} />
+        ) : (
+          <>
+            <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:14 }}>
+              <Button variant="secondary" onClick={printWorkOrder}>🖨 Print work order</Button>
+            </div>
+            <WorkOrderDoc {...woProps} isMobile={false} />
+          </>
+        )
       )}
 
       {/* ── Materials List tab (read-only) ── */}
@@ -304,17 +299,49 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
         </div>
       )}
 
-      {/* Footer actions (shared by both tabs) */}
+      {/* Footer actions. On desktop: date + Delete/Edit. On mobile the primary
+          actions live in the sticky bar, so the footer just shows the date and a
+          quiet, deliberately separated Delete. */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginTop:24, flexWrap:'wrap' }}>
-        <span style={{ fontFamily:'DM Sans', fontSize:11.5, color:'#aaa' }}>
+        <span style={{ fontFamily:'DM Sans', fontSize:11.5, color:'#8C8478' }}>
           {project?.created_at ? `Created ${new Date(project.created_at).toLocaleDateString()}` : ''}
           {project?.sold_at ? ` · Sold ${new Date(project.sold_at).toLocaleDateString()}` : ''}
         </span>
-        <div style={{ display:'flex', gap:10 }}>
-          <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)}>Delete</Button>
-          <Button onClick={() => setShowEdit(true)}>✎ Edit project</Button>
-        </div>
+        {!isMobile && (
+          <div style={{ display:'flex', gap:10 }}>
+            <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)}>Delete</Button>
+            <Button onClick={() => setShowEdit(true)}>✎ Edit project</Button>
+          </div>
+        )}
       </div>
+      {isMobile && (
+        <div style={{ marginTop:14, textAlign:'center' }}>
+          <button onClick={() => setConfirmDelete(true)}
+            style={{ background:'none', border:'none', cursor:'pointer', fontFamily:'DM Sans', fontSize:13, color:C.error, fontWeight:600, padding:'8px 16px' }}>
+            Delete project
+          </button>
+        </div>
+      )}
+
+      {/* Mobile sticky action bar — primary page actions, always reachable.
+          (Matches the ContactProfile bottom bar: safe-area padding, even widths.) */}
+      {isMobile && (
+        <div style={{
+          position:'fixed', left:0, right:0, bottom:0, zIndex:50, background:'#fff',
+          borderTop:`1px solid ${C.linenDarker}`, boxShadow:'0 -2px 12px rgba(0,0,0,0.07)',
+          display:'flex', gap:10, padding:'10px 12px', paddingBottom:'calc(10px + env(safe-area-inset-bottom))',
+        }}>
+          <Button variant="secondary" onClick={printWorkOrder} style={{ flex:'1 1 0', justifyContent:'center', minHeight:46 }}>🖨 Print / Save</Button>
+          <Button onClick={() => setShowEdit(true)} style={{ flex:'1 1 0', justifyContent:'center', minHeight:46 }}>✎ Edit</Button>
+        </div>
+      )}
+
+      {/* Hidden print/share source on mobile so Print works from either tab. */}
+      {isMobile && (
+        <div aria-hidden style={{ position:'absolute', width:1, height:1, overflow:'hidden', clip:'rect(0 0 0 0)', whiteSpace:'nowrap' }}>
+          <WorkOrderDoc {...woProps} isMobile={false} />
+        </div>
+      )}
 
       {showEdit && (
         <EditProjectModal
@@ -369,7 +396,7 @@ function StatusMilestones({ status, saving, onPick, isMobile }) {
   const last = steps.length - 1;
   const activeIdx = steps.indexOf(status); // -1 for draft / cancelled
   const cancelled = status === 'cancelled';
-  const circle = isMobile ? 30 : 34;
+  const circle = isMobile ? 40 : 34;
   const lineTop = circle / 2 - 1;
 
   return (
@@ -386,7 +413,7 @@ function StatusMilestones({ status, saving, onPick, isMobile }) {
         )}
       </div>
 
-      <div style={{ display:'flex', alignItems:'flex-start', overflowX: isMobile ? 'auto' : 'visible', overflowY:'hidden' }}>
+      <div style={{ display:'flex', alignItems:'flex-start', overflow:'visible' }}>
         {steps.map((s, i) => {
           const reached = !cancelled && i <= activeIdx;
           const isCurrent = !cancelled && i === activeIdx;
@@ -394,7 +421,7 @@ function StatusMilestones({ status, saving, onPick, isMobile }) {
           const leftReached  = !cancelled && i <= activeIdx;
           const rightReached = !cancelled && (i + 1) <= activeIdx;
           return (
-            <div key={s} style={{ flex:1, minWidth: isMobile ? 78 : 0, position:'relative', textAlign:'center' }}>
+            <div key={s} style={{ flex:1, minWidth:0, position:'relative', textAlign:'center' }}>
               {/* connector lines behind the circle */}
               {i > 0 && (
                 <div style={{ position:'absolute', top:lineTop, left:0, width:'50%', height:2, background: leftReached ? C.sage : C.linenDarker }} />
@@ -675,13 +702,14 @@ function ContactPicker({ value, label, onPick }) {
   );
 }
 
-// Open the work-order document in a new window and print it. Mirrors PricingTool's
-// printList — copies the rendered #work-order-print HTML into a clean print window.
+// Print (or "Save as PDF") the work-order document. Copies the rendered
+// #work-order-print HTML into a hidden iframe and prints that. An iframe is used
+// instead of window.open() because mobile browsers (iOS Safari especially) block
+// popups and print new windows unreliably; a same-document iframe avoids both.
 function printWorkOrder() {
   const el = document.getElementById('work-order-print');
   if (!el) return;
-  const win = window.open('', '_blank', 'width=900,height=700');
-  win.document.write(`
+  const html = `
     <!DOCTYPE html>
     <html>
       <head>
@@ -691,14 +719,39 @@ function printWorkOrder() {
           * { box-sizing: border-box; margin: 0; padding: 0; }
           body { font-family: 'DM Sans', sans-serif; padding: 32px; color: #3C3C3C; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           @media print { body { padding: 20px; } }
+          img { max-width: 100%; }
         </style>
       </head>
       <body>${el.innerHTML}</body>
     </html>
-  `);
-  win.document.close();
-  win.focus();
-  setTimeout(() => { win.print(); win.close(); }, 800);
+  `;
+
+  const prev = document.getElementById('wo-print-frame');
+  if (prev) prev.remove();
+  const iframe = document.createElement('iframe');
+  iframe.id = 'wo-print-frame';
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed; right:0; bottom:0; width:0; height:0; border:0; visibility:hidden;';
+  document.body.appendChild(iframe);
+
+  let fired = false;
+  const fire = () => {
+    if (fired) return;
+    fired = true;
+    const win = iframe.contentWindow;
+    if (!win) return;
+    win.focus();
+    win.print();
+  };
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+  // Give the (possibly remote) renderings + web fonts a moment to load so they
+  // appear in the printout, then trigger the print dialog once.
+  iframe.onload = () => setTimeout(fire, 400);
+  setTimeout(fire, 1200); // fallback if onload doesn't fire
 }
 
 // ── Work order document (printable) ───────────────────────────────────────────
@@ -929,3 +982,254 @@ function WoLine({ children, strong }) {
 }
 
 const woTd = { padding:'5px 0', fontFamily:'DM Sans', fontSize:13, color:C.charcoal };
+
+// ── Mobile work-order reading view ────────────────────────────────────────────
+// An app-style presentation of the same project, built for a phone instead of a
+// shrunken sheet of paper. It leads with the rendering, puts the price up top,
+// makes the customer's phone/email/address tappable, and stacks the tables. The
+// printable paper doc (WorkOrderDoc) is unchanged — it's still what gets printed
+// or saved to PDF from the sticky "Print / Save" button.
+function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, shedproOptions = [], optionsSummary = '', monthlyPayment }) {
+  const woNumber = project?.project_number ? `#${project.project_number}` : `#${String(project?.id || '').slice(0, 8).toUpperCase()}`;
+
+  const customerName = contact?.full_name || contact?.company_name || contact?.email || '—';
+  const cityStateZip = [contact?.city, contact?.state].filter(Boolean).join(', ') + (contact?.zip ? ` ${contact.zip}` : '');
+  const builderName  = project?.contact?.owner?.full_name || project?.contact?.owner?.company_name || project?.builder_email || '—';
+  const builderEmail = project?.contact?.owner?.email || project?.builder_email || '';
+
+  const renders = [
+    project?.rendering_url_1, project?.rendering_url_2, project?.rendering_url_3,
+    project?.rendering_url_4, project?.layout_rendering_url,
+  ].filter(Boolean);
+
+  const finishes = [
+    ['Siding type', project?.siding_type],
+    ['Overhang', project?.overhang_size],
+    ['Siding color', project?.siding_color],
+    ['Trim color', project?.trim_color],
+    ['Door color', project?.door_color],
+    ['Roof color', project?.roof_color],
+    ['Doors', project?.doors],
+    ['Windows', project?.windows],
+    ['Vents', project?.vents],
+    ['Roof', project?.roof],
+    ['Floor', project?.floor],
+    ['Transom', project?.transom_package],
+    ['Site prep', project?.site_prep],
+    ['Building permit', project?.building_permit],
+    ['Access', project?.access],
+    ['Additional features', project?.additional_features],
+  ].filter(([, v]) => v != null && String(v).trim() !== '');
+
+  const salePriceNum = salePrice != null && String(salePrice).trim() !== '' ? parseFloat(salePrice) : null;
+  const monthly = monthlyPayment != null && String(monthlyPayment).trim() !== '' ? parseFloat(monthlyPayment) : null;
+  const specs = [['Size', size], ['Style', styleLabel], ['Siding', cfg?.siding], ['Multiplier', styleMult != null ? `${styleMult}×` : '—']];
+
+  return (
+    <div>
+      {/* Hero — lead with the shed */}
+      <WoGallery images={renders} />
+
+      {/* Price headline */}
+      <div style={{ background:C.paper, border:`1px solid ${C.linenDarker}`, borderRadius:12, padding:'15px 16px', marginBottom:20 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10 }}>
+          <span style={{ fontFamily:'DM Sans', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:C.sageDark }}>Sale price</span>
+          <span style={{ fontFamily:'DM Sans', fontSize:11.5, color:'#8C8478' }}>{woNumber} · {PROJECT_STATUS_LABELS[status] || status}</span>
+        </div>
+        <div style={{ fontFamily:'Cormorant Garamond, serif', fontSize:38, fontWeight:700, color:C.sage, lineHeight:1.05, marginTop:1 }}>
+          {salePriceNum != null ? fmt(salePriceNum) : '—'}
+        </div>
+        {monthly != null && (
+          <div style={{ fontFamily:'DM Sans', fontSize:12.5, color:C.inkLight, marginTop:2 }}>or from {fmt(monthly)}/mo with financing</div>
+        )}
+        {out?.hasQty && (
+          <div style={{ fontFamily:'DM Sans', fontSize:12, color:'#8C8478', marginTop:6 }}>Calculated price {fmt(out.customerPrice)}</div>
+        )}
+      </div>
+
+      {/* Specifications — clean 2×2 grid */}
+      <MoSection title="Specifications">
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px 12px' }}>
+          {specs.map(([k, v]) => (
+            <div key={k} style={{ background:C.linen, borderRadius:8, padding:'10px 12px' }}>
+              <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', color:C.sand }}>{k}</div>
+              <div style={{ fontFamily:'DM Sans', fontSize:14, fontWeight:600, color:C.charcoal, marginTop:2 }}>{v || '—'}</div>
+            </div>
+          ))}
+        </div>
+      </MoSection>
+
+      {/* Customer — tappable on a phone */}
+      <MoSection title="Customer">
+        <div style={{ fontFamily:'DM Sans', fontSize:15, fontWeight:600, color:C.charcoal }}>{customerName}</div>
+        {contact?.company_name && contact.company_name !== customerName && <div style={woMobLine}>{contact.company_name}</div>}
+        {contact?.address && <div style={woMobLine}>{contact.address}</div>}
+        {cityStateZip.trim() && <div style={woMobLine}>{cityStateZip}</div>}
+        {contact?.phone && <div style={woMobLine}>{contact.phone}</div>}
+        {contact?.email && <div style={{ ...woMobLine, wordBreak:'break-word' }}>{contact.email}</div>}
+        <CustomerActions contact={contact} />
+      </MoSection>
+
+      {/* Builder */}
+      <MoSection title="Builder">
+        <div style={{ fontFamily:'DM Sans', fontSize:14.5, fontWeight:600, color:C.charcoal }}>{builderName}</div>
+        {builderEmail && <div style={{ ...woMobLine, wordBreak:'break-word' }}>{builderEmail}</div>}
+        {project?.construction_date && <div style={woMobLine}>Construction date: {project.construction_date}</div>}
+      </MoSection>
+
+      {/* Options & add-ons */}
+      {selectedOptions.length > 0 && (
+        <MoSection title="Options & Add-ons">
+          <div style={{ display:'flex', flexWrap:'wrap', gap:'7px 8px' }}>
+            {selectedOptions.map(o => (
+              <span key={o.name} style={{ fontFamily:'DM Sans', fontSize:12.5, color:C.charcoal, background:C.linen, border:`1px solid ${C.linenDarker}`, borderRadius:6, padding:'5px 10px' }}>
+                {o.name}{o.count > 1 ? ` ×${o.count}` : ''}
+              </span>
+            ))}
+          </div>
+        </MoSection>
+      )}
+
+      {/* Finishes & configuration */}
+      {finishes.length > 0 && (
+        <MoSection title="Finishes & Configuration">
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px 16px' }}>
+            {finishes.map(([label, value]) => (
+              <div key={label}>
+                <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', color:C.sand }}>{label}</div>
+                <div style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal, marginTop:2, wordBreak:'break-word' }}>{value}</div>
+              </div>
+            ))}
+          </div>
+        </MoSection>
+      )}
+
+      {/* Options & pricing — stacked rows (no two-column table to overflow) */}
+      {shedproOptions.length > 0 ? (
+        <MoSection title="Options & Pricing">
+          {shedproOptions.map((o, i) => (
+            <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'9px 0', borderBottom:`1px solid ${C.linen}` }}>
+              <span style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal }}>
+                {o.label}{o.detail && <span style={{ color:'#8C8478' }}> — {o.detail}</span>}
+              </span>
+              <span style={{ fontFamily:'DM Sans', fontSize:13.5, fontWeight:600, color:C.charcoal, whiteSpace:'nowrap' }}>{o.price || '—'}</span>
+            </div>
+          ))}
+        </MoSection>
+      ) : optionsSummary ? (
+        <MoSection title="Options & Pricing">
+          <div style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal, whiteSpace:'pre-wrap', lineHeight:1.6 }}>{optionsSummary}</div>
+        </MoSection>
+      ) : null}
+
+      {/* Pricing summary */}
+      <MoSection title="Pricing">
+        {out?.hasQty && (
+          <>
+            <MoPriceRow label="Material cost" value={fmt(out.totalMat)} muted />
+            <MoPriceRow label="Labor & profit" value={fmt(out.laborProfit)} />
+            <MoPriceRow label="Calculated price" value={fmt(out.customerPrice)} bold />
+          </>
+        )}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginTop:8, paddingTop:10, borderTop:`1.5px solid ${C.linenDarker}` }}>
+          <span style={{ fontFamily:'Cormorant Garamond, serif', fontSize:20, color:C.charcoal }}>Sale price</span>
+          <span style={{ fontFamily:'Cormorant Garamond, serif', fontSize:26, fontWeight:700, color:C.sage }}>{salePriceNum != null ? fmt(salePriceNum) : '—'}</span>
+        </div>
+        {monthly != null && (
+          <div style={{ textAlign:'right', fontFamily:'DM Sans', fontSize:12, color:'#8C8478', marginTop:3 }}>or from {fmt(monthly)}/mo with financing</div>
+        )}
+      </MoSection>
+
+      {/* Notes */}
+      {notes && notes.trim() && (
+        <MoSection title="Notes" last>
+          <div style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal, whiteSpace:'pre-wrap', lineHeight:1.55 }}>{notes}</div>
+        </MoSection>
+      )}
+    </div>
+  );
+}
+
+const woMobLine = { fontFamily:'DM Sans', fontSize:13.5, color:C.inkLight, marginTop:3 };
+
+// A light section header for the mobile view: a small sage label over a hairline
+// rule (calmer than the print doc's solid sage bars).
+function MoSection({ title, children, last }) {
+  return (
+    <div style={{ marginBottom: last ? 4 : 20 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+        <span style={{ fontFamily:'DM Sans', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.09em', color:C.sageDark, whiteSpace:'nowrap' }}>{title}</span>
+        <span style={{ flex:1, height:1, background:C.linenDarker }} />
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function MoPriceRow({ label, value, muted, bold }) {
+  return (
+    <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontFamily:'DM Sans', fontSize:13.5, color: muted ? '#8C8478' : C.charcoal, fontWeight: bold ? 600 : 400 }}>
+      <span>{label}</span><span>{value}</span>
+    </div>
+  );
+}
+
+// Hero gallery for the mobile work order. One large image, or a scroll-snap
+// carousel that lets the next rendering "peek" so it's obviously swipeable.
+// Falls back to the on-brand line icon when a project has no renderings.
+function WoGallery({ images }) {
+  if (!images.length) {
+    return (
+      <div style={{ height:160, borderRadius:12, background:C.linen, border:`1px solid ${C.linenDarker}`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:20 }}>
+        <ShedIcon size={52} />
+      </div>
+    );
+  }
+  if (images.length === 1) {
+    return (
+      <div style={{ borderRadius:12, overflow:'hidden', border:`1px solid ${C.linenDarker}`, background:C.linen, marginBottom:20 }}>
+        <img src={images[0]} alt="" style={{ display:'block', width:'100%', height:230, objectFit:'contain', objectPosition:'center bottom' }} />
+      </div>
+    );
+  }
+  return (
+    <div style={{ display:'flex', gap:10, overflowX:'auto', scrollSnapType:'x mandatory', WebkitOverflowScrolling:'touch', marginBottom:20, paddingBottom:4 }}>
+      {images.map((u, i) => (
+        <div key={i} style={{ flex:'0 0 86%', scrollSnapAlign:'center', borderRadius:12, overflow:'hidden', border:`1px solid ${C.linenDarker}`, background:C.linen }}>
+          <img src={u} alt="" loading="lazy" style={{ display:'block', width:'100%', height:220, objectFit:'contain', objectPosition:'center bottom' }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Tappable customer actions (Call / Text / Email / Map) — the same pattern as the
+// ContactProfile bottom bar, but rendered inline inside the work order's Customer
+// section. Native tel:/sms:/mailto:/Maps links so a builder can act from the job.
+function CustomerActions({ contact }) {
+  const tel  = (contact?.phone || '').replace(/[^0-9+]/g, '');
+  const addr = [contact?.address, contact?.city, contact?.state, contact?.zip].filter(Boolean).join(', ');
+  const maps = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : null;
+  const btns = [
+    contact?.phone && { icon:'📞', label:'Call',  href:`tel:${tel}` },
+    contact?.phone && { icon:'💬', label:'Text',  href:`sms:${tel}` },
+    contact?.email && { icon:'✉️', label:'Email', href:`mailto:${contact.email}` },
+    maps && { icon:'🧭', label:'Map', href:maps, ext:true },
+  ].filter(Boolean);
+  if (!btns.length) return null;
+  return (
+    <div style={{ display:'flex', gap:8, marginTop:12 }}>
+      {btns.map(b => (
+        <a key={b.label} href={b.href} {...(b.ext ? { target:'_blank', rel:'noreferrer' } : {})}
+          style={{
+            flex:'1 1 0', minWidth:0, minHeight:52, display:'flex', flexDirection:'column',
+            alignItems:'center', justifyContent:'center', gap:3, textDecoration:'none',
+            background:C.linen, color:C.charcoal, border:`1px solid ${C.linenDarker}`, borderRadius:10,
+            fontFamily:'DM Sans', fontSize:11, fontWeight:600,
+          }}>
+          <span style={{ fontSize:18, lineHeight:1 }}>{b.icon}</span>{b.label}
+        </a>
+      ))}
+    </div>
+  );
+}

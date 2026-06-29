@@ -146,9 +146,10 @@ src/
                                  colors, the **ShedPro itemized options & pricing** list (shedpro_options →
                                  "Options & Pricing" table, or the options_summary text fallback), renderings,
                                  pricing (material/labor/calc + sale price + "from $X/mo" financing) and notes. A
-                                 "🖨 Print work order" button opens it in a clean print window (same new-window
-                                 innerHTML technique as PricingTool's printList). The page only DISPLAYS the saved
-                                 project — all editing is in a modal (see below).
+                                 "🖨 Print work order" button prints it. **Printing now uses a hidden IFRAME** (copies
+                                 the #work-order-print innerHTML into the iframe and calls iframe.print()) instead of
+                                 window.open — popups are blocked / print unreliably on mobile Safari, the iframe avoids
+                                 both. The page only DISPLAYS the saved project — all editing is in a modal (see below).
                                • "Materials List" — READ-ONLY. Shows the live materials list generated from the
                                  spec via PricingTool's exported MaterialsListTab + buildOutput (one engine). No
                                  config controls here (an "Edit the spec" link opens the edit modal).
@@ -166,6 +167,24 @@ src/
                                from the contact, so it changes the builder for ALL of that contact's projects (the
                                modal flags this). Builders (non-admin) don't see the builder control. Delete lives
                                in the footer.
+                               **Mobile pass (2026-06-29):** on phones the Work Order tab swaps the shrunken paper doc
+                               for an **app-style reading view** (`MobileWorkOrder`) — design-led, NOT the print sheet
+                               scaled down. It (a) **leads with the renderings** (`WoGallery`: one large `contain`
+                               image, or a scroll-snap carousel that lets the next one peek; `<ShedIcon>` when none),
+                               (b) puts a **price headline card** up top (sale price big in sage + "from $X/mo" +
+                               calc price), (c) makes the **Customer block tappable** (`CustomerActions`: native
+                               📞 Call / 💬 Text / ✉️ Email / 🧭 Map links — same pattern as ContactProfile), (d) uses
+                               **lighter section headers** (`MoSection`: small sage label + hairline rule, not the
+                               print doc's solid sage bars) and **stacked rows** for the options/pricing tables (no
+                               2-col table to overflow), and (e) a clean 2×2 spec grid. The **printable paper doc
+                               (`WorkOrderDoc`) is unchanged** — on mobile it's rendered hidden (offscreen, still
+                               `#work-order-print`) so Print/Save works from either tab. Page chrome also went
+                               mobile-first: the **milestone stepper** circles are 40px (≥ touch target) and the 4
+                               stages fit without horizontal scroll; the **two tabs split width evenly**; a **fixed
+                               bottom sticky action bar** (🖨 Print/Save · ✎ Edit, iOS safe-area padding, matches
+                               ContactProfile) owns the primary actions, so the header Edit button is desktop-only and
+                               the footer's Delete becomes a quiet, separated text button (page gets bottom padding so
+                               the bar never covers content). All gated by the `isMobile` resize-listener state.
                                Needs the global material/package data, passed as props like the calculator.
     LeadRoutingModal.jsx     — Admin-only modal (from Contacts) to map ShedPro territory → builder; lists
                                unmapped territories seen on contacts, edits/removes mappings, adds new ones.
