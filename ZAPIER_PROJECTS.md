@@ -28,30 +28,71 @@ ShedPro (new/updated project)  →  Zapier  →  Supabase Edge Function (shedpro
 >   `status`/`sold_at`/`contact_id` to the app; on insert the auto-link trigger attaches the contact by email.
 >
 > **Function URL:** `https://ywboyreznmuaddprkycm.supabase.co/functions/v1/shedpro-project-sync`
-> **Auth:** send the Supabase **service_role** key as `Authorization: Bearer <key>` (same key the
-> contacts Zap uses). `?dry_run=1` returns the computed mapping WITHOUT writing (handy for testing).
+> **Auth:** send the Supabase **secret key `sb_secret_…`** as `Authorization: Bearer <key>` (this project
+> uses the new API-key system — NOT the legacy `eyJ…` service_role JWT; see the AUTH GOTCHA in Step 2).
+> `?dry_run=1` returns the computed mapping WITHOUT writing or auth (handy for testing).
 > See **"Step 2 (Edge Function)"** below. The plain-REST steps that follow are kept for reference /
 > the simple-field fallback, but the Edge Function is the live path for projects.
 
 Each project is **upserted on `shedpro_project_id`**, so re-sending the same ShedPro project
 **updates** its existing row (status, colors, options, sale price) instead of creating a duplicate.
 
-### Step 2 (Edge Function) — recommended wiring
-1. ShedPro trigger (New/Updated Project) → action **Webhooks by Zapier**.
-2. The goal is to POST the **entire** trigger record as JSON to the Function URL above. Two ways,
-   depending on what your ShedPro trigger exposes:
-   - **If the trigger offers a single "raw"/full-record field:** use **Webhooks → Custom Request**,
-     method POST, URL = the Function URL, and set the body to that raw JSON field; header
-     `Authorization: Bearer <service_role key>` + `Content-Type: application/json`.
-   - **Otherwise:** add a **Code by Zapier (JavaScript)** step that rebuilds the object from the
-     trigger's fields/line-items and `fetch()`es the Function URL with the same header. (The function
-     logs the raw body it receives, so after the first test we can read the function logs and tune the
-     parser to the exact shape Zapier sends.)
-3. **Test**, then open the synced project in the app and check the work order + materials list. Re-send
-   the same project → it updates the same row. Then turn the Zap on.
+### Step 2 (Edge Function) — CONFIRMED WORKING SETUP (2026-06-29)
+The live Zap is **2 steps: ShedPro trigger → Code by Zapier (Run Javascript)**. (Code, not the
+Webhooks "Data" form, because ShedPro's option lists arrive as **comma-joined strings** that the
+function splits — see notes below.)
 
-The field-by-field REST mapping below still works for the **flat** fields if you ever want a no-function
-fallback, but it will NOT populate `selected_packages` from the nested option arrays.
+1. **Trigger:** ShedPro → New/Updated Project.
+2. **Action:** **Code by Zapier → Run Javascript.**
+   - **Input Data** — add these rows (left = name to type, right = the ShedPro trigger field). Line-item
+     fields (components/interior/overhang/loft/frame/upgrades/images) come through as one comma-joined
+     string each; the function un-joins them.
+     ```
+     id=Id  reference_order_num=Reference Order Num  description=Building Details Description
+     size_width=Building Details Size Width  size_length=Building Details Size Length
+     siding_material=Building Details Siding Material  siding_color=Building Details Siding Color
+     trim_color=Building Details Trim Color  roof_color=Building Details Roof Color
+     roof_material=Building Details Roof Material Display  total=Total  model_url=Building Details Model Url
+     billing_email=Billing Email  customer_note=Customer Note  date_created=Date Created  status=Status
+     components_type=…Components Type   components_display=…Components Display   components_price=…Components Price
+     components_primary_color=…Components Primary Color
+     interior_type=…Interior Components Type  interior_display=…Interior Components Display  interior_price=…Interior Components Price
+     overhang_name=…Overhang Name  overhang_price=…Overhang Price  loft_name=…Loft Name  loft_price=…Loft Price
+     frame_name=…Frame Name  frame_price=…Frame Price
+     upgrades_name=…Other Upgrades Name  upgrades_group=…Other Upgrades Group  upgrades_price=…Other Upgrades Price
+     images_key=…Images Key  images_value=…Images Value
+     service_key = (the Supabase secret key — see auth note)
+     ```
+   - **Code:**
+     ```js
+     const res = await fetch(
+       'https://ywboyreznmuaddprkycm.supabase.co/functions/v1/shedpro-project-sync',
+       { method: 'POST',
+         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + inputData.service_key },
+         body: JSON.stringify(inputData) }
+     );
+     return { status: res.status, body: await res.text() };
+     ```
+   - Add **`?dry_run=1`** to the URL to preview the mapping without writing (returns `selected_count`
+     + `unmapped`, no auth needed). Remove it to write for real.
+3. **Test** → expect `{"ok":true,"action":"inserted",...}`. Open the project in the app (Work Order +
+   Materials List). Re-sending the same project updates the same row. Then **Publish**.
+
+> **🔑 AUTH GOTCHA (cost us a while):** the function checks the bearer token against the Edge Function's
+> `SUPABASE_SERVICE_ROLE_KEY` env. This project is on Supabase's **new API key system**, so that env is
+> the **new secret key `sb_secret_…`** — NOT the legacy `service_role` JWT (`eyJ…`). Put the **`sb_secret_…`**
+> key in the `service_key` Input Data row (Project Settings → API Keys, the default/new view — *not* the
+> "Legacy" tab). Using the `eyJ…` legacy key returns `401 unauthorized`.
+
+> **Why parse comma-joined strings?** ShedPro's Zapier app emits each option list as one bare-comma-joined
+> string (even through Code by Zapier — arrays aren't offered). The function splits on a comma **not
+> followed by a space** (`/,(?!\s)/`), so join-commas separate items while natural `", "` commas inside a
+> value (e.g. "Crushed Stone Base (Good for Larger Sheds, Best Drainage)") stay intact.
+
+---
+
+The legacy field-by-field REST mapping below was the original plan; it's superseded by the Edge Function
+(it can't populate `selected_packages` from the option lists). Kept for reference only.
 
 > **Why a separate `shedpro_project_id` and not the order number?** The ShedPro order # (stored as
 > `project_number`, e.g. 5826) is **not unique** — the historical export had price *revisions* that
@@ -66,10 +107,11 @@ fallback, but it will NOT populate `selected_packages` from the nested option ar
 
 - A **Zapier** account (the ShedPro app + Webhooks action need at least a Starter plan). The same
   account you used for the contacts Zap is fine.
-- The Supabase **service_role key** (NOT the anon key):
-  Supabase Dashboard → Project Settings → **API** → "Project API keys" → **`service_role`** → Reveal/Copy.
-  - ⚠️ This key bypasses Row-Level Security. Paste it **only into Zapier**. Never commit it,
-    never put it in the React app or anywhere public. (Same key the contacts Zap already uses.)
+- The Supabase **secret key** (`sb_secret_…`): Supabase Dashboard → Project Settings → **API Keys**
+  (the default/new view, NOT the "Legacy" tab) → copy the **secret** key. This is what the Edge Function
+  validates against (its `SUPABASE_SERVICE_ROLE_KEY` env is this `sb_secret_…` key on the new key system).
+  - ⚠️ Full-access server key — bypasses RLS. Paste it **only into Zapier**. Never commit it,
+    never put it in the React app or anywhere public.
 
 Project API URL: `https://ywboyreznmuaddprkycm.supabase.co`
 
