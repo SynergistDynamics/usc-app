@@ -239,6 +239,18 @@ Notes:
 - `packages` — packages (size_variable, flat_rate, multiplier, siding_type, allow_quantity, **is_style**).
   - `is_style = true` → a **shed style** package (always size_variable; holds every base material per size).
   - `siding_type` set → siding package; otherwise a regular option package (add-ons live here now).
+  - **ShedPro configurator alignment (2026-06-29):** the option packages are kept in 1:1 correspondence
+    with the ShedPro configurator's option menu so a synced ShedPro project can populate
+    `projects.selected_packages` and generate a materials list. Six option types had no package and were
+    added by `MIGRATION_shedpro_missing_packages.sql` — **4' Sliding Roll Door, Painted Wood Stud Interior,
+    12" Single/Double/Triple Shelf, 24" Deep Workbench, Soffit & Ridge Vent, Stainless Steel Hinge** (8 rows).
+    Per Jeremy's call (option "1b"/"2b") these are **price-only placeholders** (`flat_rate=0`, NO
+    package_materials/quantities yet) and **one package per type** (configurator size/length granularity —
+    transom sizes, door sizes, shelf length — is collapsed onto the single package, NOT split). **TODO:** set
+    real prices + add the bill of materials in Configurator Pricing → Packages so the list is accurate (until
+    then those items add $0 and no materials). Names match the configurator labels so the ShedPro→package
+    mapping is a name match. NOTE: the legacy **"Paint"** package has no matching configurator option (LP
+    siding ships pre-finished) — pending confirmation whether it's retired.
 - `package_materials` — components per package (fixed_quantity for non-size-variable; null for size-variable)
 - `package_quantities` — per-size quantities for size-variable packages (incl. styles & add-ons). Large table
   (3000+ rows); App.jsx loads it via **pagination** (see gotcha below), not a single `.range()`.
