@@ -8,17 +8,22 @@
 // or pre-selected from the contact profile page).
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { C, fmt } from '../lib/supabase';
+import { C, fmt, fmtMoneyShort, fmtShortDate } from '../lib/supabase';
 import { useAuth } from '../components/Auth';
 import {
   fetchProjects, createProject,
-  PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS,
+  PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, PROJECT_STATUS_EDGE,
   OPEN_SOLD_STATUSES, CLOSED_SOLD_STATUSES,
 } from '../lib/projects';
 import { fetchContacts } from '../lib/contacts';
 import {
-  Card, SectionHeader, Button, Badge, Input, Modal, FormField, Spinner, ErrorBanner,
+  Card, SectionHeader, Button, Badge, Input, Modal, FormField, Spinner, ErrorBanner, ShedIcon,
 } from '../components/UI';
+
+// Shared muted text tones for the project cards (one secondary, one tertiary —
+// disciplined instead of a handful of near-identical grays).
+const CARD_SECONDARY = '#8C8478';
+const CARD_TERTIARY  = '#B3AC9F';
 
 export default function Projects({ soldOnly = false }) {
   const { profile } = useAuth();
@@ -339,32 +344,29 @@ function NewProjectModal({ onClose, onCreated }) {
   );
 }
 
-// A compact horizontal card for the Sold Projects grid: a small shed-rendering
-// thumbnail on the left, details on the right. Leads with the contact name, then
-// price · spec, location · sold date, and (admins) the builder; the project status
-// shows as small uppercase colored text top-right. The thumbnail uses object-fit
-// CONTAIN so the whole shed rendering shows (cover cropped the product shots). The
-// whole card navigates to the project — built to be tapped on a phone.
+// A compact horizontal card for the Sold Projects grid. Two anchors carry the scan:
+// the customer name (top-left) and the sale price (top-right, bold) — everything
+// else recedes to one muted tone. A thin status-colored LEFT EDGE encodes the stage
+// ambiently (no shouty "SOLD" badge), echoed by the status label in the meta line.
+// The thumbnail is a flat panel with the rendering bottom-aligned (a consistent
+// "ground line" across the list); a line-icon stands in when there's no render. A
+// chevron hints the card is tappable. The whole card navigates to the project.
 function ProjectCard({ project: p, isAdmin, isMobile, onOpen }) {
   const [hover, setHover] = useState(false);
 
-  // The perspective rendering — first available of the ShedPro render URLs.
   const img = [p.rendering_url_1, p.rendering_url_2, p.rendering_url_3, p.rendering_url_4]
     .find(Boolean) || null;
 
-  const contactName = p.contact?.full_name || p.contact?.company_name || p.contact?.email || p.customer_email || '—';
-  const specBits = [p.shed_size, p.style_package?.name].filter(Boolean).join(' ');
-  const spec = [specBits, p.project_number ? `#${p.project_number}` : null].filter(Boolean).join(' ');
+  const contactName = p.contact?.full_name || p.contact?.company_name || p.contact?.email || p.customer_email || 'Unnamed';
+  const spec = [p.shed_size, p.style_package?.name].filter(Boolean).join(' ');
   const cityState = [p.contact?.city, p.contact?.state].filter(Boolean).join(', ');
-  const soldStr = p.sold_at ? `Sold: ${new Date(p.sold_at).toLocaleDateString()}` : null;
+  const dateStr = p.sold_at ? fmtShortDate(p.sold_at) : null;
   const ownerName = p.contact?.owner?.full_name || p.contact?.owner?.email || 'Unassigned';
-
-  const priceLine = [p.sale_price != null ? fmt(p.sale_price) : null, spec].filter(Boolean).join('  |  ');
-  const metaLine  = [cityState, soldStr].filter(Boolean).join('  |  ');
-
-  // Status as uppercase colored text (like the reference design), tinted by status.
-  const statusColor = { sold:C.sageDark, scheduled:C.sand, completed:C.sageDark, cancelled:'#991B1B' }[p.status] || '#999';
-  const thumb = isMobile ? 92 : 104;
+  const statusLabel = PROJECT_STATUS_LABELS[p.status] || p.status || '';
+  const edge = PROJECT_STATUS_EDGE[p.status] || CARD_TERTIARY;
+  // Status (colored) leads; date before city so the city truncates first when tight.
+  const meta = [dateStr, cityState].filter(Boolean).join('  ·  ');
+  const thumb = isMobile ? 96 : 104;
 
   return (
     <div
@@ -372,53 +374,67 @@ function ProjectCard({ project: p, isAdmin, isMobile, onOpen }) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        cursor:'pointer', background:'#fff', borderRadius:10, overflow:'hidden',
-        border:`1px solid ${C.linenDarker}`,
-        boxShadow: hover ? '0 6px 18px rgba(26,21,16,0.10)' : '0 1px 3px rgba(26,21,16,0.06)',
+        cursor:'pointer', background: hover ? C.linen : '#fff', borderRadius:10, overflow:'hidden',
+        border:`1px solid ${C.linenDarker}`, borderLeft:`3px solid ${edge}`,
+        boxShadow: hover ? '0 6px 18px rgba(26,21,16,0.09)' : 'none',
         transform: hover && !isMobile ? 'translateY(-1px)' : 'none',
-        transition:'box-shadow 0.18s, transform 0.18s',
-        display:'flex', alignItems:'stretch', position:'relative',
+        transition:'box-shadow 0.18s, transform 0.18s, background 0.18s',
+        display:'flex', alignItems:'stretch',
       }}
     >
-      {/* Thumbnail — whole shed visible (contain), light backdrop */}
+      {/* Thumbnail — flat panel, rendering sits on a consistent ground line */}
       <div style={{
-        flexShrink:0, width:thumb, alignSelf:'stretch',
-        background:`linear-gradient(135deg, ${C.linenDark}, ${C.linenDarker})`,
-        display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden',
+        flexShrink:0, width:thumb, alignSelf:'stretch', background:'#F4F1EA',
+        display:'flex', alignItems:'flex-end', justifyContent:'center', overflow:'hidden',
       }}>
         {img ? (
           <img
             src={img}
             alt={p.name || 'Shed rendering'}
             loading="lazy"
-            style={{ width:'100%', height:'100%', objectFit:'contain', display:'block', padding:6 }}
+            style={{ width:'100%', height:'100%', objectFit:'contain', objectPosition:'center bottom', display:'block', padding:7 }}
           />
         ) : (
-          <div style={{ textAlign:'center', color:C.sage, fontFamily:'DM Sans', fontSize:10 }}>
-            <div style={{ fontSize:26, lineHeight:1 }}>🏠</div>
+          <div style={{ alignSelf:'stretch', flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <ShedIcon size={isMobile ? 28 : 32} />
           </div>
         )}
       </div>
 
       {/* Details */}
-      <div style={{ flex:1, minWidth:0, padding: isMobile ? '11px 13px' : '12px 15px', display:'flex', flexDirection:'column', gap:3 }}>
-        {/* Status, top-right */}
-        <div style={{ position:'absolute', top: isMobile ? 11 : 12, right: isMobile ? 13 : 15, fontFamily:'DM Sans', fontSize:11, fontWeight:700, letterSpacing:'0.06em', color:statusColor }}>
-          {(PROJECT_STATUS_LABELS[p.status] || p.status || '').toUpperCase()}
+      <div style={{ flex:1, minWidth:0, padding: isMobile ? '12px 6px 12px 14px' : '13px 6px 13px 16px', display:'flex', flexDirection:'column', justifyContent:'center', gap:4 }}>
+        {/* Anchors: customer (left) + price (right) */}
+        <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:10 }}>
+          <span style={{ fontFamily:'DM Sans', fontWeight:600, fontSize: isMobile ? 15.5 : 15, color:C.charcoal, lineHeight:1.2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+            {contactName}
+          </span>
+          {p.sale_price != null && (
+            <span style={{ fontFamily:'DM Sans', fontWeight:700, fontSize: isMobile ? 15.5 : 15, color:C.sageDark, flexShrink:0, fontVariantNumeric:'tabular-nums' }}>
+              {fmtMoneyShort(p.sale_price)}
+            </span>
+          )}
         </div>
 
-        <div style={{ fontFamily:'DM Sans', fontWeight:700, fontSize: isMobile ? 17 : 16, color:C.charcoal, lineHeight:1.2, paddingRight:64, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-          {contactName}
-        </div>
-        <div style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal }}>{priceLine || '—'}</div>
-        {metaLine && (
-          <div style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#8a8175' }}>{metaLine}</div>
+        {spec && (
+          <div style={{ fontFamily:'DM Sans', fontSize:12.5, color:CARD_SECONDARY, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+            {spec}{p.project_number && <span style={{ color:CARD_TERTIARY }}>{'  ·  #' + p.project_number}</span>}
+          </div>
         )}
+
+        <div style={{ fontFamily:'DM Sans', fontSize:12, color:CARD_SECONDARY, fontVariantNumeric:'tabular-nums', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+          <span style={{ color:edge, fontWeight:600 }}>{statusLabel}</span>{meta && `  ·  ${meta}`}
+        </div>
+
         {isAdmin && (
-          <div style={{ fontFamily:'DM Sans', fontSize:12.5, fontWeight:600, color:C.sage, marginTop:1 }}>
+          <div style={{ fontFamily:'DM Sans', fontSize:11.5, color:CARD_TERTIARY, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
             {ownerName}
           </div>
         )}
+      </div>
+
+      {/* Tappable affordance */}
+      <div style={{ flexShrink:0, display:'flex', alignItems:'center', paddingRight:12, paddingLeft:2, color: hover ? C.sage : '#CFC8BB', fontSize:20, transition:'color 0.15s' }}>
+        ›
       </div>
     </div>
   );

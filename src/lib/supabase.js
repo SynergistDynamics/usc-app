@@ -112,6 +112,15 @@ export const C = {
 export const fmt = (n) =>
   new Intl.NumberFormat('en-US', { style:'currency', currency:'USD' }).format(n ?? 0);
 
+// Compact money for dense lists/cards — no cents (full precision lives on detail pages).
+export const fmtMoneyShort = (n) =>
+  n == null || n === '' ? null
+    : '$' + new Intl.NumberFormat('en-US', { maximumFractionDigits:0 }).format(Math.round(Number(n)));
+
+// Compact "Jun 27" date for lists (year omitted — it's noise when scanning a column).
+export const fmtShortDate = (d) =>
+  d ? new Date(d).toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '';
+
 export const daysSince = (ts) =>
   ts ? Math.floor((Date.now() - new Date(ts).getTime()) / 86_400_000) : 999;
 
