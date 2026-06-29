@@ -1,14 +1,16 @@
 // src/modules/ContactProfile.jsx
-// A single contact's profile page (/contacts/:id):
-//  • Compact card: avatar (color from name) + name + a one-line summary + tap-to-change status.
-//  • Quick actions (Call / Text / Email / Directions) as buttons — inline on desktop,
-//    a sticky bottom bar on mobile (native tel:/sms:/mailto:/maps links). Copy buttons on desktop.
-//  • Tappable contact-detail rows; "+ Add …" prompts for missing phone/email/address.
+// A single contact's profile page (/contacts/:id), tuned for a smooth mobile experience:
+//  • Identity block: name-colored avatar, name, tap-to-change status (bottom-sheet on mobile),
+//    a one-line summary, and a quiet ✎ edit in the corner.
+//  • Quick actions (Call / Text / Email / Map): inline pills on desktop; a safe-area-aware
+//    sticky icon bar at the bottom on mobile.
+//  • Calm, full-row-tappable detail rows (big targets); "+ Add …" prompts for missing fields;
+//    copy buttons on desktop.
+//  • Projects grouped — "Sold" (with total) pinned on top, then "Quotes & Drafts" — rendered
+//    as stacked cards on mobile so nothing is cramped.
 //  • Editing is a popup (EditContactModal).
-//  • Projects below, GROUPED: "Sold" (with total) pinned on top, then "Quotes & Drafts".
 //
-// Loads its own data via lib/contacts.js + lib/projects.js. RLS scopes access (a foreign id
-// comes back empty → "not found"). Admins can open any contact.
+// Loads contact (lib/contacts) + its projects (lib/projects) at the parent. RLS scopes access.
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { C, fmt } from '../lib/supabase';
@@ -154,9 +156,7 @@ export default function ContactProfile() {
   const fullAddr = [contact.address, contact.city, contact.state, contact.zip].filter(Boolean).join(', ');
   const telDigits = (contact.phone || '').replace(/[^0-9+]/g, '');
   const mapsUrl = fullAddr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr)}` : null;
-  const linkStyle = { color: C.sage, textDecoration:'none', fontWeight:600, wordBreak:'break-word' };
 
-  // Summary
   const sold = projects.filter(p => isSoldStatus(p.status));
   const soldTotal = sold.reduce((s, p) => s + (Number(p.sale_price) || 0), 0);
   const lastActivityTs = [
@@ -171,72 +171,79 @@ export default function ContactProfile() {
   if (lastActivityTs) summaryParts.push(`active ${fmtDate(lastActivityTs)}`);
 
   return (
-    <div style={{ maxWidth:720, paddingBottom: isMobile ? 72 : 0 }}>
+    <div style={{ maxWidth:720, paddingBottom: isMobile ? 92 : 0 }}>
       <BackLink />
 
       {error   && <ErrorBanner onDismiss={() => setError('')}>{error}</ErrorBanner>}
       {success && <SuccessBanner>{success}</SuccessBanner>}
 
-      {/* Compact contact card */}
-      <Card style={{ marginTop:16, marginBottom:20 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:16, flexWrap:'wrap' }}>
-          <div style={{ width:56, height:56, borderRadius:'50%', background:colorFor(title), color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Cormorant Garamond, serif', fontSize:26, fontWeight:700, flexShrink:0 }}>
+      {/* Identity + details card */}
+      <Card style={{ marginTop:16, marginBottom: isMobile ? 16 : 20, padding: isMobile ? 16 : 24 }}>
+        {/* Identity */}
+        <div style={{ display:'flex', alignItems:'flex-start', gap:14 }}>
+          <div style={{ width:52, height:52, borderRadius:'50%', background:colorFor(title), color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Cormorant Garamond, serif', fontSize:24, fontWeight:700, flexShrink:0 }}>
             {initial}
           </div>
-          <div style={{ flex:1, minWidth:140 }}>
-            <div style={{ fontFamily:'Cormorant Garamond, serif', fontSize:24, fontWeight:600, color:C.charcoal, lineHeight:1.1 }}>{title}</div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontFamily:'Cormorant Garamond, serif', fontSize:23, fontWeight:600, color:C.charcoal, lineHeight:1.15, wordBreak:'break-word' }}>{title}</div>
             <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-              <StatusPicker value={contact.status} onChange={changeStatus} />
+              <StatusPicker value={contact.status} onChange={changeStatus} isMobile={isMobile} />
               {contact.company_name && contact.company_name !== title && (
                 <span style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#888' }}>{contact.company_name}</span>
               )}
               {contact.source && contact.source !== 'manual' && <Badge color="sand">via {contact.source}</Badge>}
             </div>
-            {summaryParts.length > 0 && (
-              <div style={{ marginTop:6, fontFamily:'DM Sans', fontSize:12, color:'#999' }}>
-                {summaryParts.join('  ·  ')}
-              </div>
-            )}
           </div>
-          <Button size="sm" onClick={() => setShowEdit(true)}>✎ Edit</Button>
+          <button
+            onClick={() => setShowEdit(true)}
+            title="Edit contact"
+            style={{ flexShrink:0, border:`1px solid ${C.linenDarker}`, background:'#fff', cursor:'pointer', borderRadius:6, padding: isMobile ? '7px 9px' : '6px 12px', fontFamily:'DM Sans', fontSize:13, fontWeight:600, color:C.charcoal }}
+          >
+            {isMobile ? '✎' : '✎ Edit'}
+          </button>
         </div>
 
-        {/* Quick actions — inline on desktop (sticky bar on mobile, below) */}
+        {/* Summary line */}
+        {summaryParts.length > 0 && (
+          <div style={{ marginTop:10, fontFamily:'DM Sans', fontSize:12.5, color:'#999' }}>
+            {summaryParts.join('  ·  ')}
+          </div>
+        )}
+
+        {/* Quick actions — inline pills on desktop (sticky bar on mobile, below) */}
         {!isMobile && <ActionBar contact={contact} />}
 
         {/* Tappable contact details */}
         <div style={{ marginTop:16 }}>
           {contact.phone ? (
-            <InfoRow icon="📞">
-              <a href={`tel:${telDigits}`} style={linkStyle}>{contact.phone}</a>
-              <a href={`sms:${telDigits}`} style={{ marginLeft:12, fontFamily:'DM Sans', fontSize:12.5, color:C.sand, textDecoration:'none', fontWeight:600 }}>Text</a>
-              {!isMobile && <CopyBtn text={contact.phone} />}
-            </InfoRow>
+            <DetailRow
+              icon="📞" href={`tel:${telDigits}`} value={contact.phone}
+              trailing={<>
+                <a href={`sms:${telDigits}`} onClick={e => e.stopPropagation()} style={pillLink}>Text</a>
+                {!isMobile && <CopyBtn text={contact.phone} />}
+              </>}
+            />
           ) : <AddPrompt icon="📞" label="Add phone" onClick={() => setShowEdit(true)} />}
 
           {contact.email ? (
-            <InfoRow icon="✉️">
-              <a href={`mailto:${contact.email}`} style={linkStyle}>{contact.email}</a>
-              {!isMobile && <CopyBtn text={contact.email} />}
-            </InfoRow>
+            <DetailRow
+              icon="✉️" href={`mailto:${contact.email}`} value={contact.email}
+              trailing={!isMobile ? <CopyBtn text={contact.email} /> : null}
+            />
           ) : <AddPrompt icon="✉️" label="Add email" onClick={() => setShowEdit(true)} />}
 
           {fullAddr ? (
-            <InfoRow icon="📍">
-              <a href={mapsUrl} target="_blank" rel="noreferrer" style={linkStyle}>{fullAddr}</a>
-              <span style={{ marginLeft:10, fontFamily:'DM Sans', fontSize:12, color:'#bbb' }}>↗ Directions</span>
-            </InfoRow>
+            <DetailRow
+              icon="📍" href={mapsUrl} ext value={fullAddr}
+              trailing={<span style={{ fontFamily:'DM Sans', fontSize:12, color:'#bbb', whiteSpace:'nowrap' }}>Map ↗</span>}
+            />
           ) : <AddPrompt icon="📍" label="Add address" onClick={() => setShowEdit(true)} />}
 
-          {contact.market && (
-            <InfoRow icon="📌"><span style={{ color:C.charcoal }}>{contact.market}</span></InfoRow>
-          )}
-          {contact.notes && (
-            <InfoRow icon="📝"><span style={{ color:C.charcoal, whiteSpace:'pre-wrap' }}>{contact.notes}</span></InfoRow>
-          )}
+          {contact.market && <DetailRow icon="📌" value={contact.market} />}
+          {contact.notes && <DetailRow icon="📝" value={contact.notes} wrap />}
         </div>
 
-        {/* Footer: added/updated + owner (admins assign, builders see) */}
+        {/* Footer: added/updated + owner */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginTop:16, paddingTop:12, borderTop:`1px solid ${C.linenDarker}`, flexWrap:'wrap' }}>
           <span style={{ fontFamily:'DM Sans', fontSize:11.5, color:'#aaa' }}>
             {contact.created_at ? `Added ${fmtDate(contact.created_at)}` : ''}
@@ -263,13 +270,14 @@ export default function ContactProfile() {
         </div>
       </Card>
 
-      {/* Projects for this contact */}
+      {/* Projects */}
       <ProjectsSection
         projects={projects}
         loading={projLoading}
         creating={creating}
         onAdd={addProject}
         navigate={navigate}
+        isMobile={isMobile}
       />
 
       {/* Sticky action bar on mobile */}
@@ -299,7 +307,13 @@ export default function ContactProfile() {
   );
 }
 
-// Quick-action buttons. Inline (in the card) on desktop; a fixed bottom bar on mobile.
+const pillLink = {
+  fontFamily:'DM Sans', fontSize:12.5, fontWeight:600, color:C.sand, textDecoration:'none',
+  border:`1px solid ${C.linenDarker}`, borderRadius:9999, padding:'3px 10px', whiteSpace:'nowrap',
+};
+
+// Quick-action buttons. Inline pills (in the card) on desktop; a fixed bottom bar on mobile
+// with stacked icon+label, even widths, and iOS safe-area padding.
 function ActionBar({ contact, sticky }) {
   const tel = (contact.phone || '').replace(/[^0-9+]/g, '');
   const addr = [contact.address, contact.city, contact.state, contact.zip].filter(Boolean).join(', ');
@@ -308,24 +322,43 @@ function ActionBar({ contact, sticky }) {
     contact.phone && { icon:'📞', label:'Call', href:`tel:${tel}` },
     contact.phone && { icon:'💬', label:'Text', href:`sms:${tel}` },
     contact.email && { icon:'✉️', label:'Email', href:`mailto:${contact.email}` },
-    maps && { icon:'🧭', label:'Directions', href:maps, ext:true },
+    maps && { icon:'🧭', label:'Map', href:maps, ext:true },
   ].filter(Boolean);
   if (!btns.length) return null;
 
-  const wrap = sticky
-    ? { position:'fixed', left:0, right:0, bottom:0, zIndex:50, background:'#fff', borderTop:`1px solid ${C.linenDarker}`, padding:'8px 10px', display:'flex', gap:8, boxShadow:'0 -2px 12px rgba(0,0,0,0.07)' }
-    : { display:'flex', gap:8, flexWrap:'wrap', marginTop:14 };
-  const btn = {
-    display:'inline-flex', alignItems:'center', justifyContent:'center', gap:6,
-    padding:'10px 14px', borderRadius:8, textDecoration:'none',
-    background:C.linen, color:C.charcoal, border:`1px solid ${C.linenDarker}`,
-    fontFamily:'DM Sans', fontSize:13, fontWeight:600, whiteSpace:'nowrap',
-    flex: sticky ? '1 1 0' : '0 0 auto',
-  };
+  if (sticky) {
+    return (
+      <div style={{
+        position:'fixed', left:0, right:0, bottom:0, zIndex:50, background:'#fff',
+        borderTop:`1px solid ${C.linenDarker}`, boxShadow:'0 -2px 12px rgba(0,0,0,0.07)',
+        display:'flex', gap:6, padding:'8px 8px', paddingBottom:'calc(8px + env(safe-area-inset-bottom))',
+      }}>
+        {btns.map(b => (
+          <a key={b.label} href={b.href} {...(b.ext ? { target:'_blank', rel:'noreferrer' } : {})}
+            style={{
+              flex:'1 1 0', minWidth:0, minHeight:50, display:'flex', flexDirection:'column',
+              alignItems:'center', justifyContent:'center', gap:3, textDecoration:'none',
+              background:C.linen, color:C.charcoal, border:`1px solid ${C.linenDarker}`, borderRadius:10,
+              fontFamily:'DM Sans', fontSize:11, fontWeight:600,
+            }}>
+            <span style={{ fontSize:18, lineHeight:1 }}>{b.icon}</span>
+            {b.label}
+          </a>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div style={wrap}>
+    <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:14 }}>
       {btns.map(b => (
-        <a key={b.label} href={b.href} {...(b.ext ? { target:'_blank', rel:'noreferrer' } : {})} style={btn}>
+        <a key={b.label} href={b.href} {...(b.ext ? { target:'_blank', rel:'noreferrer' } : {})}
+          style={{
+            display:'inline-flex', alignItems:'center', justifyContent:'center', gap:6,
+            padding:'10px 14px', borderRadius:8, textDecoration:'none',
+            background:C.linen, color:C.charcoal, border:`1px solid ${C.linenDarker}`,
+            fontFamily:'DM Sans', fontSize:13, fontWeight:600, whiteSpace:'nowrap',
+          }}>
           <span style={{ fontSize:15 }}>{b.icon}</span> {b.label}
         </a>
       ))}
@@ -333,30 +366,56 @@ function ActionBar({ contact, sticky }) {
   );
 }
 
-// Clickable status badge with a small dropdown to change the contact's stage inline.
-function StatusPicker({ value, onChange }) {
+// Clickable status badge → dropdown (desktop) or bottom sheet (mobile) to change the stage.
+function StatusPicker({ value, onChange, isMobile }) {
   const [open, setOpen] = useState(false);
+  const pick = (s) => { setOpen(false); if (s !== value) onChange(s); };
+
+  const trigger = (
+    <button
+      onClick={() => setOpen(o => !o)}
+      title="Change status"
+      style={{ border:'none', background:'transparent', cursor:'pointer', padding:0, display:'inline-flex', alignItems:'center' }}
+    >
+      <Badge color={STATUS_COLORS[value] || 'ghost'}>{STATUS_LABELS[value] || value} ▾</Badge>
+    </button>
+  );
+
+  if (isMobile) {
+    return (
+      <>
+        {trigger}
+        {open && (
+          <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:1000, display:'flex', alignItems:'flex-end' }}>
+            <div onClick={e => e.stopPropagation()} style={{ width:'100%', background:'#fff', borderRadius:'14px 14px 0 0', padding:'8px 0 calc(8px + env(safe-area-inset-bottom))', boxShadow:'0 -8px 30px rgba(0,0,0,0.2)' }}>
+              <div style={{ fontFamily:'DM Sans', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:C.sand, padding:'10px 18px 6px' }}>Set status</div>
+              {CONTACT_STATUSES.map(s => (
+                <div key={s} onClick={() => pick(s)}
+                  style={{ display:'flex', alignItems:'center', gap:10, padding:'14px 18px', fontFamily:'DM Sans', fontSize:15, color:C.charcoal, borderTop:`1px solid ${C.linen}`, background: s === value ? C.linen : 'transparent' }}>
+                  <span style={{ width:9, height:9, borderRadius:'50%', background:C.sage, opacity: s === value ? 1 : 0 }} />
+                  {STATUS_LABELS[s]}
+                </div>
+              ))}
+              <div onClick={() => setOpen(false)} style={{ textAlign:'center', padding:'14px', fontFamily:'DM Sans', fontSize:14, fontWeight:600, color:'#888', borderTop:`1px solid ${C.linenDarker}`, marginTop:4 }}>Cancel</div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <span style={{ position:'relative', display:'inline-block' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        title="Change status"
-        style={{ border:'none', background:'transparent', cursor:'pointer', padding:0, display:'inline-flex', alignItems:'center', gap:3 }}
-      >
-        <Badge color={STATUS_COLORS[value] || 'ghost'}>{STATUS_LABELS[value] || value} ▾</Badge>
-      </button>
+      {trigger}
       {open && (
         <>
           <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:19 }} />
           <div style={{ position:'absolute', zIndex:20, top:'100%', left:0, marginTop:4, background:'#fff', border:`1px solid ${C.linenDarker}`, borderRadius:6, boxShadow:'0 6px 18px rgba(0,0,0,0.12)', minWidth:150, overflow:'hidden' }}>
             {CONTACT_STATUSES.map(s => (
-              <div
-                key={s}
-                onClick={() => { setOpen(false); if (s !== value) onChange(s); }}
+              <div key={s} onClick={() => pick(s)}
                 style={{ padding:'9px 12px', cursor:'pointer', fontFamily:'DM Sans', fontSize:13, color:C.charcoal, background: s === value ? C.linen : 'transparent', display:'flex', alignItems:'center', gap:8 }}
                 onMouseEnter={e => e.currentTarget.style.background = C.linen}
-                onMouseLeave={e => e.currentTarget.style.background = s === value ? C.linen : 'transparent'}
-              >
+                onMouseLeave={e => e.currentTarget.style.background = s === value ? C.linen : 'transparent'}>
                 <span style={{ width:8, height:8, borderRadius:'50%', background:C.sage, opacity: s === value ? 1 : 0 }} />
                 {STATUS_LABELS[s]}
               </div>
@@ -374,28 +433,47 @@ function CopyBtn({ text }) {
     <button
       onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigator.clipboard?.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1200); }); }}
       title="Copy"
-      style={{ border:'none', background:'transparent', cursor:'pointer', color: done ? C.sage : '#bbb', fontSize:12, fontFamily:'DM Sans', fontWeight:600, marginLeft:8 }}
+      style={{ border:'none', background:'transparent', cursor:'pointer', color: done ? C.sage : '#bbb', fontSize:12, fontFamily:'DM Sans', fontWeight:600 }}
     >
-      {done ? '✓ Copied' : '📋'}
+      {done ? '✓' : '📋'}
     </button>
+  );
+}
+
+// A calm, full-row-tappable detail row. The left region (icon + value) is the primary link
+// (big tap target); `trailing` holds secondary actions (Text pill, copy, Map hint). If no
+// href, the value is plain text (e.g. market, notes).
+function DetailRow({ icon, href, ext, value, trailing, wrap }) {
+  const inner = (
+    <>
+      <span style={{ width:22, textAlign:'center', fontSize:15, flexShrink:0 }}>{icon}</span>
+      <span style={{ fontFamily:'DM Sans', fontSize:14, color:C.charcoal, fontWeight:500, minWidth:0, ...(wrap ? { whiteSpace:'pre-wrap' } : { overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }) }}>
+        {value}
+      </span>
+    </>
+  );
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:10, minHeight:46, borderTop:`1px solid ${C.linen}` }}>
+      {href ? (
+        <a href={href} {...(ext ? { target:'_blank', rel:'noreferrer' } : {})}
+          style={{ display:'flex', alignItems:'center', gap:12, flex:1, minWidth:0, textDecoration:'none', padding:'6px 2px' }}>
+          {inner}
+        </a>
+      ) : (
+        <div style={{ display:'flex', alignItems:'center', gap:12, flex:1, minWidth:0, padding:'6px 2px' }}>{inner}</div>
+      )}
+      {trailing && <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0, paddingRight:2 }}>{trailing}</div>}
+    </div>
   );
 }
 
 function AddPrompt({ icon, label, onClick }) {
   return (
-    <InfoRow icon={icon}>
+    <div style={{ display:'flex', alignItems:'center', gap:12, minHeight:46, borderTop:`1px solid ${C.linen}`, padding:'6px 2px' }}>
+      <span style={{ width:22, textAlign:'center', fontSize:15, flexShrink:0, opacity:0.5 }}>{icon}</span>
       <button onClick={onClick} style={{ border:'none', background:'transparent', cursor:'pointer', padding:0, fontFamily:'DM Sans', fontSize:13.5, color:C.sand, fontWeight:600 }}>
         + {label}
       </button>
-    </InfoRow>
-  );
-}
-
-function InfoRow({ icon, children }) {
-  return (
-    <div style={{ display:'flex', alignItems:'center', gap:12, padding:'9px 2px', borderTop:`1px solid ${C.linen}`, fontFamily:'DM Sans', fontSize:14 }}>
-      <span style={{ width:22, textAlign:'center', fontSize:15, flexShrink:0 }}>{icon}</span>
-      <div style={{ flex:1, minWidth:0 }}>{children}</div>
     </div>
   );
 }
@@ -491,8 +569,8 @@ function EditContactModal({ contact, onClose, onSaved, onDelete }) {
 }
 
 // This contact's projects, GROUPED: sold (sold/scheduled/completed) pinned + totaled on top,
-// then quotes/drafts — each newest-first. New projects open straight into the project page.
-function ProjectsSection({ projects, loading, creating, onAdd, navigate }) {
+// then quotes/drafts — each newest-first. Rows are stacked cards on mobile.
+function ProjectsSection({ projects, loading, creating, onAdd, navigate, isMobile }) {
   const ts = (p) => new Date(p.sold_at || p.created_at || 0).getTime();
   const byRecent = (a, b) => ts(b) - ts(a);
   const sold = projects.filter(p => isSoldStatus(p.status)).sort(byRecent);
@@ -500,7 +578,7 @@ function ProjectsSection({ projects, loading, creating, onAdd, navigate }) {
   const soldTotal = sold.reduce((s, p) => s + (Number(p.sale_price) || 0), 0);
 
   return (
-    <Card style={{ marginTop:20 }}>
+    <Card style={{ marginTop: isMobile ? 0 : 20, padding: isMobile ? 16 : 24 }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:14, flexWrap:'wrap' }}>
         <div style={{ fontFamily:'Cormorant Garamond, serif', fontSize:20, fontWeight:600, color:C.charcoal }}>Projects</div>
         <Button size="sm" onClick={onAdd} loading={creating}>+ New project</Button>
@@ -518,7 +596,7 @@ function ProjectsSection({ projects, loading, creating, onAdd, navigate }) {
             <>
               <GroupHeader label={`Sold (${sold.length})`} right={fmt(soldTotal)} />
               <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom: open.length ? 18 : 0 }}>
-                {sold.map(p => <ProjectRow key={p.id} p={p} sold navigate={navigate} />)}
+                {sold.map(p => <ProjectRow key={p.id} p={p} sold navigate={navigate} isMobile={isMobile} />)}
               </div>
             </>
           )}
@@ -526,7 +604,7 @@ function ProjectsSection({ projects, loading, creating, onAdd, navigate }) {
             <>
               {sold.length > 0 && <GroupHeader label={`Quotes & Drafts (${open.length})`} />}
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                {open.map(p => <ProjectRow key={p.id} p={p} navigate={navigate} />)}
+                {open.map(p => <ProjectRow key={p.id} p={p} navigate={navigate} isMobile={isMobile} />)}
               </div>
             </>
           )}
@@ -545,28 +623,45 @@ function GroupHeader({ label, right }) {
   );
 }
 
-function ProjectRow({ p, sold, navigate }) {
+function ProjectRow({ p, sold, navigate, isMobile }) {
+  const spec = [p.shed_size, p.style_package?.name, p.siding].filter(Boolean).join(' · ') || 'No spec yet';
+  const dateStr = sold && p.sold_at ? `Sold ${fmtDate(p.sold_at)}` : (p.created_at ? fmtDate(p.created_at) : '');
+  const cardStyle = {
+    cursor:'pointer', borderRadius:6,
+    border:`1px solid ${sold ? C.sage : C.linenDarker}`,
+    borderLeft:`4px solid ${sold ? C.sage : C.linenDarker}`,
+    background: sold ? C.linen : '#fff',
+  };
+  const hoverIn = e => { e.currentTarget.style.background = C.linen; };
+  const hoverOut = e => { e.currentTarget.style.background = sold ? C.linen : '#fff'; };
+
+  if (isMobile) {
+    return (
+      <div onClick={() => navigate(`/projects/${p.id}`)} style={{ ...cardStyle, padding:'12px 12px' }}>
+        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8 }}>
+          <span style={{ fontFamily:'DM Sans', fontSize:14, fontWeight:600, color:C.charcoal, minWidth:0 }}>{p.name || 'Untitled project'}</span>
+          <span style={{ flexShrink:0 }}><Badge color={PROJECT_STATUS_COLORS[p.status] || 'ghost'}>{PROJECT_STATUS_LABELS[p.status] || p.status}</Badge></span>
+        </div>
+        <div style={{ fontFamily:'DM Sans', fontSize:12, color:'#999', marginTop:3 }}>{spec}</div>
+        <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:8, marginTop:8 }}>
+          <span style={{ fontFamily:'DM Sans', fontSize:15, fontWeight:700, color:C.sageDark }}>{p.sale_price != null ? fmt(p.sale_price) : ''}</span>
+          <span style={{ fontFamily:'DM Sans', fontSize:12, color:'#aaa' }}>{dateStr}</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       onClick={() => navigate(`/projects/${p.id}`)}
-      style={{
-        display:'flex', alignItems:'center', gap:12, padding:'11px 12px', cursor:'pointer', borderRadius:6,
-        border:`1px solid ${sold ? C.sage : C.linenDarker}`,
-        borderLeft:`4px solid ${sold ? C.sage : C.linenDarker}`,
-        background: sold ? C.linen : '#fff',
-      }}
-      onMouseEnter={e => e.currentTarget.style.background = C.linen}
-      onMouseLeave={e => e.currentTarget.style.background = sold ? C.linen : '#fff'}
+      style={{ ...cardStyle, display:'flex', alignItems:'center', gap:12, padding:'11px 12px' }}
+      onMouseEnter={hoverIn} onMouseLeave={hoverOut}
     >
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ fontFamily:'DM Sans', fontSize:14, fontWeight:600, color:C.charcoal }}>{p.name || 'Untitled project'}</div>
-        <div style={{ fontFamily:'DM Sans', fontSize:12, color:'#999', marginTop:1 }}>
-          {[p.shed_size, p.style_package?.name, p.siding].filter(Boolean).join(' · ') || 'No spec yet'}
-        </div>
+        <div style={{ fontFamily:'DM Sans', fontSize:12, color:'#999', marginTop:1 }}>{spec}</div>
       </div>
-      <span style={{ fontFamily:'DM Sans', fontSize:12, color:'#aaa', whiteSpace:'nowrap' }}>
-        {sold && p.sold_at ? `Sold ${fmtDate(p.sold_at)}` : (p.created_at ? fmtDate(p.created_at) : '')}
-      </span>
+      <span style={{ fontFamily:'DM Sans', fontSize:12, color:'#aaa', whiteSpace:'nowrap' }}>{dateStr}</span>
       {p.sale_price != null && (
         <span style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, color:C.sageDark }}>{fmt(p.sale_price)}</span>
       )}
