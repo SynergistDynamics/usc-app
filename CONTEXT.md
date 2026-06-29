@@ -204,7 +204,8 @@ Notes:
   `isAdmin`. A **Builder Pro** is otherwise identical to a builder (own data only, no Admin panel); the
   only extra power is creating/editing packages. The matching RLS widening lives in
   `MIGRATION_builder_pro_packages.sql` (packages/package_materials/package_quantities write policies now
-  allow `role in ('admin','builder_pro')`) — without it a builder_pro's package writes silently fail.
+  allow `role in ('admin','builder_pro')`; **applied to the live project 2026-06-29**) — without it a
+  builder_pro's package writes silently fail.
 - **Material Prices + Packages** used to live in a collapsible "Calculator Settings" sidebar submenu.
   That submenu is gone — both are now tabs inside the Configurator Pricing page. Their routes
   (`/material-prices`, `/packages`) still resolve so old direct links keep working.

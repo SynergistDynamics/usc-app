@@ -1,6 +1,7 @@
 -- ============================================================================
 -- MIGRATION: "Builder Pro" role — can create/edit packages
 -- Run once in the Supabase SQL Editor. Safe to re-run (drops + recreates).
+-- APPLIED to the live project (ywboyreznmuaddprkycm) on 2026-06-29.
 --
 -- A Builder Pro is a builder who can ALSO manage package master data
 -- (packages, package_materials, package_quantities) — otherwise identical to a
