@@ -13,6 +13,7 @@ import { useAuth } from '../components/Auth';
 import {
   fetchProjects, createProject,
   PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS,
+  OPEN_SOLD_STATUSES, CLOSED_SOLD_STATUSES,
 } from '../lib/projects';
 import { fetchContacts } from '../lib/contacts';
 import {
@@ -71,9 +72,9 @@ export default function Projects({ soldOnly = false }) {
     return arr;
   }, [projects, showBuilderTabs]);
 
-  // Sold Projects splits into Open (status 'sold' — won, job not yet finished)
-  // and Closed (status 'completed' — job done). Shown to everyone on the sold
-  // view; composes with the admin builder tabs. Counts reflect the builder tab.
+  // Sold Projects splits into Open (sold or scheduled — won, job not yet finished)
+  // and Closed (completed — job done). Shown to everyone on the sold view; composes
+  // with the admin builder tabs. Counts reflect the selected builder tab.
   const builderFiltered = useMemo(() => {
     if (showBuilderTabs && builderTab !== 'all') {
       return projects.filter(p => (p.contact?.owner?.id || 'unassigned') === builderTab);
@@ -81,14 +82,14 @@ export default function Projects({ soldOnly = false }) {
     return projects;
   }, [projects, builderTab, showBuilderTabs]);
 
-  const openCount   = useMemo(() => builderFiltered.filter(p => p.status === 'sold').length, [builderFiltered]);
-  const closedCount = useMemo(() => builderFiltered.filter(p => p.status === 'completed').length, [builderFiltered]);
+  const openCount   = useMemo(() => builderFiltered.filter(p => OPEN_SOLD_STATUSES.includes(p.status)).length, [builderFiltered]);
+  const closedCount = useMemo(() => builderFiltered.filter(p => CLOSED_SOLD_STATUSES.includes(p.status)).length, [builderFiltered]);
 
   const filtered = useMemo(() => {
     let list = builderFiltered;
     if (soldOnly) {
-      const wanted = statusTab === 'closed' ? 'completed' : 'sold';
-      list = list.filter(p => p.status === wanted);
+      const wanted = statusTab === 'closed' ? CLOSED_SOLD_STATUSES : OPEN_SOLD_STATUSES;
+      list = list.filter(p => wanted.includes(p.status));
     }
     const q = search.trim().toLowerCase();
     if (q) {

@@ -29,7 +29,7 @@ import { useAuth } from '../components/Auth';
 import { buildOutput, ConfigPanel, MaterialsListTab } from './PricingTool';
 import {
   getProject, updateProject, deleteProject,
-  PROJECT_STATUSES, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, isSoldStatus,
+  PROJECT_STATUSES, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, PROJECT_MILESTONES, isSoldStatus,
 } from '../lib/projects';
 import { assignContact, fetchAssignableBuilders, fetchContacts } from '../lib/contacts';
 import {
@@ -70,6 +70,7 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const [activeTab, setActiveTab] = useState('work-order');
   const [showEdit, setShowEdit] = useState(false);
   const [builders, setBuilders] = useState([]);
+  const [statusSaving, setStatusSaving] = useState(null); // the status currently being saved (or null)
 
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
   useEffect(() => {
@@ -116,6 +117,21 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const stylePkg   = stylePkgs.find(p => p.id === cfg?.stylePkgId);
   const styleLabel = stylePkg?.name || '—';
   const styleMult  = out.styleMult ?? getStyleMultiplier(styleMults, stylePkg);
+
+  // Advance/set the project status straight from the milestone stepper. Stamps
+  // sold_at the first time the project reaches a sold status (same rule as the
+  // Edit modal). RLS lets a builder update their own project / admins any.
+  async function changeStatus(next) {
+    if (!project || next === project.status || statusSaving) return;
+    setStatusSaving(next); setError(''); setSuccess('');
+    const payload = { status: next };
+    if (isSoldStatus(next) && !project.sold_at) payload.sold_at = new Date().toISOString();
+    const { data, error: e } = await updateProject(id, payload);
+    setStatusSaving(null);
+    if (e) { setError(e.message); return; }
+    setProject(data);
+    setSuccess(`Status set to ${PROJECT_STATUS_LABELS[next] || next}.`);
+  }
 
   async function doDelete() {
     setDeleting(true); setError('');
@@ -177,6 +193,14 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
           <Button onClick={() => setShowEdit(true)}>✎ Edit project</Button>
         </div>
       </Card>
+
+      {/* Milestone stepper — click a stage to move the project along its pipeline. */}
+      <StatusMilestones
+        status={status}
+        saving={statusSaving}
+        onPick={changeStatus}
+        isMobile={isMobile}
+      />
 
       {/* Tabs */}
       <div style={{ display:'flex', gap:0, marginBottom:20, borderBottom:`2px solid ${C.linenDarker}`, flexWrap:'nowrap', overflowX: isMobile ? 'auto' : 'visible', overflowY:'hidden' }}>
@@ -289,6 +313,86 @@ function BackLink() {
     <Link to="/projects" style={{ fontFamily:'DM Sans', fontSize:13, color:C.sage, textDecoration:'none', display:'inline-flex', alignItems:'center', gap:6 }}>
       ← All projects
     </Link>
+  );
+}
+
+// ── Status milestones ─────────────────────────────────────────────────────────
+// A clickable stepper (Quoted → Sold → Scheduled → Completed) that sits above the
+// work order so the project's stage is obvious and one click moves it along. The
+// status can also be draft or cancelled (off this linear track) — set those in the
+// Edit modal; here a draft shows nothing reached yet and a cancelled project shows
+// a flag with the steps dimmed (clicking one reactivates the project to that stage).
+function StatusMilestones({ status, saving, onPick, isMobile }) {
+  const steps = PROJECT_MILESTONES;
+  const last = steps.length - 1;
+  const activeIdx = steps.indexOf(status); // -1 for draft / cancelled
+  const cancelled = status === 'cancelled';
+  const circle = isMobile ? 30 : 34;
+  const lineTop = circle / 2 - 1;
+
+  return (
+    <Card style={{ marginBottom:20, padding: isMobile ? '16px 12px' : '18px 20px' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginBottom:14, flexWrap:'wrap' }}>
+        <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand }}>
+          Project status
+        </div>
+        {cancelled && (
+          <Badge color="red">Cancelled</Badge>
+        )}
+        {status === 'draft' && (
+          <span style={{ fontFamily:'DM Sans', fontSize:12, color:'#aaa' }}>Not yet quoted</span>
+        )}
+      </div>
+
+      <div style={{ display:'flex', alignItems:'flex-start', overflowX: isMobile ? 'auto' : 'visible', overflowY:'hidden' }}>
+        {steps.map((s, i) => {
+          const reached = !cancelled && i <= activeIdx;
+          const isCurrent = !cancelled && i === activeIdx;
+          const isSaving = saving === s;
+          const leftReached  = !cancelled && i <= activeIdx;
+          const rightReached = !cancelled && (i + 1) <= activeIdx;
+          return (
+            <div key={s} style={{ flex:1, minWidth: isMobile ? 78 : 0, position:'relative', textAlign:'center' }}>
+              {/* connector lines behind the circle */}
+              {i > 0 && (
+                <div style={{ position:'absolute', top:lineTop, left:0, width:'50%', height:2, background: leftReached ? C.sage : C.linenDarker }} />
+              )}
+              {i < last && (
+                <div style={{ position:'absolute', top:lineTop, left:'50%', width:'50%', height:2, background: rightReached ? C.sage : C.linenDarker }} />
+              )}
+              {/* circle button */}
+              <button
+                onClick={() => onPick(s)}
+                disabled={!!saving}
+                title={`Set status to ${PROJECT_STATUS_LABELS[s]}`}
+                style={{
+                  position:'relative', zIndex:1, width:circle, height:circle, borderRadius:'50%',
+                  display:'inline-flex', alignItems:'center', justifyContent:'center',
+                  border: reached ? `2px solid ${C.sage}` : `2px solid ${C.linenDarker}`,
+                  background: reached ? C.sage : '#FFFDF9',
+                  color: reached ? '#fff' : '#bbb',
+                  boxShadow: isCurrent ? `0 0 0 4px ${C.linen}` : 'none',
+                  cursor: saving ? 'default' : 'pointer',
+                  fontFamily:'DM Sans', fontSize:13, fontWeight:700,
+                  transition:'all 0.15s',
+                }}
+              >
+                {isSaving ? <Spinner size={14} /> : (i < activeIdx && !cancelled ? '✓' : i + 1)}
+              </button>
+              {/* label */}
+              <div style={{
+                marginTop:7, fontFamily:'DM Sans', fontSize: isMobile ? 11.5 : 12.5,
+                fontWeight: isCurrent ? 700 : 600,
+                color: isCurrent ? C.charcoal : (reached ? C.sageDark : '#aaa'),
+                whiteSpace:'nowrap',
+              }}>
+                {PROJECT_STATUS_LABELS[s]}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 
