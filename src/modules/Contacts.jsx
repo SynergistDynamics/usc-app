@@ -23,9 +23,17 @@ import LeadRoutingModal from './LeadRoutingModal';
 const STATUS_OPTIONS = CONTACT_STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s] }));
 
 const EMPTY_FORM = {
-  full_name: '', company_name: '', email: '', phone: '',
-  market: '', status: 'lead', notes: '',
+  full_name: '', email: '', phone: '',
+  market: '', state: '', status: 'lead', notes: '',
 };
+
+// Short, human-friendly date for the "Created" column (e.g. "Jun 29, 2026").
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return '—';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 export default function Contacts() {
   const { profile } = useAuth();
@@ -85,14 +93,14 @@ export default function Contacts() {
     const q = search.trim().toLowerCase();
     if (!q) return contacts;
     return contacts.filter(c =>
-      [c.full_name, c.company_name, c.email, c.phone, c.market]
+      [c.full_name, c.email, c.phone, c.market, c.state]
         .filter(Boolean).some(v => v.toLowerCase().includes(q))
     );
   }, [contacts, search]);
 
   async function addContact() {
-    if (!form.full_name.trim() && !form.company_name.trim() && !form.email.trim()) {
-      setAddErr('Enter at least a name, company, or email.');
+    if (!form.full_name.trim() && !form.email.trim()) {
+      setAddErr('Enter at least a name or email.');
       return;
     }
     setSaving(true); setAddErr('');
@@ -125,7 +133,7 @@ export default function Contacts() {
       {error && <ErrorBanner onDismiss={() => setError('')}>{error}</ErrorBanner>}
 
       <div style={{ maxWidth:360, marginBottom:16 }}>
-        <Input value={search} onChange={setSearch} placeholder="Search name, company, email, phone…" />
+        <Input value={search} onChange={setSearch} placeholder="Search name, email, phone, state…" />
       </div>
 
       {loading ? (
@@ -145,9 +153,10 @@ export default function Contacts() {
               <thead>
                 <tr style={{ background:C.linenDark, textAlign:'left' }}>
                   <Th>Name</Th>
-                  {!isMobile && <Th>Company</Th>}
                   {!isMobile && <Th>Email</Th>}
                   {!isMobile && <Th>Phone</Th>}
+                  {!isMobile && <Th>State</Th>}
+                  {!isMobile && <Th>Created</Th>}
                   <Th>Status</Th>
                   {isAdmin && !isMobile && <Th>Owner</Th>}
                 </tr>
@@ -170,9 +179,10 @@ export default function Contacts() {
                         <span style={{ fontSize:10, color:C.sand, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em' }}>{c.source}</span>
                       )}
                     </Td>
-                    {!isMobile && <Td>{c.company_name || '—'}</Td>}
                     {!isMobile && <Td>{c.email || '—'}</Td>}
                     {!isMobile && <Td>{c.phone || '—'}</Td>}
+                    {!isMobile && <Td>{c.state || '—'}</Td>}
+                    {!isMobile && <Td style={{ whiteSpace:'nowrap' }}>{fmtDate(c.created_at)}</Td>}
                     <Td><Badge color={STATUS_COLORS[c.status] || 'ghost'}>{STATUS_LABELS[c.status] || c.status}</Badge></Td>
                     {isAdmin && !isMobile && (
                       <td style={{ padding:'8px 14px', verticalAlign:'top' }} onClick={e => e.stopPropagation()}>
@@ -205,8 +215,8 @@ export default function Contacts() {
             <FormField label="Name" style={{ marginBottom:0 }}>
               <Input value={form.full_name} onChange={v => set('full_name', v)} placeholder="Jane Homeowner" autoFocus />
             </FormField>
-            <FormField label="Company" style={{ marginBottom:0 }}>
-              <Input value={form.company_name} onChange={v => set('company_name', v)} placeholder="(optional)" />
+            <FormField label="State" style={{ marginBottom:0 }}>
+              <Input value={form.state} onChange={v => set('state', v)} placeholder="TX" />
             </FormField>
             <FormField label="Email" style={{ marginBottom:0 }}>
               <Input type="email" value={form.email} onChange={v => set('email', v)} placeholder="jane@example.com" />
@@ -258,6 +268,6 @@ export default function Contacts() {
 function Th({ children }) {
   return <th style={{ padding:'11px 14px', fontWeight:600, color:'#666', fontSize:11, textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap' }}>{children}</th>;
 }
-function Td({ children }) {
-  return <td style={{ padding:'11px 14px', color:C.charcoal, verticalAlign:'top' }}>{children}</td>;
+function Td({ children, style }) {
+  return <td style={{ padding:'11px 14px', color:C.charcoal, verticalAlign:'top', ...style }}>{children}</td>;
 }

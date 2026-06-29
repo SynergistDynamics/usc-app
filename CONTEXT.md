@@ -67,8 +67,11 @@ src/
   modules/
     Contacts.jsx             — Contacts list (/contacts) — each builder's customers/leads; admins see all.
                                Loads its OWN data via lib/contacts.js (per-route loading, ARCHITECTURE §3.3),
-                               NOT through App.jsx loadData. Search + "Add contact" modal. Admins also get an
-                               inline owner-assign dropdown per row and a "Lead routing" button.
+                               NOT through App.jsx loadData. Sorted most-recently-added first (created_at desc
+                               in fetchContacts). Desktop columns: Name, Email, Phone, State, Created (created_at),
+                               Status (+ Owner for admins) — Company was removed 2026-06-29. Search matches name/
+                               email/phone/market/state. The "Add contact" modal has a State field (no Company).
+                               Admins also get an inline owner-assign dropdown per row and a "Lead routing" button.
     ContactProfile.jsx       — A single contact's profile page (/contacts/:id) — editable contact info,
                                status, address, notes; delete. Admins get an "Assigned to" builder dropdown.
                                RLS scopes who can load/edit it. Also shows this contact's **Projects** list
