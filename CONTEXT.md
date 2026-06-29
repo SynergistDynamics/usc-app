@@ -429,10 +429,15 @@ Notes:
   control of the pipeline + contact linking; on INSERT it sets status from ShedPro (quote-request→quoted) and
   the `projects_auto_link_contact` BEFORE INSERT trigger links the contact by email. **Why an Edge Function
   (not the plain REST upsert used for contacts):** a project's options arrive across several NESTED arrays,
-  which Zapier's flat field-mapping / a single REST upsert can't assemble. **AUTH:** requires the service_role
-  key in `Authorization: Bearer …` (or `x-sync-secret`) — same key Zapier already uses; `?dry_run=1` returns the
-  computed mapping WITHOUT writing or auth (for testing). It `console.log`s the raw request body so the exact
-  Zapier wire-shape can be confirmed from the function logs on the first real call. Setup: `ZAPIER_PROJECTS.md`.
+  which Zapier's flat field-mapping / a single REST upsert can't assemble. The Zap is **ShedPro trigger → Code
+  by Zapier** (Run Javascript) that POSTs the trigger fields to the function; ShedPro emits each option list as
+  a **bare-comma-joined string**, which the function splits on `/,(?!\s)/` (comma not followed by space) so
+  natural `", "` commas inside a value survive. **AUTH:** the function checks the bearer against its
+  `SUPABASE_SERVICE_ROLE_KEY` env — on this project's **new API-key system that env is the secret key
+  `sb_secret_…`, NOT the legacy `service_role` JWT (`eyJ…`)** (using the legacy key → 401). `?dry_run=1` returns
+  the computed mapping WITHOUT writing or auth (for testing). **LIVE & verified 2026-06-29** end-to-end:
+  ShedPro project #5864 (Id 6a42…) synced → 14 packages, auto-linked to its contact + builder by email.
+  Setup: `ZAPIER_PROJECTS.md`.
 
 ## CRITICAL Supabase / React gotchas
 - **1000-row API cap — `.range()` does NOT bypass it.** Supabase's PostgREST `max-rows` (default 1000)
