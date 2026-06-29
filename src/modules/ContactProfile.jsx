@@ -21,7 +21,7 @@ import {
 } from '../lib/contacts';
 import {
   fetchProjectsForContact, createProject, isSoldStatus,
-  PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS,
+  PROJECT_STATUS_LABELS,
 } from '../lib/projects';
 import {
   Card, Button, Badge, Input, Select, FormField, Label, Modal,
@@ -623,49 +623,63 @@ function GroupHeader({ label, right }) {
   );
 }
 
+// A compact horizontal card matching the Sold Projects list: a small shed-rendering
+// thumbnail (object-fit:contain so it's never cropped; 🏠 placeholder when none) on
+// the left, details on the right. Leads with the PROJECT name (the contact is already
+// known on this page), then price | spec, the date, and the status as small uppercase
+// colored text top-right. Sold projects keep a sage left accent to set the group apart.
 function ProjectRow({ p, sold, navigate, isMobile }) {
-  const spec = [p.shed_size, p.style_package?.name, p.siding].filter(Boolean).join(' · ') || 'No spec yet';
-  const dateStr = sold && p.sold_at ? `Sold ${fmtDate(p.sold_at)}` : (p.created_at ? fmtDate(p.created_at) : '');
-  const cardStyle = {
-    cursor:'pointer', borderRadius:6,
-    border:`1px solid ${sold ? C.sage : C.linenDarker}`,
-    borderLeft:`4px solid ${sold ? C.sage : C.linenDarker}`,
-    background: sold ? C.linen : '#fff',
-  };
-  const hoverIn = e => { e.currentTarget.style.background = C.linen; };
-  const hoverOut = e => { e.currentTarget.style.background = sold ? C.linen : '#fff'; };
+  const [hover, setHover] = useState(false);
+  const img = [p.rendering_url_1, p.rendering_url_2, p.rendering_url_3, p.rendering_url_4].find(Boolean) || null;
 
-  if (isMobile) {
-    return (
-      <div onClick={() => navigate(`/projects/${p.id}`)} style={{ ...cardStyle, padding:'12px 12px' }}>
-        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8 }}>
-          <span style={{ fontFamily:'DM Sans', fontSize:14, fontWeight:600, color:C.charcoal, minWidth:0 }}>{p.name || 'Untitled project'}</span>
-          <span style={{ flexShrink:0 }}><Badge color={PROJECT_STATUS_COLORS[p.status] || 'ghost'}>{PROJECT_STATUS_LABELS[p.status] || p.status}</Badge></span>
-        </div>
-        <div style={{ fontFamily:'DM Sans', fontSize:12, color:'#999', marginTop:3 }}>{spec}</div>
-        <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:8, marginTop:8 }}>
-          <span style={{ fontFamily:'DM Sans', fontSize:15, fontWeight:700, color:C.sageDark }}>{p.sale_price != null ? fmt(p.sale_price) : ''}</span>
-          <span style={{ fontFamily:'DM Sans', fontSize:12, color:'#aaa' }}>{dateStr}</span>
-        </div>
-      </div>
-    );
-  }
+  const specBits = [p.shed_size, p.style_package?.name].filter(Boolean).join(' ');
+  const spec = [specBits, p.project_number ? `#${p.project_number}` : null].filter(Boolean).join(' ');
+  const priceLine = [p.sale_price != null ? fmt(p.sale_price) : null, spec || 'No spec yet'].filter(Boolean).join('  |  ');
+  const dateStr = sold && p.sold_at ? `Sold ${fmtDate(p.sold_at)}` : (p.created_at ? fmtDate(p.created_at) : '');
+
+  const statusColor = { sold:C.sageDark, scheduled:C.sand, completed:C.sageDark, cancelled:'#991B1B' }[p.status] || '#999';
+  const thumb = isMobile ? 80 : 88;
 
   return (
     <div
       onClick={() => navigate(`/projects/${p.id}`)}
-      style={{ ...cardStyle, display:'flex', alignItems:'center', gap:12, padding:'11px 12px' }}
-      onMouseEnter={hoverIn} onMouseLeave={hoverOut}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        cursor:'pointer', borderRadius:8, overflow:'hidden', position:'relative',
+        border:`1px solid ${sold ? C.sage : C.linenDarker}`,
+        borderLeft:`4px solid ${sold ? C.sage : C.linenDarker}`,
+        background: hover ? C.linen : (sold ? C.linen : '#fff'),
+        boxShadow: hover ? '0 4px 14px rgba(26,21,16,0.08)' : 'none',
+        transition:'box-shadow 0.16s, background 0.16s',
+        display:'flex', alignItems:'stretch',
+      }}
     >
-      <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontFamily:'DM Sans', fontSize:14, fontWeight:600, color:C.charcoal }}>{p.name || 'Untitled project'}</div>
-        <div style={{ fontFamily:'DM Sans', fontSize:12, color:'#999', marginTop:1 }}>{spec}</div>
+      {/* Thumbnail */}
+      <div style={{
+        flexShrink:0, width:thumb, alignSelf:'stretch',
+        background:`linear-gradient(135deg, ${C.linenDark}, ${C.linenDarker})`,
+        display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden',
+      }}>
+        {img ? (
+          <img src={img} alt={p.name || 'Shed rendering'} loading="lazy"
+            style={{ width:'100%', height:'100%', objectFit:'contain', display:'block', padding:5 }} />
+        ) : (
+          <div style={{ fontSize:22, lineHeight:1 }}>🏠</div>
+        )}
       </div>
-      <span style={{ fontFamily:'DM Sans', fontSize:12, color:'#aaa', whiteSpace:'nowrap' }}>{dateStr}</span>
-      {p.sale_price != null && (
-        <span style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, color:C.sageDark }}>{fmt(p.sale_price)}</span>
-      )}
-      <Badge color={PROJECT_STATUS_COLORS[p.status] || 'ghost'}>{PROJECT_STATUS_LABELS[p.status] || p.status}</Badge>
+
+      {/* Details */}
+      <div style={{ flex:1, minWidth:0, padding:'10px 12px', display:'flex', flexDirection:'column', gap:2 }}>
+        <div style={{ position:'absolute', top:10, right:12, fontFamily:'DM Sans', fontSize:10.5, fontWeight:700, letterSpacing:'0.06em', color:statusColor }}>
+          {(PROJECT_STATUS_LABELS[p.status] || p.status || '').toUpperCase()}
+        </div>
+        <div style={{ fontFamily:'DM Sans', fontSize:14.5, fontWeight:700, color:C.charcoal, lineHeight:1.2, paddingRight:74, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+          {p.name || 'Untitled project'}
+        </div>
+        <div style={{ fontFamily:'DM Sans', fontSize:13, color:C.charcoal }}>{priceLine}</div>
+        {dateStr && <div style={{ fontFamily:'DM Sans', fontSize:12, color:'#8a8175' }}>{dateStr}</div>}
+      </div>
     </div>
   );
 }
