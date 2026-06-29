@@ -103,7 +103,9 @@ src/
                                  #work-order-print) showing every relevant detail: customer (name/company/full
                                  mailing address/phone/email, from the embedded contact), builder, shed spec
                                  (size/style/siding/multiplier), selected option packages, ShedPro finishes &
-                                 colors, renderings, pricing (material/labor/calc + sale price) and notes. A
+                                 colors, the **ShedPro itemized options & pricing** list (shedpro_options →
+                                 "Options & Pricing" table, or the options_summary text fallback), renderings,
+                                 pricing (material/labor/calc + sale price + "from $X/mo" financing) and notes. A
                                  "🖨 Print work order" button opens it in a clean print window (same new-window
                                  innerHTML technique as PricingTool's printList). The page only DISPLAYS the saved
                                  project — all editing is in a modal (see below).
@@ -237,6 +239,20 @@ Notes:
 - `packages` — packages (size_variable, flat_rate, multiplier, siding_type, allow_quantity, **is_style**).
   - `is_style = true` → a **shed style** package (always size_variable; holds every base material per size).
   - `siding_type` set → siding package; otherwise a regular option package (add-ons live here now).
+  - **ShedPro configurator alignment (2026-06-29):** the option packages are kept in 1:1 correspondence
+    with the ShedPro configurator's option menu so a synced ShedPro project can populate
+    `projects.selected_packages` and generate a materials list. Six option types had no package and were
+    added by `MIGRATION_shedpro_missing_packages.sql` — **4' Sliding Roll Door, Painted Wood Stud Interior,
+    12" Single/Double/Triple Shelf, 24" Deep Workbench, Soffit & Ridge Vent, Stainless Steel Hinge** (8 rows).
+    Per Jeremy's call (option "1b"/"2b") these are **price-only placeholders** (`flat_rate=0`, NO
+    package_materials/quantities yet) and **one package per type** (configurator size/length granularity —
+    transom sizes, door sizes, shelf length — is collapsed onto the single package, NOT split). **TODO:** set
+    real prices + add the bill of materials in Configurator Pricing → Packages so the list is accurate (until
+    then those items add $0 and no materials). Names match the configurator labels so the ShedPro→package
+    mapping is a name match. NOTE: the **"Paint"** package = the configurator's **Siding Color** charge (its
+    per-shed paint cost); the Edge Function adds Paint to selected_packages whenever a siding color is set
+    (skipped for Western Red Cedar, which is natural/quote-only). It's NOT in shedpro_option_map (siding color
+    is a flat field, not an option array) — handled in code, same as loft.
 - `package_materials` — components per package (fixed_quantity for non-size-variable; null for size-variable)
 - `package_quantities` — per-size quantities for size-variable packages (incl. styles & add-ons). Large table
   (3000+ rows); App.jsx loads it via **pagination** (see gotcha below), not a single `.range()`.
@@ -328,6 +344,18 @@ Notes:
   shedpro_created, rendering_url_1..4 + layout_rendering_url + details_url, work_order_pdf (raw text blob),
   siding_type, overhang_size, doors, windows, transom_package, vents, roof, floor, siding_color, trim_color,
   door_color, roof_color, site_prep, building_permit, access, additional_features.
+  **Itemized options + pricing (added 2026-06-29, MIGRATION_projects_shedpro_lineitems.sql):** the ShedPro
+  quote's open-ended "What's included" list (Frame, vents, doors + sub-details, transom, workbench, shelf,
+  hinge, loft, overhang, foundation, permit, access, travel time, …) — each with its quoted price — is stored
+  as **`shedpro_options`** (jsonb array of `{label, detail, price}`; `price` kept as the raw text ShedPro shows,
+  e.g. `"$550.00"`/`"Included"`/`"0"`, so the work order prints exactly what was quoted). A fixed column per
+  option can't keep up with ShedPro's list, hence jsonb (same pattern as selected_packages/package_overrides).
+  **`options_summary`** (text) is a plain-text fallback for the same list (shown only when shedpro_options is
+  empty); **`monthly_payment`** (numeric) is the quote's "from $X/mo" financing figure. The ShedPro all-in
+  price still maps to `sale_price`. ProjectDetail's work order renders these in an **"Options & Pricing"**
+  section (priced table from shedpro_options, or the text fallback) + a "or from $X/mo" line under Sale price;
+  the renderer (`normalizeShedproOptions`) is tolerant of how Zapier delivers the array (objects with
+  label/name/option + price/amount/cost key variants, plain strings, or a JSON string).
   **RLS enabled**: one ALL policy "Builders manage own projects, admins all" — **admins see ALL projects**
   (incl. contact-less ones); a builder reads/writes a project when they own its linked contact
   (`projects.contact_id` → `contacts.user_id = auth.uid()`). Restricted to `authenticated`. The app reads
@@ -365,6 +393,15 @@ Notes:
   auto-assign to the right builder. Managed in the Contacts page → **Lead routing** modal (admins only),
   which also assigns existing unassigned leads when a mapping is added. RLS: admins only. See
   `MIGRATION_contacts_territory_routing.sql` (applied 2026-06-25).
+- `shedpro_option_map` — translation table for the ShedPro projects sync: **(category, shedpro_value) →
+  package_id** (unique on category+shedpro_value). `category` = the component/interior Type (`vent`/`door`/
+  `windows`/`workbench`/`shelf`), or `overhang`/`frame`, or an `other_upgrades` **Group** string (`Hinge`,
+  `Flooring Options`, `Site Preparation`, `Soffit & Ridge Vent Options`). The Edge Function (below) looks up
+  each selected option here (case-insensitive) to build `projects.selected_packages`. Absent rows = skipped —
+  that's how "default/included" values (Galvanized hinge, Light Duty floor, Standard overhang, Basic interior)
+  and the **non-material** groups (Building Permit, Access Fees, Travel Charges) are intentionally ignored.
+  Loft is NOT here (the function picks Loft Modern vs Loft Traditional from the project's style). RLS: admins
+  manage; the Edge Function uses service_role. Seeded 2026-06-29 (43 rows) — see `MIGRATION_shedpro_option_map.sql`.
 - LEGACY (kept as backup, no longer read by the app): `quantities` (old global base/add-on quantities),
   `styles` (old shed styles with markup %). Safe to drop once the migration is verified.
 
@@ -378,6 +415,24 @@ Notes:
   own folder so it doesn't allow bucket-wide listing. The path is `{user_id}/{timestamp}.{ext}` and the
   resulting public URL is saved to `profiles.avatar_url`. See `MIGRATION_profile_fields_and_avatars.sql`
   (applied 2026-06-23).
+
+## Edge Functions
+- `shedpro-project-sync` (`supabase/functions/shedpro-project-sync/index.ts`, deployed 2026-06-29,
+  `verify_jwt=false`) — the ShedPro **projects** sync. Zapier forwards the whole ShedPro project JSON here;
+  the function maps the flat fields (style→style_package_id, siding→siding, size→shed_size, colors, Total→
+  sale_price, Model Url→details_url, Billing Email→customer_email, Reference Order Num→project_number,
+  images[]→rendering_url_*) and walks the option arrays (`components[]`, `interior_components[]`, `overhang[]`,
+  `loft[]`, `frame`, `other_upgrades[]`) through `shedpro_option_map` into `selected_packages {package_id:count}`
+  (loft resolved by style; the **"Paint"** package added whenever a siding color is set — Paint = the siding-color
+  charge — skipped for Western Red Cedar), stores the raw options in `shedpro_options`, and **upserts on `shedpro_project_id`**
+  (top-level ShedPro `Id`). On UPDATE it deliberately omits `status`/`sold_at`/`contact_id` so the app keeps
+  control of the pipeline + contact linking; on INSERT it sets status from ShedPro (quote-request→quoted) and
+  the `projects_auto_link_contact` BEFORE INSERT trigger links the contact by email. **Why an Edge Function
+  (not the plain REST upsert used for contacts):** a project's options arrive across several NESTED arrays,
+  which Zapier's flat field-mapping / a single REST upsert can't assemble. **AUTH:** requires the service_role
+  key in `Authorization: Bearer …` (or `x-sync-secret`) — same key Zapier already uses; `?dry_run=1` returns the
+  computed mapping WITHOUT writing or auth (for testing). It `console.log`s the raw request body so the exact
+  Zapier wire-shape can be confirmed from the function logs on the first real call. Setup: `ZAPIER_PROJECTS.md`.
 
 ## CRITICAL Supabase / React gotchas
 - **1000-row API cap — `.range()` does NOT bypass it.** Supabase's PostgREST `max-rows` (default 1000)
