@@ -28,6 +28,7 @@ export default function Projects({ soldOnly = false }) {
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState('');
   const [search,   setSearch]   = useState('');
+  const [statusTab, setStatusTab] = useState('open'); // Sold Projects: Open (sold) vs Closed (completed)
   const [builderTab, setBuilderTab] = useState('all'); // Sold Projects: filter by builder (admin)
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
 
@@ -70,10 +71,24 @@ export default function Projects({ soldOnly = false }) {
     return arr;
   }, [projects, showBuilderTabs]);
 
-  const filtered = useMemo(() => {
-    let list = projects;
+  // Sold Projects splits into Open (status 'sold' — won, job not yet finished)
+  // and Closed (status 'completed' — job done). Shown to everyone on the sold
+  // view; composes with the admin builder tabs. Counts reflect the builder tab.
+  const builderFiltered = useMemo(() => {
     if (showBuilderTabs && builderTab !== 'all') {
-      list = list.filter(p => (p.contact?.owner?.id || 'unassigned') === builderTab);
+      return projects.filter(p => (p.contact?.owner?.id || 'unassigned') === builderTab);
+    }
+    return projects;
+  }, [projects, builderTab, showBuilderTabs]);
+
+  const openCount   = useMemo(() => builderFiltered.filter(p => p.status === 'sold').length, [builderFiltered]);
+  const closedCount = useMemo(() => builderFiltered.filter(p => p.status === 'completed').length, [builderFiltered]);
+
+  const filtered = useMemo(() => {
+    let list = builderFiltered;
+    if (soldOnly) {
+      const wanted = statusTab === 'closed' ? 'completed' : 'sold';
+      list = list.filter(p => p.status === wanted);
     }
     const q = search.trim().toLowerCase();
     if (q) {
@@ -83,7 +98,7 @@ export default function Projects({ soldOnly = false }) {
       );
     }
     return list;
-  }, [projects, search, builderTab, showBuilderTabs]);
+  }, [builderFiltered, soldOnly, statusTab, search]);
 
   // Sold-projects total (sum of sale_price) — quick at-a-glance number.
   const soldTotal = useMemo(
@@ -110,6 +125,17 @@ export default function Projects({ soldOnly = false }) {
         <Input value={search} onChange={setSearch} placeholder="Search project, contact, size, style…" />
       </div>
 
+      {soldOnly && (
+        <div style={{ display:'flex', gap:0, marginBottom:18, borderBottom:`2px solid ${C.linenDarker}`, flexWrap:'nowrap', overflowX:'auto', overflowY:'hidden' }}>
+          {[{ id:'open', name:'Open', count:openCount }, { id:'closed', name:'Closed', count:closedCount }].map(t => (
+            <button key={t.id} onClick={() => setStatusTab(t.id)}
+              style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, padding: isMobile ? '9px 13px' : '9px 18px', border:'none', cursor:'pointer', background:'transparent', color: statusTab===t.id ? C.sage : '#aaa', borderBottom: statusTab===t.id ? `2px solid ${C.sage}` : '2px solid transparent', marginBottom:-2, transition:'all 0.15s', whiteSpace:'nowrap', flexShrink:0 }}>
+              {t.name} <span style={{ color: statusTab===t.id ? C.sage : '#ccc', fontWeight:500 }}>({t.count})</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {showBuilderTabs && builderTabs.length > 0 && (
         <div style={{ display:'flex', gap:0, marginBottom:18, borderBottom:`2px solid ${C.linenDarker}`, flexWrap:'nowrap', overflowX:'auto', overflowY:'hidden' }}>
           {[{ id:'all', name:'All', count:projects.length }, ...builderTabs].map(t => (
@@ -128,7 +154,13 @@ export default function Projects({ soldOnly = false }) {
           <div style={{ textAlign:'center', padding:'28px 12px', fontFamily:'DM Sans', color:'#888', fontSize:14 }}>
             {projects.length === 0
               ? (soldOnly ? 'No sold projects yet. Mark a project Sold to see it here.' : 'No projects yet. Create one for a contact to get started.')
-              : 'No projects match your search.'}
+              : search.trim()
+                ? 'No projects match your search.'
+                : (soldOnly
+                    ? (statusTab === 'closed'
+                        ? 'No closed projects. Mark a sold project Completed to see it here.'
+                        : 'No open projects. They appear here while a sold job is in progress.')
+                    : 'No projects match your search.')}
           </div>
         </Card>
       ) : (
