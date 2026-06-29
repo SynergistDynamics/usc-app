@@ -86,7 +86,13 @@ Deno.serve(async (req) => {
   if (!dryRun) {
     const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
     const secret = S(req.headers.get("x-sync-secret"));
-    if (bearer !== SERVICE_KEY && secret !== SERVICE_KEY) return json({ error: "unauthorized" }, 401);
+    const ok = bearer === SERVICE_KEY || secret === SERVICE_KEY;
+    console.log("shedpro-sync auth:", JSON.stringify({
+      ok, bearerLen: bearer.length, secretLen: secret.length, svcLen: (SERVICE_KEY || "").length,
+      bearerHead: bearer.slice(0, 8), svcHead: (SERVICE_KEY || "").slice(0, 8),
+      bearerTail: bearer.slice(-6), svcTail: (SERVICE_KEY || "").slice(-6),
+    }));
+    if (!ok) return json({ error: "unauthorized" }, 401);
   }
 
   let body: any;
