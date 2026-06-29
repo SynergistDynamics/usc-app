@@ -9,12 +9,49 @@ migrations `MIGRATION_projects.sql` / `MIGRATION_projects_shedpro.sql` /
 `MIGRATION_projects_zapier_upsert.sql`.
 
 ```
-ShedPro (new/updated project)  →  Zapier  →  Supabase REST API  →  projects table
+ShedPro (new/updated project)  →  Zapier  →  Supabase Edge Function (shedpro-project-sync)  →  projects table
 ```
+
+> ## ⚠️ UPDATED APPROACH (2026-06-29): projects sync via an Edge Function, not a plain REST upsert
+> Unlike contacts (a flat REST upsert on `email`), a ShedPro **project** carries its selected options
+> across several **nested arrays** (`components[]`, `interior_components[]`, `overhang[]`, `loft[]`,
+> `frame`, `other_upgrades[]`) — which Zapier's flat field-mapping and a single REST upsert can't
+> assemble. So Zapier forwards the **whole project JSON** to a Supabase **Edge Function**
+> (`shedpro-project-sync`) that does the mapping and the upsert:
+> - flat fields → project columns (style→style_package_id, siding→siding, size→shed_size, colors,
+>   Total→sale_price, Model Url→details_url, Billing Email→customer_email, Reference Order Num→
+>   project_number, images[]→renderings);
+> - the option arrays → `selected_packages {package_id: count}` via the **`shedpro_option_map`** table
+>   (so the existing work order + materials list build automatically; loft is resolved from the style);
+> - the raw options are kept in `shedpro_options` (audit + to surface any **unmapped** option);
+> - **upsert on `shedpro_project_id`** (the top-level ShedPro `Id`); on update it leaves
+>   `status`/`sold_at`/`contact_id` to the app; on insert the auto-link trigger attaches the contact by email.
+>
+> **Function URL:** `https://ywboyreznmuaddprkycm.supabase.co/functions/v1/shedpro-project-sync`
+> **Auth:** send the Supabase **service_role** key as `Authorization: Bearer <key>` (same key the
+> contacts Zap uses). `?dry_run=1` returns the computed mapping WITHOUT writing (handy for testing).
+> See **"Step 2 (Edge Function)"** below. The plain-REST steps that follow are kept for reference /
+> the simple-field fallback, but the Edge Function is the live path for projects.
 
 Each project is **upserted on `shedpro_project_id`**, so re-sending the same ShedPro project
 **updates** its existing row (status, colors, options, sale price) instead of creating a duplicate.
-This is the analog of the contacts sync, which upserts on `email` (see `ZAPIER_CONTACTS.md`).
+
+### Step 2 (Edge Function) — recommended wiring
+1. ShedPro trigger (New/Updated Project) → action **Webhooks by Zapier**.
+2. The goal is to POST the **entire** trigger record as JSON to the Function URL above. Two ways,
+   depending on what your ShedPro trigger exposes:
+   - **If the trigger offers a single "raw"/full-record field:** use **Webhooks → Custom Request**,
+     method POST, URL = the Function URL, and set the body to that raw JSON field; header
+     `Authorization: Bearer <service_role key>` + `Content-Type: application/json`.
+   - **Otherwise:** add a **Code by Zapier (JavaScript)** step that rebuilds the object from the
+     trigger's fields/line-items and `fetch()`es the Function URL with the same header. (The function
+     logs the raw body it receives, so after the first test we can read the function logs and tune the
+     parser to the exact shape Zapier sends.)
+3. **Test**, then open the synced project in the app and check the work order + materials list. Re-send
+   the same project → it updates the same row. Then turn the Zap on.
+
+The field-by-field REST mapping below still works for the **flat** fields if you ever want a no-function
+fallback, but it will NOT populate `selected_packages` from the nested option arrays.
 
 > **Why a separate `shedpro_project_id` and not the order number?** The ShedPro order # (stored as
 > `project_number`, e.g. 5826) is **not unique** — the historical export had price *revisions* that

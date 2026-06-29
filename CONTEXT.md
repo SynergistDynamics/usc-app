@@ -391,6 +391,15 @@ Notes:
   auto-assign to the right builder. Managed in the Contacts page → **Lead routing** modal (admins only),
   which also assigns existing unassigned leads when a mapping is added. RLS: admins only. See
   `MIGRATION_contacts_territory_routing.sql` (applied 2026-06-25).
+- `shedpro_option_map` — translation table for the ShedPro projects sync: **(category, shedpro_value) →
+  package_id** (unique on category+shedpro_value). `category` = the component/interior Type (`vent`/`door`/
+  `windows`/`workbench`/`shelf`), or `overhang`/`frame`, or an `other_upgrades` **Group** string (`Hinge`,
+  `Flooring Options`, `Site Preparation`, `Soffit & Ridge Vent Options`). The Edge Function (below) looks up
+  each selected option here (case-insensitive) to build `projects.selected_packages`. Absent rows = skipped —
+  that's how "default/included" values (Galvanized hinge, Light Duty floor, Standard overhang, Basic interior)
+  and the **non-material** groups (Building Permit, Access Fees, Travel Charges) are intentionally ignored.
+  Loft is NOT here (the function picks Loft Modern vs Loft Traditional from the project's style). RLS: admins
+  manage; the Edge Function uses service_role. Seeded 2026-06-29 (43 rows) — see `MIGRATION_shedpro_option_map.sql`.
 - LEGACY (kept as backup, no longer read by the app): `quantities` (old global base/add-on quantities),
   `styles` (old shed styles with markup %). Safe to drop once the migration is verified.
 
@@ -404,6 +413,23 @@ Notes:
   own folder so it doesn't allow bucket-wide listing. The path is `{user_id}/{timestamp}.{ext}` and the
   resulting public URL is saved to `profiles.avatar_url`. See `MIGRATION_profile_fields_and_avatars.sql`
   (applied 2026-06-23).
+
+## Edge Functions
+- `shedpro-project-sync` (`supabase/functions/shedpro-project-sync/index.ts`, deployed 2026-06-29,
+  `verify_jwt=false`) — the ShedPro **projects** sync. Zapier forwards the whole ShedPro project JSON here;
+  the function maps the flat fields (style→style_package_id, siding→siding, size→shed_size, colors, Total→
+  sale_price, Model Url→details_url, Billing Email→customer_email, Reference Order Num→project_number,
+  images[]→rendering_url_*) and walks the option arrays (`components[]`, `interior_components[]`, `overhang[]`,
+  `loft[]`, `frame`, `other_upgrades[]`) through `shedpro_option_map` into `selected_packages {package_id:count}`
+  (loft resolved by style), stores the raw options in `shedpro_options`, and **upserts on `shedpro_project_id`**
+  (top-level ShedPro `Id`). On UPDATE it deliberately omits `status`/`sold_at`/`contact_id` so the app keeps
+  control of the pipeline + contact linking; on INSERT it sets status from ShedPro (quote-request→quoted) and
+  the `projects_auto_link_contact` BEFORE INSERT trigger links the contact by email. **Why an Edge Function
+  (not the plain REST upsert used for contacts):** a project's options arrive across several NESTED arrays,
+  which Zapier's flat field-mapping / a single REST upsert can't assemble. **AUTH:** requires the service_role
+  key in `Authorization: Bearer …` (or `x-sync-secret`) — same key Zapier already uses; `?dry_run=1` returns the
+  computed mapping WITHOUT writing or auth (for testing). It `console.log`s the raw request body so the exact
+  Zapier wire-shape can be confirmed from the function logs on the first real call. Setup: `ZAPIER_PROJECTS.md`.
 
 ## CRITICAL Supabase / React gotchas
 - **1000-row API cap — `.range()` does NOT bypass it.** Supabase's PostgREST `max-rows` (default 1000)
