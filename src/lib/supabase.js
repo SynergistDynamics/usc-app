@@ -22,13 +22,17 @@ export const ROLE_LABELS = {
   builder:     'Builder',
   builder_pro: 'Builder Pro',
   admin:       'Admin',
+  super_admin: 'Super Admin',
   blocked:     'Blocked',
 };
 // Short description of what each access level can do (shown on the Admin page).
+// `super_admin` is not a role value — it's the is_super_admin flag layered on
+// top of Admin — but it's described here so the Access Levels card is complete.
 export const ROLE_DESCRIPTIONS = {
   builder:     'Full access to their own data — dashboard, contacts, projects, materials calculator, configurator pricing (their own prices), and resources. Cannot edit packages or manage users.',
   builder_pro: 'Everything a Builder can do, PLUS create and edit packages (shed styles, siding, fixed and size-variable option packages) on Configurator Pricing → Packages. Still sees only their own data; no user management.',
   admin:       'Full access to everything: manages every builder\'s data, edits packages, and runs the Admin panel (invite/remove users, change roles, view all pricing).',
+  super_admin: 'An Admin with the extra Super Admin flag. On top of full admin access, they see the Admin → Builder Onboarding and Tech Stack tabs and can grant/revoke Super Admin for others. Granting it also promotes the user to Admin.',
   blocked:     'No access — sees the “access restricted” screen. Set automatically for un-invited sign-ins; an admin can also block a user here.',
 };
 // Who can create/edit packages: admins and builder pros.

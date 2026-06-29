@@ -187,7 +187,7 @@ export default function AdminPanel() {
       </Card>
 
       {/* ── Access levels reference ── */}
-      <AccessLevelsCard />
+      <AccessLevelsCard isSuperAdmin={isSuperAdmin} />
 
       {/* ── Pending invitations ── */}
       {invitations.filter(i => !i.accepted).length > 0 && (
@@ -471,13 +471,15 @@ function TechStackTab() {
 // A short, plain-language summary of what each role can do. Text lives in
 // ROLE_DESCRIPTIONS (lib/supabase.js) so it stays in one place.
 const ACCESS_LEVELS = [
+  { role: 'super_admin', color: 'sand',  superAdminOnly: true },
   { role: 'admin',       color: 'blue' },
   { role: 'builder_pro', color: 'sage' },
   { role: 'builder',     color: 'sand' },
   { role: 'blocked',     color: 'ghost' },
 ];
 
-function AccessLevelsCard() {
+function AccessLevelsCard({ isSuperAdmin }) {
+  const levels = ACCESS_LEVELS.filter(l => !l.superAdminOnly || isSuperAdmin);
   return (
     <Card style={{ marginBottom:24 }}>
       <h3 style={sh3}>Access Levels</h3>
@@ -485,7 +487,7 @@ function AccessLevelsCard() {
         What each role can do. Set a user's role in the table above.
       </p>
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-        {ACCESS_LEVELS.map(({ role, color }) => (
+        {levels.map(({ role, color }) => (
           <div key={role} style={{ display:'flex', gap:14, alignItems:'flex-start', flexWrap:'wrap' }}>
             <div style={{ minWidth:110, flexShrink:0 }}>
               <Badge color={color}>{ROLE_LABELS[role] || role}</Badge>
