@@ -72,11 +72,17 @@ src/
                                Status (+ Owner for admins) — Company was removed 2026-06-29. Search matches name/
                                email/phone/market/state. The "Add contact" modal has a State field (no Company).
                                Admins also get an inline owner-assign dropdown per row and a "Lead routing" button.
-    ContactProfile.jsx       — A single contact's profile page (/contacts/:id) — editable contact info,
-                               status, address, notes; delete. Admins get an "Assigned to" builder dropdown.
-                               RLS scopes who can load/edit it. Also shows this contact's **Projects** list
-                               (ContactProjects helper) with a "+ New project" button (a contact can have many);
-                               each row shows name, spec, **created date**, sale price, and status.
+    ContactProfile.jsx       — A single contact's profile page (/contacts/:id). Redesigned 2026-06-29 as a
+                               **compact, tappable card**: avatar + name + status, then contact-detail rows that
+                               are native links — **tap-to-call** (`tel:`) + **Text** (`sms:`), **email** (`mailto:`),
+                               and **address → Google Maps directions** (maps search URL). Editing is a **popup**
+                               (EditContactModal — name/company/email/phone/market/status/address/notes; Delete in
+                               its footer). Admins get an "Assigned to" builder dropdown in the card footer (builders
+                               see their owner read-only). RLS scopes who can load/edit it. Below is this contact's
+                               **Projects** list (ContactProjects helper, "+ New project"): **sold projects
+                               (sold/scheduled/completed) are pinned + highlighted (sage accent) at the top**, the
+                               rest follow newest-first; each row shows name, spec, date (sold date if sold, else
+                               created), sale price, and status.
     Projects.jsx             — Projects list (/projects) and Sold Projects list (/sold-projects, `soldOnly`
                                prop). NOTE: the all-projects "/projects" view is no longer linked from the
                                sidebar nav (only "Sold Projects" is) — the route still exists and resolves, but
