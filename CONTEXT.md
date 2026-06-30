@@ -206,7 +206,8 @@ src/
                                SECOND buildOutput (`outCalc`, called with `pkgOverrides:{}`) so it's the app's pure estimate
                                and never the typed prices. This is why the Specification-tab `$` price fields exist — a
                                hand-added project carries the ShedPro base/siding/option prices in the itemized list while the
-                               App calculated price stays as the app's reference. **When the project has NO change orders**, the large
+                               App calculated price stays as the app's reference. A **Deposit (paid)** line (`projects.deposit`,
+                               from ShedPro) renders just ABOVE the sale price when set. **When the project has NO change orders**, the large
                                green number is the **Sale price (configurator)**. **When it has change orders**, the sale
                                price stays visible as a line, a **Change orders** subtotal (+$X, summed from change_orders
                                prices via `parsePriceNum`) is added, and the large green number becomes the **Final total ·
@@ -224,7 +225,8 @@ src/
                                • **Details** — the **Contact** picker (link/change/unlink — ContactPicker loads contacts
                                  lazily on first expand, RLS-scoped), the read-only **Project name** heading, **Status**,
                                  **Sale price** (a `$`-prefixed MoneyInput — there is **no "Use calc" button**, the
-                                 configurator/ShedPro price is kept; saved via `parsePriceNum`), **Work order #**
+                                 configurator/ShedPro price is kept; saved via `parsePriceNum`), **Deposit** ($ MoneyInput —
+                                 the ShedPro deposit, editable here too), **Work order #**
                                  (`project_number`, here since it completes the name), and — for **admins** — an
                                  **Assigned builder** dropdown.
                                • **Specification** — PricingTool's ConfigPanel (size, style, siding, option packages) +
@@ -496,7 +498,9 @@ Notes:
   (jsonb price overrides that beat the app-calculated price; keyed by option `package_id` for per-option prices,
   plus the stable keys `__base__` (base shed) and `__siding__` (siding). Set via the **$ price fields** on the
   project Edit modal's Specification tab [ConfigPanel `editPrices`] to carry ShedPro prices on manually-added
-  projects); sale_price, sold_at (stamped the first time status becomes
+  projects); sale_price, **deposit** (numeric — the shed deposit/down payment from ShedPro, shown above the
+  sale price on the work order and editable on the Edit modal's Details tab; see
+  `MIGRATION_projects_deposit.sql`, applied 2026-06-30), sold_at (stamped the first time status becomes
   sold/completed by the app), notes, created_at, updated_at (auto via `projects_set_updated_at` trigger).
   **change_orders** (jsonb NOT NULL DEFAULT '[]') — post-sale change-order line items added in-app, each
   `{label, detail, price, created_at, created_by (uuid), created_by_name}`; the Edit modal's "Change orders"
@@ -595,9 +599,11 @@ Notes:
 - `shedpro-project-sync` (`supabase/functions/shedpro-project-sync/index.ts`, deployed 2026-06-29,
   `verify_jwt=false`) — the ShedPro **projects** sync. Zapier forwards the whole ShedPro project JSON here;
   the function maps the flat fields (style→style_package_id, siding→siding, size→shed_size, colors, Total→
-  sale_price, Model Url→details_url, Billing Email→customer_email, Reference Order Num→project_number,
+  sale_price, **Deposit→deposit**, Model Url→details_url, Billing Email→customer_email, Reference Order Num→project_number,
   images[] by view→perspective_rendering_url/rendering_url_1..4/layout_rendering_url — perspective/front/left/
-  right/back/2d-floor-plan; **v9 (2026-06-30)** gave perspective its own column so "front" no longer drops it)
+  right/back/2d-floor-plan; **v9 (2026-06-30)** gave perspective its own column so "front" no longer drops it;
+  **v10 (2026-06-30)** added the `deposit` mapping — accepts deposit/deposit_amount/deposit_total/down_payment,
+  needs a `deposit=Deposit` Input Data row added to the Zap)
   and walks the option arrays (`components[]`, `interior_components[]`, `overhang[]`,
   `loft[]`, `frame`, `other_upgrades[]`) through `shedpro_option_map` into `selected_packages {package_id:count}`
   (loft resolved by style; the **"Paint"** package added whenever a siding color is set — Paint = the siding-color

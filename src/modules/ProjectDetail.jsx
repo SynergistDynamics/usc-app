@@ -369,6 +369,8 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const shedproOptions = withSidingColorPrice(normalizeShedproOptions(project?.shedpro_options), project, paintPrice);
   const optionsSummary = project?.options_summary?.trim() || '';
   const monthlyPayment = project?.monthly_payment;
+  // Shed deposit (down payment) from ShedPro — shown above the sale price on the work order.
+  const deposit = project?.deposit != null && String(project.deposit).trim() !== '' ? parseFloat(project.deposit) : null;
 
   // Post-sale change orders added in-app (label/detail/price + when/who added them).
   const changeOrders = normalizeChangeOrders(project?.change_orders);
@@ -434,7 +436,7 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const woProps = {
     project, contact, title, status, salePrice, notes, cfg, size: cfg?.size,
     styleLabel, styleMult, out, selectedOptions, shedproOptions, optionsSummary,
-    optionPriceLines, monthlyPayment, pricing, changeOrders,
+    optionPriceLines, monthlyPayment, deposit, pricing, changeOrders,
   };
 
   return (
@@ -746,6 +748,7 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
   const { profile } = useAuth();
   const [status,    setStatus]    = useState(project.status || 'draft');
   const [salePrice, setSalePrice] = useState(project.sale_price != null ? String(project.sale_price) : '');
+  const [deposit,   setDeposit]   = useState(project.deposit != null ? String(project.deposit) : '');
   const [cfg,       setCfg]       = useState(toCfg(project, stylePkgs));
   const origOwner = project.contact?.user_id || '';
   const [builderId, setBuilderId] = useState(origOwner);
@@ -800,7 +803,7 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
   // Dirty tracking so we can confirm before discarding edits. The first render's
   // snapshot is the baseline; any change to an editable field makes the modal dirty.
   const baselineRef = useRef(null);
-  const snapshot = JSON.stringify({ status, salePrice, contactId, builderId, cfg, details, changeOrders });
+  const snapshot = JSON.stringify({ status, salePrice, deposit, contactId, builderId, cfg, details, changeOrders });
   if (baselineRef.current === null) baselineRef.current = snapshot;
   const dirty = baselineRef.current !== snapshot;
   const [confirmingClose, setConfirmingClose] = useState(false);
@@ -836,6 +839,7 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
       name: derivedName || null,
       status,
       sale_price: salePrice.trim() === '' ? null : parsePriceNum(salePrice),
+      deposit: deposit.trim() === '' ? null : parsePriceNum(deposit),
       shed_size: cfg.size || null,
       style_package_id: cfg.stylePkgId || null,
       siding: cfg.siding || null,
@@ -930,6 +934,9 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
             </FormField>
             <FormField label="Sale price" style={{ marginBottom:0 }}>
               <MoneyInput value={salePrice} onChange={setSalePrice} />
+            </FormField>
+            <FormField label="Deposit" style={{ marginBottom:0 }}>
+              <MoneyInput value={deposit} onChange={setDeposit} />
             </FormField>
             <FormField label="Work order #" style={{ marginBottom:0 }}>
               <Input value={details.project_number} onChange={v => setDetail('project_number', v)} placeholder="e.g. 5860" />
@@ -1227,7 +1234,7 @@ function printWorkOrder() {
 // ── Work order document (printable) ───────────────────────────────────────────
 // A formatted work order with every relevant project detail. Rendered on screen
 // inside #work-order-print and copied verbatim into the print window.
-function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, size, styleLabel, styleMult, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, pricing = {}, changeOrders = [], isMobile }) {
+function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, size, styleLabel, styleMult, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, deposit = null, pricing = {}, changeOrders = [], isMobile }) {
   // Show the at-a-glance pills only when the priced fallback ISN'T standing in for
   // them — otherwise the same options would appear twice (pills + priced lines).
   const usingPricedFallback = shedproOptions.length === 0 && !optionsSummary && optionPriceLines.length > 0;
@@ -1447,6 +1454,12 @@ function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, 
               <td style={{ ...woTd, textAlign:'right', fontWeight:600 }}>{fmt(pricing.appCalcPrice)}</td>
             </tr>
           )}
+          {deposit != null && (
+            <tr style={{ borderTop:`1px solid ${C.linen}` }}>
+              <td style={woTd}>Deposit <span style={{ color:'#aaa', fontSize:11 }}>(paid)</span></td>
+              <td style={{ ...woTd, textAlign:'right' }}>{fmt(deposit)}</td>
+            </tr>
+          )}
           {pricing.hasChangeOrders ? (
             <>
               {/* Sale price stays visible as a line; change orders add on; final total leads. */}
@@ -1539,7 +1552,7 @@ const woTd = { padding:'5px 0', fontFamily:'DM Sans', fontSize:13, color:C.charc
 // makes the customer's phone/email/address tappable, and stacks the tables. The
 // printable paper doc (WorkOrderDoc) is unchanged — it's still what gets printed
 // or saved to PDF from the sticky "Print / Save" button.
-function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, pricing = {}, changeOrders = [] }) {
+function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, deposit = null, pricing = {}, changeOrders = [] }) {
   // Hide the pills when the priced fallback covers the same options (see WorkOrderDoc).
   const usingPricedFallback = shedproOptions.length === 0 && !optionsSummary && optionPriceLines.length > 0;
   const woNumber = project?.project_number ? `#${project.project_number}` : `#${String(project?.id || '').slice(0, 8).toUpperCase()}`;
@@ -1719,6 +1732,7 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
         {pricing.licenseFee != null && <MoPriceRow label={`Urban Sheds licensing fee (${pricing.licenseRatePct}%)`} value={fmt(pricing.licenseFee)} />}
         {pricing.laborProfit != null && <MoPriceRow label="Labor, overhead & profit" value={fmt(pricing.laborProfit)} />}
         {pricing.appCalcPrice != null && <MoPriceRow label={<>App calculated price{styleMult != null && <span style={{ color:'#aaa', fontWeight:400 }}> · {styleMult}×</span>}</>} value={fmt(pricing.appCalcPrice)} bold topBorder />}
+        {deposit != null && <MoPriceRow label="Deposit (paid)" value={fmt(deposit)} topBorder />}
         {pricing.hasChangeOrders && (
           <>
             <MoPriceRow label="Sale price · configurator" value={salePriceNum != null ? fmt(salePriceNum) : '—'} topBorder />
