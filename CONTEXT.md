@@ -156,7 +156,11 @@ src/
                                  #work-order-print) showing every relevant detail: customer (name/company/full
                                  mailing address/phone/email, from the embedded contact), builder, shed spec
                                  (size/style/siding/multiplier), selected option packages, ShedPro finishes &
-                                 colors, the **ShedPro itemized options & pricing** list (shedpro_options →
+                                 colors (the **Siding color is paired with its paint price** in the Finishes section —
+                                 `sidingColorPriceFor()` prefers a ShedPro-quoted paint/siding-color line, else the
+                                 app's **"Paint"** package price [the per-shed siding-color charge]; Paint is then
+                                 dropped from the app-priced options list so it isn't listed twice), the **ShedPro
+                                 itemized options & pricing** list (shedpro_options →
                                  "Options & Pricing" table, or the options_summary text fallback, or — when a project
                                  has NEITHER, e.g. one created by hand — an **app-priced fallback**: the selected
                                  option packages priced by buildOutput's pkgGroups[].customerPkgPrice. When that

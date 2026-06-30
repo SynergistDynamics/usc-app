@@ -122,6 +122,21 @@ function composeProjectName({ size, style, number }) {
   return (num ? `${spec} #${num}` : spec).trim();
 }
 
+// The siding-color charge is the "Paint" package (per-shed paint cost), so the work
+// order pairs the siding color with its price. Prefer the ShedPro-quoted line when the
+// quote has one (label mentions paint/siding color), else fall back to the app's Paint
+// package price from the pricing engine. Returns a formatted price string, or null when
+// there's no siding color or no price to show. (Paint is then dropped from the app-priced
+// "Options & Pricing" fallback so it isn't listed twice — see optionPriceLines.)
+const isPaintPkg = name => /paint/i.test(name || '');
+function sidingColorPriceFor(project, shedproOptions, out) {
+  if (!project?.siding_color || !String(project.siding_color).trim()) return null;
+  const quoted = (shedproOptions || []).find(o => /paint|siding\s*color/i.test(o.label || ''));
+  if (quoted && quoted.price != null && String(quoted.price).trim() !== '') return String(quoted.price).trim();
+  const paint = (out?.pkgGroups || []).find(g => g.pkg && isPaintPkg(g.pkg.name));
+  return paint ? fmt(paint.customerPkgPrice || 0) : null;
+}
+
 export default function ProjectDetail({ materials, overrides, packages, pkgMaterials, pkgQuantities, styleMults }) {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -274,13 +289,17 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   // Priced option line items from the app's OWN pricing engine — the fallback for
   // the "Options & Pricing" section when a project has no ShedPro itemized quote
   // (e.g. a project created by hand). Each selected option package shows with its
-  // calculated customer price (incl. any per-package override). Siding/style excluded.
+  // calculated customer price (incl. any per-package override). Siding/style excluded,
+  // and Paint excluded too — it's shown paired with the siding color instead.
   const optionPriceLines = (out?.pkgGroups || [])
-    .filter(g => !g.isSidingPkg && g.pkg && !g.pkg.is_style)
+    .filter(g => !g.isSidingPkg && g.pkg && !g.pkg.is_style && !isPaintPkg(g.pkg.name))
     .map(g => ({
       label: (g.pkgCount || 1) > 1 ? `${g.pkg.name} (×${g.pkgCount})` : g.pkg.name,
       price: fmt(g.customerPkgPrice || 0),
     }));
+
+  // The siding color's paint price, paired with the color on the work order.
+  const sidingColorPrice = sidingColorPriceFor(project, shedproOptions, out);
 
   // ── Pricing breakdown shown at the bottom of the work order ──
   // Material cost is the builder's (priced via their context above). The configurator
@@ -304,7 +323,7 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const woProps = {
     project, contact, title, status, salePrice, notes, cfg, size: cfg?.size,
     styleLabel, styleMult, out, selectedOptions, shedproOptions, optionsSummary,
-    optionPriceLines, monthlyPayment, pricing,
+    optionPriceLines, monthlyPayment, pricing, sidingColorPrice,
   };
 
   return (
@@ -1037,7 +1056,7 @@ function printWorkOrder() {
 // ── Work order document (printable) ───────────────────────────────────────────
 // A formatted work order with every relevant project detail. Rendered on screen
 // inside #work-order-print and copied verbatim into the print window.
-function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, size, styleLabel, styleMult, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, pricing = {}, isMobile }) {
+function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, size, styleLabel, styleMult, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, pricing = {}, sidingColorPrice = null, isMobile }) {
   // Show the at-a-glance pills only when the priced fallback ISN'T standing in for
   // them — otherwise the same options would appear twice (pills + priced lines).
   const usingPricedFallback = shedproOptions.length === 0 && !optionsSummary && optionPriceLines.length > 0;
@@ -1056,10 +1075,14 @@ function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, 
   ].filter(Boolean);
 
   // Finishes & configured options that came from ShedPro (only the ones present).
+  // The siding color is paired with its paint price when we have one.
+  const sidingColorValue = project?.siding_color && sidingColorPrice
+    ? `${project.siding_color} — ${sidingColorPrice}`
+    : project?.siding_color;
   const finishes = [
     ['Siding type', project?.siding_type],
     ['Overhang', project?.overhang_size],
-    ['Siding color', project?.siding_color],
+    ['Siding color', sidingColorValue],
     ['Trim color', project?.trim_color],
     ['Door color', project?.door_color],
     ['Roof color', project?.roof_color],
@@ -1298,7 +1321,7 @@ const woTd = { padding:'5px 0', fontFamily:'DM Sans', fontSize:13, color:C.charc
 // makes the customer's phone/email/address tappable, and stacks the tables. The
 // printable paper doc (WorkOrderDoc) is unchanged — it's still what gets printed
 // or saved to PDF from the sticky "Print / Save" button.
-function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, pricing = {} }) {
+function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, pricing = {}, sidingColorPrice = null }) {
   // Hide the pills when the priced fallback covers the same options (see WorkOrderDoc).
   const usingPricedFallback = shedproOptions.length === 0 && !optionsSummary && optionPriceLines.length > 0;
   const woNumber = project?.project_number ? `#${project.project_number}` : `#${String(project?.id || '').slice(0, 8).toUpperCase()}`;
@@ -1314,10 +1337,13 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
     project?.rendering_url_4, project?.layout_rendering_url,
   ].filter(Boolean);
 
+  const sidingColorValue = project?.siding_color && sidingColorPrice
+    ? `${project.siding_color} — ${sidingColorPrice}`
+    : project?.siding_color;
   const finishes = [
     ['Siding type', project?.siding_type],
     ['Overhang', project?.overhang_size],
-    ['Siding color', project?.siding_color],
+    ['Siding color', sidingColorValue],
     ['Trim color', project?.trim_color],
     ['Door color', project?.door_color],
     ['Roof color', project?.roof_color],
