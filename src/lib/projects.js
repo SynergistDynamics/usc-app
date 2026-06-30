@@ -123,3 +123,26 @@ export async function updateProject(id, fields) {
 export async function deleteProject(id) {
   return supabase.from('projects').delete().eq('id', id);
 }
+
+// Load a specific builder's pricing context (their local material price overrides,
+// per-style multipliers, and sales tax) so a project can be priced AS THAT BUILDER
+// regardless of who's viewing. RLS allows this: material_overrides has an "Admin can
+// read all overrides" SELECT policy, style_multipliers is admin-or-own, and admins
+// can read all profiles — and a builder only ever opens their OWN projects (so
+// userId === themselves). Returns the same shapes App.jsx builds for the viewer:
+// overrides keyed by material_id, styleMults keyed by package_id, salesTax as a string.
+export async function fetchBuilderPricingContext(userId) {
+  if (!userId) return null;
+  const [ovs, mults, prof] = await Promise.all([
+    supabase.from('material_overrides').select('*').eq('user_id', userId),
+    supabase.from('style_multipliers').select('*').eq('user_id', userId),
+    supabase.from('profiles').select('sales_tax').eq('id', userId).maybeSingle(),
+  ]);
+  const error = ovs.error || mults.error || prof.error || null;
+  return {
+    overrides:  Object.fromEntries((ovs.data || []).map(o => [o.material_id, o])),
+    styleMults: Object.fromEntries((mults.data || []).map(s => [s.package_id, s.multiplier])),
+    salesTax:   prof.data?.sales_tax != null ? String(prof.data.sales_tax) : '0',
+    error,
+  };
+}

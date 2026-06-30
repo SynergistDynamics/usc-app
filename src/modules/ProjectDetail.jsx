@@ -28,9 +28,13 @@ import {
 import { useAuth } from '../components/Auth';
 import { buildOutput, ConfigPanel, MaterialsListTab } from './PricingTool';
 import {
-  getProject, updateProject, deleteProject,
+  getProject, updateProject, deleteProject, fetchBuilderPricingContext,
   PROJECT_STATUSES, PROJECT_STATUS_LABELS, PROJECT_MILESTONES, isSoldStatus,
 } from '../lib/projects';
+
+// Urban Sheds Collective licensing fee, taken as a share of the configurator sale
+// price. Shown as its own line in the work order pricing breakdown.
+const USC_LICENSE_FEE_RATE = 0.10; // 10%
 import { assignContact, fetchAssignableBuilders, fetchContacts } from '../lib/contacts';
 import {
   Card, Button, Badge, Input, Select, FormField, Label, Modal,
@@ -124,6 +128,7 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const [showEdit, setShowEdit] = useState(false);
   const [builders, setBuilders] = useState([]);
   const [statusSaving, setStatusSaving] = useState(null); // the status currently being saved (or null)
+  const [builderCtx, setBuilderCtx] = useState(null); // the project owner's pricing context (when not the viewer)
 
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
   useEffect(() => {
@@ -152,6 +157,29 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
     return () => { cancelled = true; };
   }, [id]);
 
+  // Price this project AS ITS BUILDER. Load the project owner's pricing context
+  // (their local material prices, per-style multipliers, sales tax) so the material
+  // cost + app-calculated price reflect that builder — not whoever is viewing. A
+  // builder only ever opens their own projects, so the viewer context already IS
+  // theirs and we skip the fetch; an admin reviewing a builder's project loads it.
+  const ownerId = project?.contact?.user_id || null;
+  useEffect(() => {
+    if (!ownerId || ownerId === profile?.id) return;
+    let cancelled = false;
+    fetchBuilderPricingContext(ownerId).then(ctx => {
+      if (!cancelled && ctx && !ctx.error) setBuilderCtx({ ownerId, ...ctx });
+    });
+    return () => { cancelled = true; };
+  }, [ownerId, profile?.id]);
+
+  // Effective pricing context: the project builder's when loaded for THIS owner,
+  // else the viewer's props (also correct when the viewer IS the owner). Tagging the
+  // loaded context with its ownerId lets us ignore a stale load after switching.
+  const builderPricing = (builderCtx && builderCtx.ownerId === ownerId && ownerId !== profile?.id) ? builderCtx : null;
+  const priceOverrides  = builderPricing?.overrides  ?? overrides;
+  const priceStyleMults = builderPricing?.styleMults ?? styleMults;
+  const priceSalesTax   = builderPricing?.salesTax   ?? salesTax;
+
   // ── Display values derived from the saved project ──
   const cfg = useMemo(() => (project ? toCfg(project, stylePkgs) : null), [project, stylePkgs]);
   const name      = project?.name?.trim() || '';
@@ -159,17 +187,18 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const salePrice = project?.sale_price;
   const notes     = project?.notes || '';
 
-  // Live materials list from the saved config — same engine as the calculator.
+  // Live materials list from the saved config — same engine as the calculator,
+  // priced with the project builder's context (priceOverrides/Mults/SalesTax).
   const out = useMemo(() => {
     if (!cfg) return { hasQty: false };
     return buildOutput({
-      ...cfg, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities,
+      ...cfg, styleMults: priceStyleMults, salesTax: priceSalesTax, materials, overrides: priceOverrides, packages, pkgMaterials, pkgQuantities,
     });
-  }, [cfg, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities]);
+  }, [cfg, priceStyleMults, priceSalesTax, materials, priceOverrides, packages, pkgMaterials, pkgQuantities]);
 
   const stylePkg   = stylePkgs.find(p => p.id === cfg?.stylePkgId);
   const styleLabel = stylePkg?.name || '—';
-  const styleMult  = out.styleMult ?? getStyleMultiplier(styleMults, stylePkg);
+  const styleMult  = out.styleMult ?? getStyleMultiplier(priceStyleMults, stylePkg);
 
   // Advance/set the project status straight from the milestone stepper. Stamps
   // sold_at the first time the project reaches a sold status (same rule as the
@@ -236,11 +265,29 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
       price: fmt(g.customerPkgPrice || 0),
     }));
 
+  // ── Pricing breakdown shown at the bottom of the work order ──
+  // Material cost is the builder's (priced via their context above). The configurator
+  // SALE price is split into Material + USC licensing fee (10% of sale) + Labor/
+  // overhead/profit (the remainder). The "App calculated price" is the app's own
+  // independent number (out.customerPrice) kept alongside so the two can be compared.
+  const salePriceNum = salePrice != null && String(salePrice).trim() !== '' ? parseFloat(salePrice) : null;
+  const materialCost = out?.hasQty ? out.totalMat : null;
+  // The Material + licensing fee + labor breakdown only resolves when we have BOTH a
+  // builder material cost AND a configurator sale price to split.
+  const hasBreakdown = salePriceNum != null && materialCost != null;
+  const licenseFee   = hasBreakdown ? salePriceNum * USC_LICENSE_FEE_RATE : null;
+  const laborProfit  = hasBreakdown ? salePriceNum - materialCost - licenseFee : null;
+  const appCalcPrice = out?.hasQty ? out.customerPrice : null;
+  const pricing = {
+    materialCost, licenseFee, laborProfit, appCalcPrice, salePriceNum,
+    licenseRatePct: Math.round(USC_LICENSE_FEE_RATE * 100),
+  };
+
   // Shared props for both work-order renderings (the paper doc + the mobile view).
   const woProps = {
     project, contact, title, status, salePrice, notes, cfg, size: cfg?.size,
     styleLabel, styleMult, out, selectedOptions, shedproOptions, optionsSummary,
-    optionPriceLines, monthlyPayment,
+    optionPriceLines, monthlyPayment, pricing,
   };
 
   return (
@@ -384,12 +431,12 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
           builders={builders}
           stylePkgs={stylePkgs}
           materials={materials}
-          overrides={overrides}
+          overrides={priceOverrides}
           packages={packages}
           pkgMaterials={pkgMaterials}
           pkgQuantities={pkgQuantities}
-          styleMults={styleMults}
-          salesTax={salesTax}
+          styleMults={priceStyleMults}
+          salesTax={priceSalesTax}
           isMobile={isMobile}
           onClose={() => setShowEdit(false)}
           onSaved={(data) => { setProject(data); setShowEdit(false); setSuccess('Project saved.'); }}
@@ -916,7 +963,7 @@ function printWorkOrder() {
 // ── Work order document (printable) ───────────────────────────────────────────
 // A formatted work order with every relevant project detail. Rendered on screen
 // inside #work-order-print and copied verbatim into the print window.
-function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, isMobile }) {
+function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, size, styleLabel, styleMult, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, pricing = {}, isMobile }) {
   // Show the at-a-glance pills only when the priced fallback ISN'T standing in for
   // them — otherwise the same options would appear twice (pills + priced lines).
   const usingPricedFallback = shedproOptions.length === 0 && !optionsSummary && optionPriceLines.length > 0;
@@ -1093,15 +1140,25 @@ function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, 
       <WoSection title="Pricing" />
       <table style={{ width:'100%', borderCollapse:'collapse', marginBottom: notes && notes.trim() ? 16 : 0 }}>
         <tbody>
-          {out?.hasQty && (
-            <>
-              <tr><td style={woTd}>Material cost</td><td style={{ ...woTd, textAlign:'right', color:'#888' }}>{fmt(out.totalMat)}</td></tr>
-              <tr><td style={woTd}>Labor &amp; profit</td><td style={{ ...woTd, textAlign:'right' }}>{fmt(out.laborProfit)}</td></tr>
-              <tr><td style={woTd}>Calculated price</td><td style={{ ...woTd, textAlign:'right', fontWeight:600 }}>{fmt(out.customerPrice)}</td></tr>
-            </>
+          {pricing.materialCost != null && (
+            <tr><td style={woTd}>Material cost <span style={{ color:'#aaa', fontSize:11 }}>(builder’s local prices)</span></td><td style={{ ...woTd, textAlign:'right', color:'#888' }}>{fmt(pricing.materialCost)}</td></tr>
+          )}
+          {pricing.licenseFee != null && (
+            <tr><td style={woTd}>Urban Sheds licensing fee ({pricing.licenseRatePct}%)</td><td style={{ ...woTd, textAlign:'right' }}>{fmt(pricing.licenseFee)}</td></tr>
+          )}
+          {pricing.laborProfit != null && (
+            <tr><td style={woTd}>Labor, overhead &amp; profit</td><td style={{ ...woTd, textAlign:'right' }}>{fmt(pricing.laborProfit)}</td></tr>
+          )}
+          {pricing.appCalcPrice != null && (
+            <tr style={{ borderTop:`1px solid ${C.linen}` }}>
+              <td style={{ ...woTd, fontWeight:600 }}>App calculated price</td>
+              <td style={{ ...woTd, textAlign:'right', fontWeight:600 }}>{fmt(pricing.appCalcPrice)}</td>
+            </tr>
           )}
           <tr style={{ borderTop:`1.5px solid ${C.linenDarker}` }}>
-            <td style={{ padding:'8px 0 0', fontFamily:'Cormorant Garamond, serif', fontSize:20, color:C.charcoal }}>Sale price</td>
+            <td style={{ padding:'8px 0 0', fontFamily:'Cormorant Garamond, serif', fontSize:20, color:C.charcoal }}>
+              Sale price <span style={{ fontFamily:'DM Sans', fontSize:11, fontWeight:400, color:'#999' }}>· configurator</span>
+            </td>
             <td style={{ padding:'8px 0 0', fontFamily:'Cormorant Garamond, serif', fontSize:24, fontWeight:700, color:C.sage, textAlign:'right' }}>
               {salePriceNum != null ? fmt(salePriceNum) : '—'}
             </td>
@@ -1166,7 +1223,7 @@ const woTd = { padding:'5px 0', fontFamily:'DM Sans', fontSize:13, color:C.charc
 // makes the customer's phone/email/address tappable, and stacks the tables. The
 // printable paper doc (WorkOrderDoc) is unchanged — it's still what gets printed
 // or saved to PDF from the sticky "Print / Save" button.
-function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment }) {
+function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, pricing = {} }) {
   // Hide the pills when the priced fallback covers the same options (see WorkOrderDoc).
   const usingPricedFallback = shedproOptions.length === 0 && !optionsSummary && optionPriceLines.length > 0;
   const woNumber = project?.project_number ? `#${project.project_number}` : `#${String(project?.id || '').slice(0, 8).toUpperCase()}`;
@@ -1222,7 +1279,7 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
           <div style={{ fontFamily:'DM Sans', fontSize:12.5, color:C.inkLight, marginTop:2 }}>or from {fmt(monthly)}/mo with financing</div>
         )}
         {out?.hasQty && (
-          <div style={{ fontFamily:'DM Sans', fontSize:12, color:'#8C8478', marginTop:6 }}>Calculated price {fmt(out.customerPrice)}</div>
+          <div style={{ fontFamily:'DM Sans', fontSize:12, color:'#8C8478', marginTop:6 }}>App calculated price {fmt(out.customerPrice)}</div>
         )}
       </div>
 
@@ -1312,15 +1369,14 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
 
       {/* Pricing summary */}
       <MoSection title="Pricing">
-        {out?.hasQty && (
-          <>
-            <MoPriceRow label="Material cost" value={fmt(out.totalMat)} muted />
-            <MoPriceRow label="Labor & profit" value={fmt(out.laborProfit)} />
-            <MoPriceRow label="Calculated price" value={fmt(out.customerPrice)} bold />
-          </>
-        )}
+        {pricing.materialCost != null && <MoPriceRow label="Material cost" value={fmt(pricing.materialCost)} muted />}
+        {pricing.licenseFee != null && <MoPriceRow label={`Urban Sheds licensing fee (${pricing.licenseRatePct}%)`} value={fmt(pricing.licenseFee)} />}
+        {pricing.laborProfit != null && <MoPriceRow label="Labor, overhead & profit" value={fmt(pricing.laborProfit)} />}
+        {pricing.appCalcPrice != null && <MoPriceRow label="App calculated price" value={fmt(pricing.appCalcPrice)} bold topBorder />}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginTop:8, paddingTop:10, borderTop:`1.5px solid ${C.linenDarker}` }}>
-          <span style={{ fontFamily:'Cormorant Garamond, serif', fontSize:20, color:C.charcoal }}>Sale price</span>
+          <span style={{ fontFamily:'Cormorant Garamond, serif', fontSize:20, color:C.charcoal }}>
+            Sale price <span style={{ fontFamily:'DM Sans', fontSize:10.5, fontWeight:400, color:'#999' }}>· configurator</span>
+          </span>
           <span style={{ fontFamily:'Cormorant Garamond, serif', fontSize:26, fontWeight:700, color:C.sage }}>{salePriceNum != null ? fmt(salePriceNum) : '—'}</span>
         </div>
         {monthly != null && (
@@ -1354,10 +1410,10 @@ function MoSection({ title, children, last }) {
   );
 }
 
-function MoPriceRow({ label, value, muted, bold }) {
+function MoPriceRow({ label, value, muted, bold, topBorder }) {
   return (
-    <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontFamily:'DM Sans', fontSize:13.5, color: muted ? '#8C8478' : C.charcoal, fontWeight: bold ? 600 : 400 }}>
-      <span>{label}</span><span>{value}</span>
+    <div style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'6px 0', fontFamily:'DM Sans', fontSize:13.5, color: muted ? '#8C8478' : C.charcoal, fontWeight: bold ? 600 : 400, borderTop: topBorder ? `1px solid ${C.linen}` : 'none', marginTop: topBorder ? 4 : 0, paddingTop: topBorder ? 9 : 6 }}>
+      <span>{label}</span><span style={{ whiteSpace:'nowrap' }}>{value}</span>
     </div>
   );
 }

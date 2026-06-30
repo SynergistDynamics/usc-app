@@ -148,8 +148,8 @@ src/
                                  has NEITHER, e.g. one created by hand — an **app-priced fallback**: the selected
                                  option packages priced by buildOutput's pkgGroups[].customerPkgPrice. When that
                                  app-priced fallback is what's showing, the plain "Options & Add-ons" pills are hidden
-                                 so the same options don't appear twice), renderings,
-                                 pricing (material/labor/calc + sale price + "from $X/mo" financing) and notes. A
+                                 so the same options don't appear twice), renderings, and a **pricing breakdown** (see
+                                 below) + notes. A
                                  "🖨 Print work order" button prints it. **Printing now uses a hidden IFRAME** (copies
                                  the #work-order-print innerHTML into the iframe and calls iframe.print()) instead of
                                  window.open — popups are blocked / print unreliably on mobile Safari, the iframe avoids
@@ -157,6 +157,23 @@ src/
                                • "Materials List" — READ-ONLY. Shows the live materials list generated from the
                                  spec via PricingTool's exported MaterialsListTab + buildOutput (one engine). No
                                  config controls here (an "Edit the spec" link opens the edit modal).
+                               **PRICING — priced AS THE PROJECT'S BUILDER (2026-06-30).** The whole page (work order
+                               pricing + Materials List) is run through buildOutput with the **project owner's** pricing
+                               context, NOT the viewer's: `fetchBuilderPricingContext(ownerId)` (lib/projects.js) loads
+                               that builder's material_overrides + style_multipliers + profiles.sales_tax and feeds them
+                               as overrides/styleMults/salesTax. RLS allows it (material_overrides has an "Admin can read
+                               all overrides" SELECT policy; style_multipliers is admin-or-own; admins read all profiles)
+                               — and a builder only ever opens their OWN projects, so the viewer context already IS theirs
+                               (the fetch is skipped when ownerId === viewer or there's no owner). The loaded ctx is tagged
+                               with its ownerId so a stale load is ignored after navigating. The same effective context is
+                               passed to EditProjectModal so its "Use calc" matches. The work order's **Pricing section**
+                               breaks the **configurator SALE price** into: **Material cost** (builder's local prices) +
+                               **Urban Sheds licensing fee** (`USC_LICENSE_FEE_RATE` = 10% of the sale price) + **Labor,
+                               overhead & profit** (= sale − material − fee). Below that sits the **App calculated price**
+                               (buildOutput's own customerPrice — the app's independent number, kept alongside so the two
+                               can be COMPARED; ideally they match), then the large green **Sale price (configurator)** and
+                               the "or from $X/mo" financing line. The Material+fee+labor breakdown only renders when there's
+                               BOTH a material cost (hasQty) and a sale price; app-calc shows whenever hasQty.
                                EDITING — an "✎ Edit project" button (header + footer) opens **EditProjectModal**:
                                a **Contact** picker (link/change/unlink the project's contact — ContactPicker
                                loads contacts lazily on first expand, RLS-scoped), name, status, sale price,
@@ -243,7 +260,9 @@ src/
   lib/projects.js            — Projects data/service layer (fetchProjects w/ 1000-row paging + soldOnly filter;
                                soldOnly sorts most-recently-sold first — sold_at desc, unknown sold dates last, then
                                created_at desc — while the all-projects view sorts created_at desc;
-                               fetchProjectsForContact, get, create, update, delete) + PROJECT_STATUSES /
+                               fetchProjectsForContact, get, create, update, delete; **fetchBuilderPricingContext(userId)**
+                               — loads a builder's material_overrides + style_multipliers + sales_tax so a project can be
+                               priced as that builder, see ProjectDetail PRICING) + PROJECT_STATUSES /
                                LABELS / COLORS, SOLD_STATUSES, isSoldStatus. Embeds the parent contact — incl.
                                full contact details (phone, address, city, state, zip) so ProjectDetail can
                                render a complete work order — plus its owner profile, and the style package name.
