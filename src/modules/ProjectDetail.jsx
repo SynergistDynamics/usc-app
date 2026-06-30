@@ -276,14 +276,19 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const salePrice = project?.sale_price;
   const notes     = project?.notes || '';
 
+  // A manually-added project (source not from ShedPro) is priced ONLY from the entered
+  // price overrides — base/siding/options with no price show $0, not the app-calculated
+  // material×multiplier number. ShedPro-synced projects keep the calculated comparison.
+  const manualPricing = project ? (project.source !== 'shedpro' && project.source !== 'zapier') : false;
+
   // Live materials list from the saved config — same engine as the calculator,
   // priced with the project builder's context (priceOverrides/Mults/SalesTax).
   const out = useMemo(() => {
     if (!cfg) return { hasQty: false };
     return buildOutput({
-      ...cfg, styleMults: priceStyleMults, salesTax: priceSalesTax, materials, overrides: priceOverrides, packages, pkgMaterials, pkgQuantities,
+      ...cfg, styleMults: priceStyleMults, salesTax: priceSalesTax, materials, overrides: priceOverrides, packages, pkgMaterials, pkgQuantities, overridesOnly: manualPricing,
     });
-  }, [cfg, priceStyleMults, priceSalesTax, materials, priceOverrides, packages, pkgMaterials, pkgQuantities]);
+  }, [cfg, priceStyleMults, priceSalesTax, materials, priceOverrides, packages, pkgMaterials, pkgQuantities, manualPricing]);
 
   const stylePkg   = stylePkgs.find(p => p.id === cfg?.stylePkgId);
   const styleLabel = stylePkg?.name || '—';
@@ -391,7 +396,7 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
     : null;
 
   const pricing = {
-    materialCost, licenseFee, laborProfit, appCalcPrice, salePriceNum,
+    materialCost, licenseFee, laborProfit, appCalcPrice, salePriceNum, overridesOnly: manualPricing,
     licenseRatePct: Math.round(USC_LICENSE_FEE_RATE * 100),
     changeOrdersTotal, hasChangeOrders, finalTotal,
   };
@@ -1406,7 +1411,7 @@ function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, 
           )}
           {pricing.appCalcPrice != null && (
             <tr style={{ borderTop:`1px solid ${C.linen}` }}>
-              <td style={{ ...woTd, fontWeight:600 }}>App calculated price</td>
+              <td style={{ ...woTd, fontWeight:600 }}>{pricing.overridesOnly ? 'Itemized total' : 'App calculated price'}</td>
               <td style={{ ...woTd, textAlign:'right', fontWeight:600 }}>{fmt(pricing.appCalcPrice)}</td>
             </tr>
           )}
@@ -1569,7 +1574,7 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
           <div style={{ fontFamily:'DM Sans', fontSize:12.5, color:C.inkLight, marginTop:2 }}>or from {fmt(monthly)}/mo with financing</div>
         )}
         {out?.hasQty && (
-          <div style={{ fontFamily:'DM Sans', fontSize:12, color:'#8C8478', marginTop:6 }}>App calculated price {fmt(out.customerPrice)}</div>
+          <div style={{ fontFamily:'DM Sans', fontSize:12, color:'#8C8478', marginTop:6 }}>{pricing.overridesOnly ? 'Itemized total' : 'App calculated price'} {fmt(out.customerPrice)}</div>
         )}
       </div>
 
@@ -1681,7 +1686,7 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
         {pricing.materialCost != null && <MoPriceRow label="Material cost" value={fmt(pricing.materialCost)} muted />}
         {pricing.licenseFee != null && <MoPriceRow label={`Urban Sheds licensing fee (${pricing.licenseRatePct}%)`} value={fmt(pricing.licenseFee)} />}
         {pricing.laborProfit != null && <MoPriceRow label="Labor, overhead & profit" value={fmt(pricing.laborProfit)} />}
-        {pricing.appCalcPrice != null && <MoPriceRow label="App calculated price" value={fmt(pricing.appCalcPrice)} bold topBorder />}
+        {pricing.appCalcPrice != null && <MoPriceRow label={pricing.overridesOnly ? 'Itemized total' : 'App calculated price'} value={fmt(pricing.appCalcPrice)} bold topBorder />}
         {pricing.hasChangeOrders && (
           <>
             <MoPriceRow label="Sale price · configurator" value={salePriceNum != null ? fmt(salePriceNum) : '—'} topBorder />

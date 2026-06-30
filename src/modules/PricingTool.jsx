@@ -21,7 +21,10 @@ function parsePkgOverride(v) {
 
 // Exported so the Projects feature can render the same materials list from a
 // saved project's config (ProjectDetail.jsx) — same engine, one source of truth.
-export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrides, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities }) {
+// `overridesOnly` (used for a manually-added project's work order): customer prices come
+// ONLY from the entered price overrides — base/siding/options with no override price are
+// $0, with NO material×multiplier or flat_rate fallback. Material costs are unaffected.
+export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrides, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities, overridesOnly = false }) {
   const taxMult = 1 + (parseFloat(salesTax) || 0) / 100;
   const matById = Object.fromEntries(materials.map(m => {
     const r = applyOverride(m, overrides);
@@ -66,17 +69,19 @@ export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrid
   }
   const styleMult    = getStyleMultiplier(styleMults, stylePkg);
   // A manually-set base price (ShedPro) overrides the calculated base × multiplier.
+  // In overridesOnly mode an unset base price is $0 (no material×multiplier fallback).
   const baseOverride = parsePkgOverride(pkgOverrides?.[BASE_PRICE_KEY]);
-  const baseCustomer = baseOverride != null ? baseOverride : baseCost * styleMult;
+  const baseCustomer = baseOverride != null ? baseOverride : (overridesOnly ? 0 : baseCost * styleMult);
 
   // ── Siding (package-backed) ──────────────────────────────
   // A manually-set siding price (ShedPro) overrides the calculated/quote price.
   const sidingOverride = parsePkgOverride(pkgOverrides?.[SIDING_PRICE_KEY]);
   if (siding === 'Western Red Cedar') {
-    if (sidingOverride != null) {
-      lineItems.push({ group:'Siding', isSidingPkgTotal:true, name:'Western Red Cedar (set price)', sidingMatCost:0, sidingPkgPrice:sidingOverride });
-      pkgGroups.push({ pkg:{ id:SIDING_PRICE_KEY, name:'Western Red Cedar' }, customerPkgPrice:sidingOverride, materialCost:0, subItems:[], hasFlat:true, isSidingPkg:true });
-      pkgCost += sidingOverride;
+    if (sidingOverride != null || overridesOnly) {
+      const wrcPrice = sidingOverride ?? 0;
+      lineItems.push({ group:'Siding', isSidingPkgTotal:true, name:'Western Red Cedar (set price)', sidingMatCost:0, sidingPkgPrice:wrcPrice });
+      pkgGroups.push({ pkg:{ id:SIDING_PRICE_KEY, name:'Western Red Cedar' }, customerPkgPrice:wrcPrice, materialCost:0, subItems:[], hasFlat:true, isSidingPkg:true });
+      pkgCost += wrcPrice;
     } else {
       lineItems.push({ group:'Siding', name:'Western Red Cedar', qty:'—', unitPrice:'—', total:0, quote:true });
       addCatLine('Siding', 'Western Red Cedar', 0, 0, 0, '', true);
@@ -94,18 +99,19 @@ export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrid
         return { name:mat.name, qty, unitPrice:mat.price, total:qty*mat.price, fn:addFn(mat.url) };
       }).filter(Boolean);
       const sidingMatCost  = subItems.reduce((a,b) => a+b.total, 0);
-      const sidingPkgPrice = sidingOverride != null ? sidingOverride : sidingMatCost * (sidingPkg.multiplier ?? 1);
+      const sidingPkgPrice = sidingOverride != null ? sidingOverride : (overridesOnly ? 0 : sidingMatCost * (sidingPkg.multiplier ?? 1));
       subItems.forEach(sub => {
         lineItems.push({ group:'Siding', name:sub.name, qty:sub.qty, unitPrice:sub.unitPrice, total:sub.total, isSidingComponent:true });
       });
-      lineItems.push({ group:'Siding', isSidingPkgTotal:true, name: sidingOverride != null ? `${sidingPkg.name} (set price)` : `${sidingPkg.name} (${sidingPkg.multiplier}× multiplier)`, sidingMatCost, sidingPkgPrice });
+      lineItems.push({ group:'Siding', isSidingPkgTotal:true, name: (sidingOverride != null || overridesOnly) ? `${sidingPkg.name} (set price)` : `${sidingPkg.name} (${sidingPkg.multiplier}× multiplier)`, sidingMatCost, sidingPkgPrice });
       pkgGroups.push({ pkg:sidingPkg, customerPkgPrice:sidingPkgPrice, materialCost:sidingMatCost, subItems, hasFlat:false, isSidingPkg:true });
       pkgCost    += sidingPkgPrice;
       pkgMatCost += sidingMatCost;
-    } else if (sidingOverride != null) {
-      lineItems.push({ group:'Siding', isSidingPkgTotal:true, name:`${siding} (set price)`, sidingMatCost:0, sidingPkgPrice:sidingOverride });
-      pkgGroups.push({ pkg:{ id:SIDING_PRICE_KEY, name:siding }, customerPkgPrice:sidingOverride, materialCost:0, subItems:[], hasFlat:true, isSidingPkg:true });
-      pkgCost += sidingOverride;
+    } else if (sidingOverride != null || overridesOnly) {
+      const sPrice = sidingOverride ?? 0;
+      lineItems.push({ group:'Siding', isSidingPkgTotal:true, name:`${siding} (set price)`, sidingMatCost:0, sidingPkgPrice:sPrice });
+      pkgGroups.push({ pkg:{ id:SIDING_PRICE_KEY, name:siding }, customerPkgPrice:sPrice, materialCost:0, subItems:[], hasFlat:true, isSidingPkg:true });
+      pkgCost += sPrice;
     } else {
       lineItems.push({ group:'Siding', name:`${siding} (no siding package configured)`, qty:'—', unitPrice:'—', total:0, quote:true });
       addCatLine('Siding', `${siding} (no siding package configured)`, 0, 0, 0, '', true);
@@ -116,11 +122,8 @@ export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrid
   for (const pkg of regularPkgs) {
     const pkgCount = selectedPkgs[pkg.id] || 0;
     if (!pkgCount) continue;
-    const overrideVal = pkgOverrides[pkg.id];
-    // Override is a per-unit price (e.g. the ShedPro option price); tolerate $/commas.
-    const useFlat     = overrideVal !== undefined && String(overrideVal).trim() !== ''
-      ? parseFloat(String(overrideVal).replace(/[^0-9.\-]/g, ''))
-      : pkg.flat_rate;
+    // Per-unit price override (e.g. the ShedPro option price); tolerates $/commas.
+    const overrideNum = parsePkgOverride(pkgOverrides[pkg.id]);
     const components  = pkgMaterials.filter(pm => pm.package_id === pkg.id);
 
     // Scale sub-item quantities by pkgCount
@@ -135,12 +138,17 @@ export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrid
 
     const materialCost = subItems.reduce((a,b) => a+b.total, 0);
     const calculatedUnit = materialCost / pkgCount * (pkg.multiplier ?? 1); // per-unit before flat override
-    const unitPrice = (useFlat != null && !isNaN(useFlat)) ? useFlat : (materialCost / pkgCount) * (pkg.multiplier ?? 1);
+    // overridesOnly: the price is the override or $0 (no flat_rate / material fallback).
+    const useFlat = overrideNum != null ? overrideNum : (overridesOnly ? null : pkg.flat_rate);
+    const unitPrice = overridesOnly
+      ? (overrideNum != null ? overrideNum : 0)
+      : ((useFlat != null && !isNaN(useFlat)) ? useFlat : (materialCost / pkgCount) * (pkg.multiplier ?? 1));
+    const hasFlat = overridesOnly ? (overrideNum != null) : (useFlat != null && !isNaN(useFlat));
     const customerPkgPrice = unitPrice * pkgCount;
     const label = pkgCount > 1 ? `${pkg.name} (×${pkgCount})` : pkg.name;
 
-    lineItems.push({ group:'Package', name:label, qty:pkgCount, customerPkgPrice, calculated:calculatedUnit*pkgCount, materialCost, hasFlat:useFlat!=null&&!isNaN(useFlat), subItems, pkgId:pkg.id });
-    pkgGroups.push({ pkg, customerPkgPrice, materialCost, subItems, hasFlat:useFlat!=null&&!isNaN(useFlat), pkgCount });
+    lineItems.push({ group:'Package', name:label, qty:pkgCount, customerPkgPrice, calculated:calculatedUnit*pkgCount, materialCost, hasFlat, subItems, pkgId:pkg.id });
+    pkgGroups.push({ pkg, customerPkgPrice, materialCost, subItems, hasFlat, pkgCount });
     pkgCost    += customerPkgPrice;
     pkgMatCost += materialCost;
   }

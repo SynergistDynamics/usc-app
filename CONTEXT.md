@@ -195,7 +195,15 @@ src/
                                **Urban Sheds licensing fee** (`USC_LICENSE_FEE_RATE` = 10% of the sale price) + **Labor,
                                overhead & profit** (= sale − material − fee). Below that sits the **App calculated price**
                                (buildOutput's own customerPrice — the app's independent number, kept alongside so the two
-                               can be COMPARED; ideally they match). **When the project has NO change orders**, the large
+                               can be COMPARED; ideally they match). **PRICING SOURCE depends on the project's origin
+                               (2026-06-30):** a **ShedPro-synced** project (`source` shedpro/zapier) prices base/siding/
+                               options from the app's material×multiplier calc as before. A **manually-added** project
+                               (`source='manual'`, the default) is priced **overrides-only** — buildOutput is called with
+                               `overridesOnly:true`, so base/siding/options show ONLY their entered price override and
+                               anything left blank is **$0** (no material/flat-rate fallback). For those, the "App
+                               calculated price" line is relabeled **"Itemized total"** (it's the sum of what was entered).
+                               This is why the Specification-tab `$` price fields exist — a hand-added project carries the
+                               ShedPro prices and the work order shows exactly those (or $0). **When the project has NO change orders**, the large
                                green number is the **Sale price (configurator)**. **When it has change orders**, the sale
                                price stays visible as a line, a **Change orders** subtotal (+$X, summed from change_orders
                                prices via `parsePriceNum`) is added, and the large green number becomes the **Final total ·
