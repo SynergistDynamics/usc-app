@@ -186,14 +186,22 @@ src/
                                BOTH a material cost (hasQty) and a sale price; app-calc shows whenever hasQty.
                                EDITING — an "✎ Edit project" button (header + footer) opens **EditProjectModal**:
                                a **Contact** picker (link/change/unlink the project's contact — ContactPicker
-                               loads contacts lazily on first expand, RLS-scoped), name, status, sale price,
+                               loads contacts lazily on first expand, RLS-scoped), status, sale price,
                                notes, the shed spec (PricingTool's ConfigPanel: size, style, siding, option
-                               packages), and — for **admins** — an "Assigned builder" dropdown. A collapsible
-                               **"Work order details"** section edits EVERY other field the work order shows: the
-                               5 rendering/image URLs (rendering_url_1..4 + layout_rendering_url), the 16 ShedPro
-                               **colors & finishes** text fields (siding_type/overhang_size/siding_color/trim_color/
-                               door_color/roof_color/doors/windows/vents/roof/floor/transom_package/site_prep/
-                               building_permit/access/additional_features), **quote details** (project_number,
+                               packages), and — for **admins** — an "Assigned builder" dropdown. **The project NAME
+                               is NOT an editable field** — it's BUILT from the shed data as `{size} {style desc}
+                               #{order#}` (e.g. "4x8 Tall Modern #5860") by `composeProjectName(...)`, shown read-only
+                               at the top of the modal (and used for the page title), and saved to `projects.name` on
+                               Save so lists/search stay in sync. The style description prefers the raw ShedPro
+                               `shed_style` text, falling back to the style package name for hand-made projects.
+                               Right below the spec sits an always-visible **"Options & finishes"** group — the 12
+                               material/pricing-related text fields (siding_type/overhang_size/doors/windows/vents/
+                               roof/floor/transom_package/site_prep/building_permit/access/additional_features),
+                               kept UP with the spec because they tie to the materials & pricing. A collapsible
+                               **"Work order details"** section edits the rest of what the work order shows: the
+                               5 rendering/image URLs (rendering_url_1..4 + layout_rendering_url), the 4 cosmetic
+                               **Colors** text fields (siding_color/trim_color/door_color/roof_color — these don't
+                               affect price), **quote details** (project_number,
                                monthly_payment [numeric], construction_date [date], options_summary), and an
                                **editable line-item table** for the itemized `shedpro_options` (jsonb — add/remove
                                rows of label/detail/price; sent as an array since the column is NOT NULL DEFAULT

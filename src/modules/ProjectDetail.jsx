@@ -46,16 +46,26 @@ const TABS = [['work-order', 'Work Order'], ['materials', 'Materials List']];
 
 // Editable ShedPro-sourced fields on a project (all `text` columns). These appear
 // on the work order; the Edit modal lets you change them by hand. [column, label].
-const FINISH_FIELDS = [
+//
+// Two groups, because they're edited in different parts of the modal:
+//  • OPTION_FIELDS — configured options/finishes that tie to the materials &
+//    pricing (vents, floor, doors, site prep, …). Edited UP near the shed spec so
+//    they sit with the options that drive material cost.
+//  • COLOR_FIELDS — cosmetic colors that do NOT affect price. Edited lower down in
+//    the work-order details section.
+const OPTION_FIELDS = [
   ['siding_type', 'Siding type'],   ['overhang_size', 'Overhang'],
-  ['siding_color', 'Siding color'], ['trim_color', 'Trim color'],
-  ['door_color', 'Door color'],     ['roof_color', 'Roof color'],
   ['doors', 'Doors'],               ['windows', 'Windows'],
   ['vents', 'Vents'],               ['roof', 'Roof'],
   ['floor', 'Floor'],               ['transom_package', 'Transom'],
   ['site_prep', 'Site prep'],       ['building_permit', 'Building permit'],
   ['access', 'Access'],             ['additional_features', 'Additional features'],
 ];
+const COLOR_FIELDS = [
+  ['siding_color', 'Siding color'], ['trim_color', 'Trim color'],
+  ['door_color', 'Door color'],     ['roof_color', 'Roof color'],
+];
+const FINISH_FIELDS = [...OPTION_FIELDS, ...COLOR_FIELDS];
 const RENDER_FIELDS = [
   ['perspective_rendering_url', 'Perspective URL (shown on cards)'],
   ['rendering_url_1', 'Front URL'], ['rendering_url_2', 'Left URL'],
@@ -107,6 +117,17 @@ function toCfg(project, stylePkgs) {
     selectedPkgs: project.selected_packages || {},
     pkgOverrides: project.package_overrides || {},
   };
+}
+
+// A project's name is BUILT from its shed data — size + style description + order #
+// (e.g. "4x8 Tall Modern #5860") — not typed by hand, so it stays in sync with the
+// spec. The style description prefers the raw ShedPro `shed_style` text, falling back
+// to the style package name for hand-made projects. Used for the page title and saved
+// to projects.name so lists/search stay consistent.
+function composeProjectName({ size, style, number }) {
+  const spec = [size, style].map(v => (v == null ? '' : String(v).trim())).filter(Boolean).join(' ');
+  const num  = String(number ?? '').trim();
+  return (num ? `${spec} #${num}` : spec).trim();
 }
 
 export default function ProjectDetail({ materials, overrides, packages, pkgMaterials, pkgQuantities, styleMults }) {
@@ -242,7 +263,10 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const contact = project?.contact;
   const contactName = contact?.full_name || contact?.company_name || contact?.email || 'a contact';
   const ownerName = contact?.owner?.full_name || contact?.owner?.email || null;
-  const title = name || 'Untitled project';
+  // Name is built from the shed data (size + style + order #), not the stored text.
+  const styleDesc = project?.shed_style?.trim() || (styleLabel !== '—' ? styleLabel : '');
+  const title = composeProjectName({ size: cfg?.size, style: styleDesc, number: project?.project_number })
+    || name || 'Untitled project';
 
   // Selected option packages (name + count) for the work order, in package order.
   const selectedOptions = (packages || [])
@@ -555,7 +579,6 @@ function StatusMilestones({ status, saving, onPick, isMobile }) {
 // project ownership is derived from the contact, so this changes the builder for
 // ALL of that contact's projects, not just this one (flagged in the UI).
 function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, overrides, packages, pkgMaterials, pkgQuantities, styleMults, salesTax, isMobile, onClose, onSaved }) {
-  const [name,      setName]      = useState(project.name || '');
   const [status,    setStatus]    = useState(project.status || 'draft');
   const [salePrice, setSalePrice] = useState(project.sale_price != null ? String(project.sale_price) : '');
   const [notes,     setNotes]     = useState(project.notes || '');
@@ -601,6 +624,14 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
     ...cfg, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities,
   }), [cfg, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities]);
 
+  // The name is BUILT from the draft shed data (size + style + order #), not typed —
+  // so it updates live as you change the spec and is what gets saved to projects.name.
+  const derivedName = useMemo(() => {
+    const stylePkg  = stylePkgs.find(p => p.id === cfg.stylePkgId);
+    const styleDesc = project.shed_style?.trim() || stylePkg?.name || '';
+    return composeProjectName({ size: cfg.size, style: styleDesc, number: details.project_number });
+  }, [cfg.stylePkgId, cfg.size, details.project_number, project.shed_style, stylePkgs]);
+
   // The "Assigned builder" control only applies when keeping the SAME contact — if
   // you're switching the linked contact, the builder follows the new contact's owner.
   const canAssign = isAdmin && !!contactId && contactId === origContactId;
@@ -626,7 +657,7 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
 
     const payload = {
       contact_id: contactId || null,
-      name: name.trim() || null,
+      name: derivedName || null,
       status,
       sale_price: salePrice.trim() === '' ? null : parseFloat(salePrice),
       notes: notes.trim() || null,
@@ -667,10 +698,18 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
         )}
       </FormField>
 
+      {/* Project name is built automatically from the shed data (size + style +
+          order #), so there's no name field — this just shows what it'll be. */}
+      <FormField label="Project name" style={{ marginBottom:16 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', minHeight:38, padding:'8px 12px', border:`1.5px solid ${C.linenDarker}`, borderRadius:4, background:C.linen }}>
+          <span style={{ fontFamily:'DM Sans', fontSize:14, fontWeight:600, color: derivedName ? C.charcoal : '#999' }}>
+            {derivedName || 'Set the size, style and order # below'}
+          </span>
+          <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sand }}>built from the shed data</span>
+        </div>
+      </FormField>
+
       <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:16 }}>
-        <FormField label="Project name" style={{ marginBottom:0 }}>
-          <Input value={name} onChange={setName} placeholder="e.g. 10x12 Modern — backyard office" autoFocus />
-        </FormField>
         <FormField label="Status" style={{ marginBottom:0 }}>
           <Select value={status} onChange={setStatus} options={STATUS_OPTIONS} />
         </FormField>
@@ -727,14 +766,29 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
         <ConfigPanel cfg={cfg} setCfg={setCfg} packages={packages} />
       </div>
 
+      {/* Options & finishes that connect to the materials/pricing (vents, floor,
+          doors, site prep, …) — kept up here with the spec, not down with the
+          cosmetic colors. */}
+      <div style={{ marginTop:20 }}>
+        <EditSubLabel>Options &amp; finishes</EditSubLabel>
+        <p style={editHint}>Configured options shown on the work order — these tie to the materials &amp; pricing.</p>
+        <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:14 }}>
+          {OPTION_FIELDS.map(([k, label]) => (
+            <FormField key={k} label={label} style={{ marginBottom:0 }}>
+              <Input value={details[k]} onChange={v => setDetail(k, v)} />
+            </FormField>
+          ))}
+        </div>
+      </div>
+
       {/* Work order details — every other field the work order shows (renderings,
-          colors & finishes, quote details, and the itemized line items). Collapsed
+          colors, quote details, and the itemized line items). Collapsed
           by default on a project that has none of this yet. */}
       <div style={{ borderTop:`1px solid ${C.linenDarker}`, margin:'20px 0 14px' }} />
       <button type="button" onClick={() => setShowWoDetails(v => !v)}
         style={{ display:'flex', alignItems:'center', gap:8, background:'none', border:'none', padding:0, cursor:'pointer', fontFamily:'DM Sans', fontSize:13, fontWeight:700, color:C.charcoal }}>
         <span style={{ color:C.sage, fontSize:11 }}>{showWoDetails ? '▼' : '▶'}</span>
-        Work order details — renderings, colors, finishes, line items
+        Work order details — renderings, colors, line items
       </button>
 
       {showWoDetails && (
@@ -750,10 +804,11 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
             ))}
           </div>
 
-          {/* Colors & finishes */}
-          <EditSubLabel>Colors &amp; finishes</EditSubLabel>
+          {/* Colors — cosmetic only, don't affect price (options live up by the spec). */}
+          <EditSubLabel>Colors</EditSubLabel>
+          <p style={editHint}>Cosmetic finishes — these don’t change the price.</p>
           <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:14, marginBottom:20 }}>
-            {FINISH_FIELDS.map(([k, label]) => (
+            {COLOR_FIELDS.map(([k, label]) => (
               <FormField key={k} label={label} style={{ marginBottom:0 }}>
                 <Input value={details[k]} onChange={v => setDetail(k, v)} />
               </FormField>
