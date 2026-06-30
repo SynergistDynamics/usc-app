@@ -648,7 +648,6 @@ function ConstructionDateCard({ project, onSaved, isMobile }) {
 function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, overrides, packages, pkgMaterials, pkgQuantities, styleMults, salesTax, isMobile, onClose, onSaved }) {
   const [status,    setStatus]    = useState(project.status || 'draft');
   const [salePrice, setSalePrice] = useState(project.sale_price != null ? String(project.sale_price) : '');
-  const [notes,     setNotes]     = useState(project.notes || '');
   const [cfg,       setCfg]       = useState(toCfg(project, stylePkgs));
   const origOwner = project.contact?.user_id || '';
   const [builderId, setBuilderId] = useState(origOwner);
@@ -683,11 +682,6 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
     normalizeShedproOptions(project.shedpro_options).length > 0
     || DETAIL_TEXT_KEYS.some(k => String(project[k] ?? '').trim() !== '')
   );
-
-  // Live price from the DRAFT spec so "Use calc" reflects unsaved changes.
-  const out = useMemo(() => buildOutput({
-    ...cfg, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities,
-  }), [cfg, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities]);
 
   // The name is BUILT from the draft shed data (size + style + order #), not typed —
   // so it updates live as you change the spec and is what gets saved to projects.name.
@@ -724,7 +718,6 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
       name: derivedName || null,
       status,
       sale_price: salePrice.trim() === '' ? null : parseFloat(salePrice),
-      notes: notes.trim() || null,
       shed_size: cfg.size || null,
       style_package_id: cfg.stylePkgId || null,
       siding: cfg.siding || null,
@@ -777,14 +770,7 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
           <Select value={status} onChange={setStatus} options={STATUS_OPTIONS} />
         </FormField>
         <FormField label="Sale price" style={{ marginBottom:0 }}>
-          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-            <Input type="number" value={salePrice} onChange={setSalePrice} placeholder="0.00" />
-            {out.hasQty && (
-              <Button variant="ghost" size="sm" onClick={() => setSalePrice(String(Math.round(out.customerPrice)))} style={{ whiteSpace:'nowrap' }}>
-                Use calc ({fmt(out.customerPrice)})
-              </Button>
-            )}
-          </div>
+          <Input type="number" value={salePrice} onChange={setSalePrice} placeholder="0.00" />
         </FormField>
         {canAssign && (
           <FormField label="Assigned builder" style={{ marginBottom:0 }}>
@@ -805,17 +791,6 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
           Heads up: the builder is set on the contact, so this reassigns every project for {project.contact?.full_name || project.contact?.company_name || 'this contact'}.
         </div>
       )}
-
-      <div style={{ marginTop:16 }}>
-        <Label>Notes</Label>
-        <textarea
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-          rows={3}
-          placeholder="Anything worth remembering about this project…"
-          style={{ fontFamily:'DM Sans, sans-serif', fontSize:14, padding:'10px 12px', border:`1.5px solid ${C.linenDarker}`, borderRadius:4, background:'#FFFDF9', color:C.charcoal, width:'100%', boxSizing:'border-box', resize:'vertical', lineHeight:1.5 }}
-        />
-      </div>
 
       {/* Shed specification */}
       <div style={{ borderTop:`1px solid ${C.linenDarker}`, margin:'20px 0 16px' }} />

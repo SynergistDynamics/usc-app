@@ -184,8 +184,7 @@ src/
                                all overrides" SELECT policy; style_multipliers is admin-or-own; admins read all profiles)
                                — and a builder only ever opens their OWN projects, so the viewer context already IS theirs
                                (the fetch is skipped when ownerId === viewer or there's no owner). The loaded ctx is tagged
-                               with its ownerId so a stale load is ignored after navigating. The same effective context is
-                               passed to EditProjectModal so its "Use calc" matches. The work order's **Pricing section**
+                               with its ownerId so a stale load is ignored after navigating. The work order's **Pricing section**
                                breaks the **configurator SALE price** into: **Material cost** (builder's local prices) +
                                **Urban Sheds licensing fee** (`USC_LICENSE_FEE_RATE` = 10% of the sale price) + **Labor,
                                overhead & profit** (= sale − material − fee). Below that sits the **App calculated price**
@@ -195,9 +194,11 @@ src/
                                BOTH a material cost (hasQty) and a sale price; app-calc shows whenever hasQty.
                                EDITING — an "✎ Edit project" button (header + footer) opens **EditProjectModal**:
                                a **Contact** picker (link/change/unlink the project's contact — ContactPicker
-                               loads contacts lazily on first expand, RLS-scoped), status, sale price,
-                               notes, the shed spec (PricingTool's ConfigPanel: size, style, siding, option
-                               packages), and — for **admins** — an "Assigned builder" dropdown. **The project NAME
+                               loads contacts lazily on first expand, RLS-scoped), status, sale price (a plain
+                               number — there is **no "Use calc" button**; the configurator/ShedPro sale price is
+                               always kept), the shed spec (PricingTool's ConfigPanel: size, style, siding, option
+                               packages), and — for **admins** — an "Assigned builder" dropdown. (No Notes field —
+                               the ShedPro-synced notes are shown on the work order but not editable here.) **The project NAME
                                is NOT an editable field** — it's BUILT from the shed data as `{size} {style desc}
                                #{order#}` (e.g. "4x8 Tall Modern #5860") by `composeProjectName(...)`, shown read-only
                                at the top of the modal (and used for the page title), and saved to `projects.name` on
@@ -221,8 +222,7 @@ src/
                                auto-expands when the project already has any of that data (a synced ShedPro
                                project), else starts collapsed. These all write straight to the projects columns
                                (lib/projects.js getProject/updateProject already SELECT '*'). The
-                               modal edits a draft and only persists on Save (Cancel discards); "Use calc"
-                               reflects the draft spec's live price. The Contact picker is how you link a
+                               modal edits a draft and only persists on Save (Cancel discards). The Contact picker is how you link a
                                **contact-less project** (sets projects.contact_id); switching the contact makes
                                the builder follow the new contact's owner, so the "Assigned builder" dropdown only
                                shows when the contact is UNCHANGED. The assigned-builder control reassigns the
