@@ -53,6 +53,8 @@ function splits — see notes below.)
      siding_material=Building Details Siding Material  siding_color=Building Details Siding Color
      trim_color=Building Details Trim Color  roof_color=Building Details Roof Color
      roof_material=Building Details Roof Material Display  total=Total  model_url=Building Details Model Url
+     deposit=Deposit   (← the ShedPro deposit / down-payment field; shows above the sale price on the
+                          work order. The function also accepts deposit_amount / deposit_total / down_payment.)
      billing_email=Billing Email  customer_note=Customer Note  date_created=Date Created  status=Status
      components_type=…Components Type   components_display=…Components Display   components_price=…Components Price
      components_primary_color=…Components Primary Color

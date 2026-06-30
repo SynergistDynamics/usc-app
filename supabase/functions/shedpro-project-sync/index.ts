@@ -84,6 +84,10 @@ Deno.serve(async (req) => {
   const roofColor = S(pick(bd, "roof.color", "roof_color")) || null;
   const roof = S(pick(bd, "roof.material_display", "roof_material_display", "roof_material", "roof.material")) || null;
   const salePrice = num(pick(body, "total", "subtotal")) ?? num(pick(bd, "price"));
+  // Shed deposit / down payment from ShedPro (shown above the sale price on the work
+  // order). Tolerant of several key names — add a `deposit=<ShedPro Deposit>` Input Data
+  // row in the Zap so this field is forwarded (see ZAPIER_PROJECTS.md).
+  const deposit = num(pick(body, "deposit", "deposit_amount", "deposit_total", "down_payment")) ?? num(pick(bd, "deposit", "deposit_amount"));
   const detailsUrl = S(pick(bd, "model_url")) || null;
   const projectNumber = S(pick(body, "reference_order_num", "reference_order_number")) || null;
   const dedupId = S(pick(body, "_id", "id", "Id", "shedpro_project_id")) || null;
@@ -189,7 +193,7 @@ Deno.serve(async (req) => {
   const payload: Record<string, unknown> = {
     source: "zapier", shedpro_project_id: dedupId, project_number: projectNumber, name,
     shed_style: description || null, style_package_id: stylePackageId, siding, shed_size: shedSize,
-    customer_email: customerEmail, sale_price: salePrice, notes, shedpro_created: shedproCreated,
+    customer_email: customerEmail, sale_price: salePrice, deposit, notes, shedpro_created: shedproCreated,
     siding_color: sidingColor, trim_color: trimColor, roof_color: roofColor, door_color: doorColor,
     roof, details_url: detailsUrl, selected_packages: selected, shedpro_options: rawOptions, ...renderings,
   };
