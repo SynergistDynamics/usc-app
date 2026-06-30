@@ -148,7 +148,10 @@ src/
                                saving inline via updateProject (RLS-scoped; stamps sold_at the first time it reaches a
                                sold status). draft/cancelled live OFF this track (set via the Edit modal's Status
                                dropdown): a draft shows nothing reached yet, a cancelled project shows a red flag with
-                               steps dimmed (clicking one reactivates it to that stage). Below the stepper are TWO TABS:
+                               steps dimmed (clicking one reactivates it to that stage). Directly below the stepper is
+                               an **inline Construction date editor** (ConstructionDateCard) — a date input builders
+                               use to add/update the install date without opening the Edit modal; it saves on change
+                               via updateProject and updates the page in place. Below the stepper are TWO TABS:
                                • "Work Order" — a formatted, printable work-order document (rendered inside
                                  #work-order-print) showing every relevant detail: customer (name/company/full
                                  mailing address/phone/email, from the embedded contact), builder, shed spec
@@ -203,8 +206,9 @@ src/
                                shows: the
                                5 rendering/image URLs (rendering_url_1..4 + layout_rendering_url), the 4 cosmetic
                                **Colors** text fields (siding_color/trim_color/door_color/roof_color — these don't
-                               affect price), **quote details** (project_number,
-                               monthly_payment [numeric], construction_date [date], options_summary), and an
+                               affect price), **quote details** (just project_number + options_summary now —
+                               construction_date moved to the inline editor on the page, and monthly_payment is no
+                               longer edited in-app; both are preserved as-is on modal save), and an
                                **editable line-item table** for the itemized `shedpro_options` (jsonb — add/remove
                                rows of label/detail/price; sent as an array since the column is NOT NULL DEFAULT
                                '[]'; clearing it falls back to the app-calculated option prices). The section

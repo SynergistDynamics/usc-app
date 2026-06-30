@@ -63,10 +63,11 @@ const RENDER_FIELDS = [
   ['rendering_url_3', 'Right URL'], ['rendering_url_4', 'Back URL'],
   ['layout_rendering_url', 'Layout / floor plan URL'],
 ];
-// Plain text/date columns edited in the modal (monthly_payment is numeric, handled
-// separately on save). additional_features is the one free-text option kept here.
+// Plain text columns edited in the modal. additional_features is the one free-text
+// option kept here. (construction_date is edited inline on the work order page, and
+// monthly_payment isn't edited in-app — both are left out of the modal.)
 const DETAIL_TEXT_KEYS = [...COLOR_FIELDS, ...RENDER_FIELDS].map(([k]) => k)
-  .concat(['additional_features', 'project_number', 'options_summary', 'construction_date']);
+  .concat(['additional_features', 'project_number', 'options_summary']);
 
 // ShedPro's itemized options-with-prices (the "What's included" list on a ShedPro
 // quote), stored in projects.shedpro_options. Tolerant of however Zapier delivers
@@ -344,6 +345,9 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
         isMobile={isMobile}
       />
 
+      {/* Construction date — builders set/update the install date inline here. */}
+      <ConstructionDateCard project={project} onSaved={setProject} isMobile={isMobile} />
+
       {/* Tabs — two tabs, so on mobile they split the width evenly (no scrolling). */}
       <div style={{ display:'flex', gap:0, marginBottom:20, borderBottom:`2px solid ${C.linenDarker}`, flexWrap:'nowrap', overflowY:'hidden' }}>
         {TABS.map(([key, label]) => (
@@ -562,6 +566,45 @@ function StatusMilestones({ status, saving, onPick, isMobile }) {
   );
 }
 
+// ── Construction date ─────────────────────────────────────────────────────────
+// Inline date editor on the work order page so builders can add/update the install
+// date without opening the Edit modal. Saves on change via updateProject (RLS lets a
+// builder edit their own project / admins any) and hands the fresh row back.
+function ConstructionDateCard({ project, onSaved, isMobile }) {
+  const [saving, setSaving] = useState(false);
+  const [saved,  setSaved]  = useState(false);
+  const value = project?.construction_date || '';
+
+  async function change(v) {
+    setSaving(true); setSaved(false);
+    const { data, error } = await updateProject(project.id, { construction_date: v || null });
+    setSaving(false);
+    if (error) return;
+    onSaved(data);
+    setSaved(true);
+  }
+
+  return (
+    <Card style={{ marginBottom:20, padding: isMobile ? '14px 14px' : '14px 20px' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
+        <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand }}>
+          Construction date
+        </div>
+        <div style={{ flex:'0 1 200px', minWidth:160 }}>
+          <Input type="date" value={value} onChange={change} />
+        </div>
+        {saving
+          ? <Spinner size={14} />
+          : saved
+            ? <span style={{ fontFamily:'DM Sans', fontSize:12, color:C.sage, fontWeight:600 }}>Saved ✓</span>
+            : value
+              ? <button onClick={() => change('')} style={{ background:'none', border:'none', cursor:'pointer', fontFamily:'DM Sans', fontSize:12, color:'#999', textDecoration:'underline' }}>Clear</button>
+              : <span style={{ fontFamily:'DM Sans', fontSize:12, color:'#aaa' }}>Not scheduled yet</span>}
+      </div>
+    </Card>
+  );
+}
+
 // ── Edit project modal ────────────────────────────────────────────────────────
 // Edits a draft copy of the project fields + shed spec, and (for admins) the
 // assigned builder. On Save it persists everything and hands the fresh row back.
@@ -586,11 +629,10 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
   const [err,    setErr]    = useState('');
 
   // ── ShedPro / work-order detail fields (colors, renderings, finishes, etc.) ──
-  // One object holds every text/date field; monthly_payment is kept as a string.
+  // One object holds every editable text field.
   const [details, setDetails] = useState(() => {
     const d = {};
     DETAIL_TEXT_KEYS.forEach(k => { d[k] = project[k] ?? ''; });
-    d.monthly_payment = project.monthly_payment != null ? String(project.monthly_payment) : '';
     return d;
   });
   const setDetail = (k, v) => setDetails(p => ({ ...p, [k]: v }));
@@ -607,7 +649,6 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
   const [showWoDetails, setShowWoDetails] = useState(
     normalizeShedproOptions(project.shedpro_options).length > 0
     || DETAIL_TEXT_KEYS.some(k => String(project[k] ?? '').trim() !== '')
-    || project.monthly_payment != null
   );
 
   // Live price from the DRAFT spec so "Use calc" reflects unsaved changes.
@@ -640,7 +681,6 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
 
     const willBeSold = isSoldStatus(status);
     const textOrNull = v => (v == null || String(v).trim() === '') ? null : String(v).trim();
-    const mp = parseFloat(details.monthly_payment);
     // shedpro_options is jsonb NOT NULL DEFAULT '[]' — always send an array, drop blank rows.
     const cleanLines = lineItems
       .map(r => ({ label:(r.label||'').trim(), detail:(r.detail||'').trim(), price:(r.price||'').trim() }))
@@ -659,7 +699,6 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
       package_overrides: cfg.pkgOverrides || {},
       // ShedPro / work-order detail fields (colors, renderings, finishes, …)
       ...Object.fromEntries(DETAIL_TEXT_KEYS.map(k => [k, textOrNull(details[k])])),
-      monthly_payment: details.monthly_payment.trim() === '' || isNaN(mp) ? null : mp,
       shedpro_options: cleanLines,
     };
     if (willBeSold && !project.sold_at) payload.sold_at = new Date().toISOString();
@@ -802,15 +841,9 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
 
           {/* Quote details */}
           <EditSubLabel>Quote details</EditSubLabel>
-          <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap:14 }}>
+          <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:14 }}>
             <FormField label="Work order #" style={{ marginBottom:0 }}>
               <Input value={details.project_number} onChange={v => setDetail('project_number', v)} placeholder="e.g. 5860" />
-            </FormField>
-            <FormField label="Financing ($/mo)" style={{ marginBottom:0 }}>
-              <Input type="number" value={details.monthly_payment} onChange={v => setDetail('monthly_payment', v)} placeholder="0.00" />
-            </FormField>
-            <FormField label="Construction date" style={{ marginBottom:0 }}>
-              <Input type="date" value={details.construction_date} onChange={v => setDetail('construction_date', v)} />
             </FormField>
           </div>
           <div style={{ marginTop:14 }}>
