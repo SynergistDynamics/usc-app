@@ -927,9 +927,11 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
         <div>
           <p style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#777', margin:'0 0 14px' }}>
             Size, style, siding and options. Drives the work order and the materials list.
+            Enter the <strong>ShedPro price</strong> in the $ field next to each option you select — it
+            shows in the work order’s Options &amp; Pricing list and rolls into the app total.
           </p>
           <div style={{ maxWidth: isMobile ? '100%' : 380 }}>
-            <ConfigPanel cfg={cfg} setCfg={setCfg} packages={packages} />
+            <ConfigPanel cfg={cfg} setCfg={setCfg} packages={packages} editPrices />
           </div>
           {/* Other options are set by the checkboxes above; this is the one free-text add. */}
           <div style={{ marginTop:20 }}>

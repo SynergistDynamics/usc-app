@@ -6,6 +6,19 @@ import {
 } from '../lib/supabase';
 import { SectionHeader, Select, Button, WarningBanner, Badge, QuantityTicker } from '../components/UI';
 
+// Stable keys in pkgOverrides for the base-shed and siding price overrides (option
+// overrides are keyed by their real UUID package id, so these constants never collide).
+// They let a manually-added project carry the ShedPro base + siding price.
+export const BASE_PRICE_KEY = '__base__';
+export const SIDING_PRICE_KEY = '__siding__';
+
+// Parse a price-override value ("$1,200" / "1200" / "") → number or null (blank/bad).
+function parsePkgOverride(v) {
+  if (v === undefined || v === null || String(v).trim() === '') return null;
+  const n = parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+  return isNaN(n) ? null : n;
+}
+
 // Exported so the Projects feature can render the same materials list from a
 // saved project's config (ProjectDetail.jsx) — same engine, one source of truth.
 export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrides, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities }) {
@@ -52,12 +65,22 @@ export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrid
     baseCost += total;
   }
   const styleMult    = getStyleMultiplier(styleMults, stylePkg);
-  const baseCustomer = baseCost * styleMult;
+  // A manually-set base price (ShedPro) overrides the calculated base × multiplier.
+  const baseOverride = parsePkgOverride(pkgOverrides?.[BASE_PRICE_KEY]);
+  const baseCustomer = baseOverride != null ? baseOverride : baseCost * styleMult;
 
   // ── Siding (package-backed) ──────────────────────────────
+  // A manually-set siding price (ShedPro) overrides the calculated/quote price.
+  const sidingOverride = parsePkgOverride(pkgOverrides?.[SIDING_PRICE_KEY]);
   if (siding === 'Western Red Cedar') {
-    lineItems.push({ group:'Siding', name:'Western Red Cedar', qty:'—', unitPrice:'—', total:0, quote:true });
-    addCatLine('Siding', 'Western Red Cedar', 0, 0, 0, '', true);
+    if (sidingOverride != null) {
+      lineItems.push({ group:'Siding', isSidingPkgTotal:true, name:'Western Red Cedar (set price)', sidingMatCost:0, sidingPkgPrice:sidingOverride });
+      pkgGroups.push({ pkg:{ id:SIDING_PRICE_KEY, name:'Western Red Cedar' }, customerPkgPrice:sidingOverride, materialCost:0, subItems:[], hasFlat:true, isSidingPkg:true });
+      pkgCost += sidingOverride;
+    } else {
+      lineItems.push({ group:'Siding', name:'Western Red Cedar', qty:'—', unitPrice:'—', total:0, quote:true });
+      addCatLine('Siding', 'Western Red Cedar', 0, 0, 0, '', true);
+    }
   } else if (siding && siding !== 'None') {
     const sidingKey = siding === 'T1-11' ? 't111' : siding === 'Clapboard' ? 'clapboard' : 'bAndB';
     const sidingPkg = (packages || []).find(p => p.siding_type === sidingKey);
@@ -71,14 +94,18 @@ export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrid
         return { name:mat.name, qty, unitPrice:mat.price, total:qty*mat.price, fn:addFn(mat.url) };
       }).filter(Boolean);
       const sidingMatCost  = subItems.reduce((a,b) => a+b.total, 0);
-      const sidingPkgPrice = sidingMatCost * (sidingPkg.multiplier ?? 1);
+      const sidingPkgPrice = sidingOverride != null ? sidingOverride : sidingMatCost * (sidingPkg.multiplier ?? 1);
       subItems.forEach(sub => {
         lineItems.push({ group:'Siding', name:sub.name, qty:sub.qty, unitPrice:sub.unitPrice, total:sub.total, isSidingComponent:true });
       });
-      lineItems.push({ group:'Siding', isSidingPkgTotal:true, name:`${sidingPkg.name} (${sidingPkg.multiplier}× multiplier)`, sidingMatCost, sidingPkgPrice });
+      lineItems.push({ group:'Siding', isSidingPkgTotal:true, name: sidingOverride != null ? `${sidingPkg.name} (set price)` : `${sidingPkg.name} (${sidingPkg.multiplier}× multiplier)`, sidingMatCost, sidingPkgPrice });
       pkgGroups.push({ pkg:sidingPkg, customerPkgPrice:sidingPkgPrice, materialCost:sidingMatCost, subItems, hasFlat:false, isSidingPkg:true });
       pkgCost    += sidingPkgPrice;
       pkgMatCost += sidingMatCost;
+    } else if (sidingOverride != null) {
+      lineItems.push({ group:'Siding', isSidingPkgTotal:true, name:`${siding} (set price)`, sidingMatCost:0, sidingPkgPrice:sidingOverride });
+      pkgGroups.push({ pkg:{ id:SIDING_PRICE_KEY, name:siding }, customerPkgPrice:sidingOverride, materialCost:0, subItems:[], hasFlat:true, isSidingPkg:true });
+      pkgCost += sidingOverride;
     } else {
       lineItems.push({ group:'Siding', name:`${siding} (no siding package configured)`, qty:'—', unitPrice:'—', total:0, quote:true });
       addCatLine('Siding', `${siding} (no siding package configured)`, 0, 0, 0, '', true);
@@ -90,7 +117,10 @@ export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrid
     const pkgCount = selectedPkgs[pkg.id] || 0;
     if (!pkgCount) continue;
     const overrideVal = pkgOverrides[pkg.id];
-    const useFlat     = overrideVal !== undefined && overrideVal !== '' ? parseFloat(overrideVal) : pkg.flat_rate;
+    // Override is a per-unit price (e.g. the ShedPro option price); tolerate $/commas.
+    const useFlat     = overrideVal !== undefined && String(overrideVal).trim() !== ''
+      ? parseFloat(String(overrideVal).replace(/[^0-9.\-]/g, ''))
+      : pkg.flat_rate;
     const components  = pkgMaterials.filter(pm => pm.package_id === pkg.id);
 
     // Scale sub-item quantities by pkgCount
@@ -125,10 +155,14 @@ export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrid
 }
 
 // ── Config Panel ──────────────────────────────────────────────
-// Exported for reuse on the project page (ProjectDetail.jsx).
-export function ConfigPanel({ cfg, setCfg, packages }) {
+// Exported for reuse on the project page (ProjectDetail.jsx). `editPrices` turns on a
+// per-option price field (writes cfg.pkgOverrides) so a manually-added project can carry
+// the ShedPro price for each selected option — used in the project Edit modal, off in
+// the Materials Calculator.
+export function ConfigPanel({ cfg, setCfg, packages, editPrices = false }) {
   const stylePkgs = (packages || []).filter(p => p.is_style);
   function set(k, v) { setCfg(p => ({ ...p, [k]: v })); }
+  const setOverride = (key, v) => setCfg(p => ({ ...p, pkgOverrides:{ ...p.pkgOverrides, [key]: v } }));
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
@@ -144,21 +178,44 @@ export function ConfigPanel({ cfg, setCfg, packages }) {
             <div style={flbl}>Shed Style</div>
             <Select value={cfg.stylePkgId} onChange={v=>set('stylePkgId',v)}
               options={stylePkgs.length ? stylePkgs.map(p => ({ value:p.id, label:p.name })) : [{ value:'', label:'— no styles configured —' }]} />
+            {editPrices && (
+              <div style={{ marginTop:8, display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
+                <span style={{ fontFamily:'DM Sans', fontSize:12, color:'#8C8478' }}>Base price (ShedPro)</span>
+                <PriceField value={cfg.pkgOverrides?.[BASE_PRICE_KEY] ?? ''} onChange={v => setOverride(BASE_PRICE_KEY, v)} />
+              </div>
+            )}
           </div>
           <div>
             <div style={flbl}>Siding</div>
             <Select value={cfg.siding} onChange={v=>set('siding',v)} options={['T1-11','Clapboard','B&B','Western Red Cedar']} />
+            {editPrices && (
+              <div style={{ marginTop:8, display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
+                <span style={{ fontFamily:'DM Sans', fontSize:12, color:'#8C8478' }}>Siding price (ShedPro)</span>
+                <PriceField value={cfg.pkgOverrides?.[SIDING_PRICE_KEY] ?? ''} onChange={v => setOverride(SIDING_PRICE_KEY, v)} />
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Option packages (incl. former add-ons) */}
-      <OptionsPanel cfg={cfg} setCfg={setCfg} packages={packages} />
+      <OptionsPanel cfg={cfg} setCfg={setCfg} packages={packages} editPrices={editPrices} />
     </div>
   );
 }
 
-function OptionsPanel({ cfg, setCfg, packages }) {
+// $-prefixed price input for a selected option's ShedPro price (writes cfg.pkgOverrides).
+function PriceField({ value, onChange }) {
+  return (
+    <div style={{ display:'flex', alignItems:'stretch', border:`1.5px solid ${C.linenDarker}`, borderRadius:4, background:'#fff', overflow:'hidden', width:104, flexShrink:0 }}>
+      <span style={{ display:'flex', alignItems:'center', padding:'0 7px', background:C.linen, color:'#8C8478', fontFamily:'DM Sans', fontSize:12, fontWeight:600 }}>$</span>
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder="0.00" inputMode="decimal"
+        style={{ border:'none', outline:'none', background:'transparent', padding:'6px 8px', fontFamily:'DM Sans', fontSize:13, color:C.charcoal, width:'100%', minWidth:0, textAlign:'right' }} />
+    </div>
+  );
+}
+
+function OptionsPanel({ cfg, setCfg, packages, editPrices = false }) {
   const regularPkgs = (packages || []).filter(p => !p.siding_type && !p.is_style);
 
   const allItems = regularPkgs.map(pkg => ({
@@ -167,6 +224,8 @@ function OptionsPanel({ cfg, setCfg, packages }) {
     flat_rate: pkg.flat_rate,
     count: cfg.selectedPkgs[pkg.id] || 0,
     setCount: v => setCfg(p => ({ ...p, selectedPkgs:{ ...p.selectedPkgs, [pkg.id]:v } })),
+    price: cfg.pkgOverrides?.[pkg.id] ?? '',
+    setPrice: v => setCfg(p => ({ ...p, pkgOverrides:{ ...p.pkgOverrides, [pkg.id]:v } })),
   }));
 
   const countable = allItems.filter(i => i.allow_quantity);
@@ -186,10 +245,14 @@ function OptionsPanel({ cfg, setCfg, packages }) {
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                   <QuantityTicker value={item.count} min={0} onChange={item.setCount} />
                   <span style={{ fontFamily:'DM Sans', fontSize:13, color: item.count > 0 ? C.charcoal : '#999', flex:1 }}>
-                    {item.label}
+                    {item.label}{editPrices && item.count > 1 ? <span style={{ color:'#aaa', fontSize:11 }}> (each)</span> : ''}
                   </span>
-                  {item.flat_rate != null && item.count > 0 && (
-                    <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sage, fontWeight:600 }}>{fmt(item.flat_rate)}</span>
+                  {editPrices ? (
+                    item.count > 0 && <PriceField value={item.price} onChange={item.setPrice} />
+                  ) : (
+                    item.flat_rate != null && item.count > 0 && (
+                      <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sage, fontWeight:600 }}>{fmt(item.flat_rate)}</span>
+                    )
                   )}
                 </div>
               </div>
@@ -209,16 +272,20 @@ function OptionsPanel({ cfg, setCfg, packages }) {
           <p style={glbl}>Options</p>
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
             {boolean.map(item => (
-              <div key={item.id}>
-                <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontFamily:'DM Sans', fontSize:13, color:C.charcoal }}>
+              <div key={item.id} style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontFamily:'DM Sans', fontSize:13, color:C.charcoal, flex:1, minWidth:0 }}>
                   <input type="checkbox" checked={item.count > 0}
                     onChange={e => item.setCount(e.target.checked ? 1 : 0)}
-                    style={{ accentColor:C.sage, width:13, height:13 }} />
-                  <span style={{ flex:1 }}>{item.label}</span>
-                  {item.flat_rate != null && item.count > 0 && (
-                    <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sage, fontWeight:600 }}>{fmt(item.flat_rate)}</span>
-                  )}
+                    style={{ accentColor:C.sage, width:13, height:13, flexShrink:0 }} />
+                  <span style={{ flex:1, minWidth:0 }}>{item.label}</span>
                 </label>
+                {editPrices ? (
+                  item.count > 0 && <PriceField value={item.price} onChange={item.setPrice} />
+                ) : (
+                  item.flat_rate != null && item.count > 0 && (
+                    <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sage, fontWeight:600 }}>{fmt(item.flat_rate)}</span>
+                  )
+                )}
               </div>
             ))}
           </div>
