@@ -47,35 +47,26 @@ const TABS = [['work-order', 'Work Order'], ['materials', 'Materials List']];
 // Editable ShedPro-sourced fields on a project (all `text` columns). These appear
 // on the work order; the Edit modal lets you change them by hand. [column, label].
 //
-// Two groups, because they're edited in different parts of the modal:
-//  • OPTION_FIELDS — configured options/finishes that tie to the materials &
-//    pricing (vents, floor, doors, site prep, …). Edited UP near the shed spec so
-//    they sit with the options that drive material cost.
-//  • COLOR_FIELDS — cosmetic colors that do NOT affect price. Edited lower down in
-//    the work-order details section.
-const OPTION_FIELDS = [
-  ['siding_type', 'Siding type'],   ['overhang_size', 'Overhang'],
-  ['doors', 'Doors'],               ['windows', 'Windows'],
-  ['vents', 'Vents'],               ['roof', 'Roof'],
-  ['floor', 'Floor'],               ['transom_package', 'Transom'],
-  ['site_prep', 'Site prep'],       ['building_permit', 'Building permit'],
-  ['access', 'Access'],             ['additional_features', 'Additional features'],
-];
+// Cosmetic COLOR_FIELDS don't affect price and are edited in the lower work-order
+// section. The other ShedPro option/finish columns (siding_type, overhang, doors,
+// windows, vents, roof, floor, transom, site_prep, building_permit, access) are NOT
+// edited in the modal — they're driven by the option checkboxes in the spec above —
+// so they're left out of the editable set and preserved as-is on save. The lone
+// exception is `additional_features`, kept as a free-text field for custom add-ons.
 const COLOR_FIELDS = [
   ['siding_color', 'Siding color'], ['trim_color', 'Trim color'],
   ['door_color', 'Door color'],     ['roof_color', 'Roof color'],
 ];
-const FINISH_FIELDS = [...OPTION_FIELDS, ...COLOR_FIELDS];
 const RENDER_FIELDS = [
   ['perspective_rendering_url', 'Perspective URL (shown on cards)'],
   ['rendering_url_1', 'Front URL'], ['rendering_url_2', 'Left URL'],
   ['rendering_url_3', 'Right URL'], ['rendering_url_4', 'Back URL'],
   ['layout_rendering_url', 'Layout / floor plan URL'],
 ];
-// Plain text/date columns edited alongside the above (monthly_payment is numeric,
-// handled separately on save).
-const DETAIL_TEXT_KEYS = [...FINISH_FIELDS, ...RENDER_FIELDS].map(([k]) => k)
-  .concat(['project_number', 'options_summary', 'construction_date']);
+// Plain text/date columns edited in the modal (monthly_payment is numeric, handled
+// separately on save). additional_features is the one free-text option kept here.
+const DETAIL_TEXT_KEYS = [...COLOR_FIELDS, ...RENDER_FIELDS].map(([k]) => k)
+  .concat(['additional_features', 'project_number', 'options_summary', 'construction_date']);
 
 // ShedPro's itemized options-with-prices (the "What's included" list on a ShedPro
 // quote), stored in projects.shedpro_options. Tolerant of however Zapier delivers
@@ -766,19 +757,13 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
         <ConfigPanel cfg={cfg} setCfg={setCfg} packages={packages} />
       </div>
 
-      {/* Options & finishes that connect to the materials/pricing (vents, floor,
-          doors, site prep, …) — kept up here with the spec, not down with the
-          cosmetic colors. */}
+      {/* Configured options (siding, doors, vents, floor, site prep, …) are set by
+          the option checkboxes in the spec above, so they aren't repeated here. The
+          one free-text field kept is Additional features, for custom add-ons. */}
       <div style={{ marginTop:20 }}>
-        <EditSubLabel>Options &amp; finishes</EditSubLabel>
-        <p style={editHint}>Configured options shown on the work order — these tie to the materials &amp; pricing.</p>
-        <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:14 }}>
-          {OPTION_FIELDS.map(([k, label]) => (
-            <FormField key={k} label={label} style={{ marginBottom:0 }}>
-              <Input value={details[k]} onChange={v => setDetail(k, v)} />
-            </FormField>
-          ))}
-        </div>
+        <FormField label="Additional features" style={{ marginBottom:0 }}>
+          <Input value={details.additional_features} onChange={v => setDetail('additional_features', v)} placeholder="Any custom features not covered by the options above" />
+        </FormField>
       </div>
 
       {/* Work order details — every other field the work order shows (renderings,
