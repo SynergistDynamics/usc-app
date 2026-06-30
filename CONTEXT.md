@@ -166,7 +166,9 @@ src/
                                  package** (per-shed paint cost): it's a selected package so it's already in the app's
                                  total, and it shows as a line item in Options & Pricing — in the app-priced fallback it
                                  lists as "Paint"; on a ShedPro quote `withSidingColorPrice()` fills the siding-color
-                                 line's blank price [e.g. "Techno Gray"] from the app's Paint price), renderings, and a
+                                 line's blank price [e.g. "Techno Gray"] from the app's Paint price), renderings, a
+                                 **Change Orders** section (the `projects.change_orders` line items added in-app after
+                                 the sale, each with its price + an "Added {date} by {name}" stamp), and a
                                  **pricing breakdown** (see
                                  below) + notes. A
                                  "🖨 Print work order" button prints it. **Printing now uses a hidden IFRAME** (copies
@@ -213,13 +215,17 @@ src/
                                shows: the
                                5 rendering/image URLs (rendering_url_1..4 + layout_rendering_url), the 4 cosmetic
                                **Colors** text fields (siding_color/trim_color/door_color/roof_color — these don't
-                               affect price), **quote details** (just project_number + options_summary now —
-                               construction_date moved to the inline editor on the page, and monthly_payment is no
-                               longer edited in-app; both are preserved as-is on modal save), and an
-                               **editable line-item table** for the itemized `shedpro_options` (jsonb — add/remove
-                               rows of label/detail/price; sent as an array since the column is NOT NULL DEFAULT
-                               '[]'; clearing it falls back to the app-calculated option prices). The section
-                               auto-expands when the project already has any of that data (a synced ShedPro
+                               affect price), and **quote details** (just project_number now —
+                               construction_date moved to the inline editor on the page, monthly_payment is no
+                               longer edited in-app, and options_summary / shedpro_options come from ShedPro and
+                               aren't edited here; all preserved as-is on modal save). Below the collapsible is an
+                               always-visible **"Change orders"** editor — `+ Add line item` rows of label/detail/price
+                               for changes AFTER the sale; each NEW row is stamped with today's date + the current
+                               user (`profile.full_name||email`), existing rows keep their original stamp, and the
+                               cleaned array is saved to **`projects.change_orders`** (jsonb NOT NULL DEFAULT '[]').
+                               These render in the work order's **Change Orders** section (with the create date + who
+                               added it). The collapsible section
+                               auto-expands when the project already has any of that detail data (a synced ShedPro
                                project), else starts collapsed. These all write straight to the projects columns
                                (lib/projects.js getProject/updateProject already SELECT '*'). The
                                modal edits a draft and only persists on Save (Cancel discards). The Contact picker is how you link a
@@ -458,6 +464,10 @@ Notes:
   packages, ON DELETE SET NULL), siding, selected_packages (jsonb `{package_id: count}`), package_overrides
   (jsonb `{package_id: unit_price_override}`); sale_price, sold_at (stamped the first time status becomes
   sold/completed by the app), notes, created_at, updated_at (auto via `projects_set_updated_at` trigger).
+  **change_orders** (jsonb NOT NULL DEFAULT '[]') — post-sale change-order line items added in-app, each
+  `{label, detail, price, created_at, created_by (uuid), created_by_name}`; the Edit modal's "Change orders"
+  editor appends them (stamping date + current user) and the work order renders them in a Change Orders
+  section. See `MIGRATION_projects_change_orders.sql` (applied 2026-06-30 via MCP).
   **Raw ShedPro columns** (seeded from a CSV export 2026-06-25; LIVE feed via Zapier since 2026-06-29 — see
   the ShedPro → Zapier integration note at the end of this bullet): source
   (manual|shedpro|zapier), project_number (the ShedPro order/project #, e.g. 5826 — **NOT unique**: the export has price
