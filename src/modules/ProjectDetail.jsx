@@ -20,7 +20,7 @@
 // Loads its own row via lib/projects.js; RLS guarantees a builder can only open/edit
 // a project whose contact they own (admins can open any). The global material/package
 // data is passed in as props (same as the calculator) since the spec references them.
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   SHED_SIZES, C, fmt, getStyleMultiplier,
@@ -756,6 +756,17 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
   const canAssign = isAdmin && !!contactId && contactId === origContactId;
   const contactChanged = contactId !== origContactId;
 
+  // Dirty tracking so we can confirm before discarding edits. The first render's
+  // snapshot is the baseline; any change to an editable field makes the modal dirty.
+  const baselineRef = useRef(null);
+  const snapshot = JSON.stringify({ status, salePrice, contactId, builderId, cfg, details, changeOrders });
+  if (baselineRef.current === null) baselineRef.current = snapshot;
+  const dirty = baselineRef.current !== snapshot;
+  const [confirmingClose, setConfirmingClose] = useState(false);
+  // Route every close path (Cancel, ×, Esc, backdrop) through here so unsaved edits
+  // prompt a confirm instead of vanishing.
+  const requestClose = () => { if (dirty && !saving) setConfirmingClose(true); else onClose(); };
+
   async function save() {
     setSaving(true); setErr('');
 
@@ -801,10 +812,26 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
     onSaved(data);
   }
 
-  return (
-    <Modal title="Edit project" onClose={onClose} width={640}>
-      {err && <ErrorBanner onDismiss={() => setErr('')}>{err}</ErrorBanner>}
+  const footer = confirmingClose ? (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
+      <span style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, color:C.charcoal }}>Discard unsaved changes?</span>
+      <div style={{ display:'flex', gap:10 }}>
+        <Button variant="ghost" onClick={() => setConfirmingClose(false)}>Keep editing</Button>
+        <Button variant="danger" onClick={onClose}>Discard</Button>
+      </div>
+    </div>
+  ) : (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+      <span style={{ fontFamily:'DM Sans', fontSize:12.5, color:C.error, flex:'1 1 auto', minWidth:0, overflow:'hidden', textOverflow:'ellipsis' }}>{err || ''}</span>
+      <div style={{ display:'flex', gap:10, flexShrink:0 }}>
+        <Button variant="ghost" onClick={requestClose}>Cancel</Button>
+        <Button onClick={save} loading={saving}>Save project</Button>
+      </div>
+    </div>
+  );
 
+  return (
+    <Modal title="Edit project" onClose={requestClose} width={640} footer={footer}>
       <FormField label="Contact" style={{ marginBottom:16 }}>
         <ContactPicker
           value={contactId}
@@ -837,6 +864,10 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
         </FormField>
         <FormField label="Sale price" style={{ marginBottom:0 }}>
           <Input type="number" value={salePrice} onChange={setSalePrice} placeholder="0.00" />
+        </FormField>
+        {/* Order # lives here (not buried in the collapsible) since it completes the name. */}
+        <FormField label="Work order #" style={{ marginBottom:0 }}>
+          <Input value={details.project_number} onChange={v => setDetail('project_number', v)} placeholder="e.g. 5860" />
         </FormField>
         {canAssign && (
           <FormField label="Assigned builder" style={{ marginBottom:0 }}>
@@ -879,14 +910,13 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
         </FormField>
       </div>
 
-      {/* Work order details — every other field the work order shows (renderings,
-          colors, quote details, and the itemized line items). Collapsed
-          by default on a project that has none of this yet. */}
+      {/* Appearance — the cosmetic fields the work order shows (rendering image URLs
+          and colors). Collapsed by default on a project that has none of this yet. */}
       <div style={{ borderTop:`1px solid ${C.linenDarker}`, margin:'20px 0 14px' }} />
       <button type="button" onClick={() => setShowWoDetails(v => !v)}
         style={{ display:'flex', alignItems:'center', gap:8, background:'none', border:'none', padding:0, cursor:'pointer', fontFamily:'DM Sans', fontSize:13, fontWeight:700, color:C.charcoal }}>
         <span style={{ color:C.sage, fontSize:11 }}>{showWoDetails ? '▼' : '▶'}</span>
-        Work order details — renderings, colors
+        Appearance — renderings &amp; colors (optional)
       </button>
 
       {showWoDetails && (
@@ -911,14 +941,6 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
                 <Input value={details[k]} onChange={v => setDetail(k, v)} />
               </FormField>
             ))}
-          </div>
-
-          {/* Quote details */}
-          <EditSubLabel>Quote details</EditSubLabel>
-          <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:14 }}>
-            <FormField label="Work order #" style={{ marginBottom:0 }}>
-              <Input value={details.project_number} onChange={v => setDetail('project_number', v)} placeholder="e.g. 5860" />
-            </FormField>
           </div>
         </div>
       )}
@@ -949,11 +971,6 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
       </div>
       <div style={{ marginTop:10 }}>
         <Button variant="ghost" size="sm" onClick={addCO}>+ Add line item</Button>
-      </div>
-
-      <div style={{ display:'flex', justifyContent:'flex-end', gap:10, marginTop:22 }}>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button onClick={save} loading={saving}>Save project</Button>
       </div>
     </Modal>
   );
