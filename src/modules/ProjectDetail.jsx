@@ -57,9 +57,10 @@ const FINISH_FIELDS = [
   ['access', 'Access'],             ['additional_features', 'Additional features'],
 ];
 const RENDER_FIELDS = [
-  ['rendering_url_1', 'Rendering 1 URL'], ['rendering_url_2', 'Rendering 2 URL'],
-  ['rendering_url_3', 'Rendering 3 URL'], ['rendering_url_4', 'Rendering 4 URL'],
-  ['layout_rendering_url', 'Layout rendering URL'],
+  ['perspective_rendering_url', 'Perspective URL (shown on cards)'],
+  ['rendering_url_1', 'Front URL'], ['rendering_url_2', 'Left URL'],
+  ['rendering_url_3', 'Right URL'], ['rendering_url_4', 'Back URL'],
+  ['layout_rendering_url', 'Layout / floor plan URL'],
 ];
 // Plain text/date columns edited alongside the above (monthly_payment is numeric,
 // handled separately on save).
@@ -976,6 +977,7 @@ function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, 
   const builderEmail  = project?.contact?.owner?.email || project?.builder_email || '';
 
   const renders = [
+    project?.perspective_rendering_url,
     project?.rendering_url_1, project?.rendering_url_2, project?.rendering_url_3,
     project?.rendering_url_4, project?.layout_rendering_url,
   ].filter(Boolean);
@@ -1234,6 +1236,7 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
   const builderEmail = project?.contact?.owner?.email || project?.builder_email || '';
 
   const renders = [
+    project?.perspective_rendering_url,
     project?.rendering_url_1, project?.rendering_url_2, project?.rendering_url_3,
     project?.rendering_url_4, project?.layout_rendering_url,
   ].filter(Boolean);

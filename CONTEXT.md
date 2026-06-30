@@ -121,7 +121,8 @@ src/
                                table** (UX redesign 2026-06-29, built mobile-first; **professional design pass same
                                day**): one column on mobile, `repeat(auto-fill, minmax(420px,1fr))` on wider screens.
                                Each card has a **small shed thumbnail on the left** (first available of
-                               `rendering_url_1..4`, `object-fit:contain` + bottom-aligned on a flat `#F4F1EA` panel so
+                               `perspective_rendering_url, rendering_url_1..4` — i.e. the **perspective** view leads,
+                               see "ShedPro renderings" note on the projects table; `object-fit:contain` + bottom-aligned on a flat `#F4F1EA` panel so
                                renderings share a "ground line" and aren't cropped; a `<ShedIcon>` line-icon, NOT an
                                emoji, when none) and details on the right built around **two anchors**: the **contact
                                name** (left) and the **sale price** (right, bold, `fmtMoneyShort` — no cents, tabular
@@ -444,7 +445,14 @@ Notes:
   (raw style name, e.g. "Tall Modern" — mapped to a style_package_id where ShedPro "Tall" = the app's "High Wall"),
   customer_email (links a project to a contact by
   email), builder_email (raw ShedPro "User/Builder", kept for later reconciliation), construction_date,
-  shedpro_created, rendering_url_1..4 + layout_rendering_url + details_url, work_order_pdf (raw text blob),
+  shedpro_created, **perspective_rendering_url** + rendering_url_1..4 + layout_rendering_url + details_url
+  (**ShedPro renderings (2026-06-30):** ShedPro sends SIX views — perspective, front, left, right, back, 2D
+  floor plan. They now map to dedicated fields: `perspective_rendering_url` (the angled hero — what the card
+  lists show), `rendering_url_1`=front, `_2`=left, `_3`=right, `_4`=back, `layout_rendering_url`=2D floor plan.
+  Before 2026-06-30 there was no perspective column and the sync let "front" win `rendering_url_1` so the
+  perspective image was dropped — fixed by `MIGRATION_projects_perspective_rendering.sql` (adds the column +
+  backfills existing rows' perspective from the deterministic `…/image_perspective.png` URL) and Edge Function v9),
+  work_order_pdf (raw text blob),
   siding_type, overhang_size, doors, windows, transom_package, vents, roof, floor, siding_color, trim_color,
   door_color, roof_color, site_prep, building_permit, access, additional_features.
   **Itemized options + pricing (added 2026-06-29, MIGRATION_projects_shedpro_lineitems.sql):** the ShedPro
@@ -524,7 +532,9 @@ Notes:
   `verify_jwt=false`) — the ShedPro **projects** sync. Zapier forwards the whole ShedPro project JSON here;
   the function maps the flat fields (style→style_package_id, siding→siding, size→shed_size, colors, Total→
   sale_price, Model Url→details_url, Billing Email→customer_email, Reference Order Num→project_number,
-  images[]→rendering_url_*) and walks the option arrays (`components[]`, `interior_components[]`, `overhang[]`,
+  images[] by view→perspective_rendering_url/rendering_url_1..4/layout_rendering_url — perspective/front/left/
+  right/back/2d-floor-plan; **v9 (2026-06-30)** gave perspective its own column so "front" no longer drops it)
+  and walks the option arrays (`components[]`, `interior_components[]`, `overhang[]`,
   `loft[]`, `frame`, `other_upgrades[]`) through `shedpro_option_map` into `selected_packages {package_id:count}`
   (loft resolved by style; the **"Paint"** package added whenever a siding color is set — Paint = the siding-color
   charge — skipped for Western Red Cedar), stores the raw options in `shedpro_options`, and **upserts on `shedpro_project_id`**

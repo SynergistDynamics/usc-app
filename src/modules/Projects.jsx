@@ -354,7 +354,7 @@ function NewProjectModal({ onClose, onCreated }) {
 function ProjectCard({ project: p, isAdmin, isMobile, onOpen }) {
   const [hover, setHover] = useState(false);
 
-  const img = [p.rendering_url_1, p.rendering_url_2, p.rendering_url_3, p.rendering_url_4]
+  const img = [p.perspective_rendering_url, p.rendering_url_1, p.rendering_url_2, p.rendering_url_3, p.rendering_url_4]
     .find(Boolean) || null;
 
   const contactName = p.contact?.full_name || p.contact?.company_name || p.contact?.email || p.customer_email || 'Unnamed';

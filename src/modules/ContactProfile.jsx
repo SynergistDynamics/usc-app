@@ -636,7 +636,7 @@ function GroupHeader({ label, right }) {
 // none); a chevron hints it's tappable.
 function ProjectRow({ p, sold, navigate, isMobile }) {
   const [hover, setHover] = useState(false);
-  const img = [p.rendering_url_1, p.rendering_url_2, p.rendering_url_3, p.rendering_url_4].find(Boolean) || null;
+  const img = [p.perspective_rendering_url, p.rendering_url_1, p.rendering_url_2, p.rendering_url_3, p.rendering_url_4].find(Boolean) || null;
 
   const spec = [p.shed_size, p.style_package?.name].filter(Boolean).join(' ');
   // No "Sold" prefix — the status label beside it already says so.
