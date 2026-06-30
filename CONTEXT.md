@@ -74,8 +74,8 @@ src/
     UI.jsx                   — shared components (Button, Input, Card, Badge, Modal, Select, SectionHeader, banners, etc.).
                                **Modal** closes on Esc + backdrop click (both call onClose); pass an optional **`footer`**
                                prop to get the fixed layout — sticky title bar + scrolling body + sticky footer action
-                               bar — for long forms (used by EditProjectModal). Without `footer` it's the original
-                               single-scroll modal.
+                               bar — and an optional **`subheader`** (e.g. a tab strip) that renders fixed just under the
+                               title (used by EditProjectModal's tabs). Without `footer` it's the original single-scroll modal.
     Auth.jsx                 — AuthProvider, login, profile loading, access gating
   modules/
     Contacts.jsx             — Contacts list (/contacts) — each builder's customers/leads; admins see all.
@@ -204,42 +204,41 @@ src/
                                breakdown only renders when there's BOTH a material cost (hasQty) and a sale price; app-calc
                                shows whenever hasQty.
                                EDITING — an "✎ Edit project" button (header + footer) opens **EditProjectModal**
-                               (uses Modal's sticky-`footer` layout: the title bar and the Cancel/Save action bar stay
-                               fixed while the body scrolls; Esc/×/backdrop/Cancel route through a **discard guard** —
-                               a `dirty` snapshot prompts "Discard unsaved changes?" in the footer instead of losing
-                               edits; save errors show inline in the footer):
-                               a **Contact** picker (link/change/unlink the project's contact — ContactPicker
-                               loads contacts lazily on first expand, RLS-scoped), status, sale price (a plain
-                               number — there is **no "Use calc" button**; the configurator/ShedPro sale price is
-                               always kept), **Work order # (`project_number`)** — kept up here in the top group since
-                               it completes the name — the shed spec (PricingTool's ConfigPanel: size, style, siding,
-                               option packages), and — for **admins** — an "Assigned builder" dropdown. (No Notes field —
-                               the ShedPro-synced notes are shown on the work order but not editable here.) **The project NAME
-                               is NOT an editable field** — it's BUILT from the shed data as `{size} {style desc}
-                               #{order#}` (e.g. "4x8 Tall Modern #5860") by `composeProjectName(...)`, shown read-only
-                               at the top of the modal (and used for the page title), and saved to `projects.name` on
-                               Save so lists/search stay in sync. The style description prefers the raw ShedPro
-                               `shed_style` text, falling back to the style package name for hand-made projects.
-                               Right below the spec sits a single **"Additional features"** free-text field (for
-                               custom add-ons). The other ShedPro option/finish columns (siding_type, overhang,
-                               doors, windows, vents, roof, floor, transom_package, site_prep, building_permit,
-                               access) are NOT edited in the modal — they're driven by the option checkboxes in the
-                               spec above, so they're left out of the editable set and preserved as-is on save. A
-                               collapsible **"Appearance — renderings & colors (optional)"** section edits the cosmetic
-                               fields the work order shows: the
-                               5 rendering/image URLs (rendering_url_1..4 + layout_rendering_url) and the 4 cosmetic
-                               **Colors** text fields (siding_color/trim_color/door_color/roof_color — these don't
-                               affect price). (construction_date moved to the inline editor on the page, monthly_payment
-                               is no longer edited in-app, and options_summary / shedpro_options come from ShedPro and
-                               aren't edited here; all preserved as-is on modal save.) Below the collapsible is an
-                               always-visible **"Change orders"** editor — `+ Add line item` rows of label/detail/price
-                               for changes AFTER the sale; each NEW row is stamped with today's date + the current
-                               user (`profile.full_name||email`), existing rows keep their original stamp, and the
-                               cleaned array is saved to **`projects.change_orders`** (jsonb NOT NULL DEFAULT '[]').
-                               These render in the work order's **Change Orders** section (with the create date + who
-                               added it). The collapsible section
-                               auto-expands when the project already has any of that detail data (a synced ShedPro
-                               project), else starts collapsed. These all write straight to the projects columns
+                               (uses Modal's sticky-`footer` + `subheader` layout: the title bar, a **tab strip**, and the
+                               Cancel/Save action bar stay fixed while only the body scrolls; Esc/×/backdrop/Cancel route
+                               through a **discard guard** — a `dirty` snapshot prompts "Discard unsaved changes?" in the
+                               footer instead of losing edits; save errors show inline in the footer). The body is split
+                               into **four tabs** (all fields stay in state regardless of the active tab, so switching
+                               never loses input and Save persists everything):
+                               • **Details** — the **Contact** picker (link/change/unlink — ContactPicker loads contacts
+                                 lazily on first expand, RLS-scoped), the read-only **Project name** heading, **Status**,
+                                 **Sale price** (a `$`-prefixed MoneyInput — there is **no "Use calc" button**, the
+                                 configurator/ShedPro price is kept; saved via `parsePriceNum`), **Work order #**
+                                 (`project_number`, here since it completes the name), and — for **admins** — an
+                                 **Assigned builder** dropdown.
+                               • **Specification** — PricingTool's ConfigPanel (size, style, siding, option packages) +
+                                 the one free-text **Additional features** field. (The other ShedPro option/finish columns
+                                 — siding_type, overhang, doors, windows, vents, roof, floor, transom_package, site_prep,
+                                 building_permit, access — are NOT edited; they're driven by the option checkboxes here and
+                                 preserved as-is on save.)
+                               • **Appearance** (optional) — the 5 rendering/image URLs (rendering_url_1..4 +
+                                 layout_rendering_url) and the 4 cosmetic **Colors** (siding_color/trim_color/door_color/
+                                 roof_color — don't affect price).
+                               • **Change orders** — `+ Add line item` rows (Item/Detail/`$` MoneyInput price, with column
+                                 headers + an empty state + a **live subtotal**) for changes AFTER the sale; each NEW row is
+                                 stamped with today's date + the current user (`profile.full_name||email`), existing rows
+                                 keep their stamp, and the cleaned array saves to **`projects.change_orders`** (jsonb NOT
+                                 NULL DEFAULT '[]'). The tab label shows a count. These render in the work order's **Change
+                                 Orders** section (price via `fmtCoPrice`, with the create date + who added it) and roll into
+                                 the Final total.
+                               **The project NAME is NOT editable** — it's BUILT from the shed data as `{size} {style desc}
+                               #{order#}` (e.g. "4x8 Tall Modern #5860") by `composeProjectName(...)`, shown as a read-only
+                               heading on the Details tab (and used for the page title), and saved to `projects.name` on
+                               Save. The style description prefers the raw ShedPro `shed_style` text, falling back to the
+                               style package name. (construction_date moved to the inline editor on the page,
+                               monthly_payment is no longer edited in-app, and options_summary / shedpro_options come from
+                               ShedPro and aren't edited here; all preserved as-is on modal save.)
+                               These all write straight to the projects columns
                                (lib/projects.js getProject/updateProject already SELECT '*'). The
                                modal edits a draft and only persists on Save (Cancel discards). The Contact picker is how you link a
                                **contact-less project** (sets projects.contact_id); switching the contact makes

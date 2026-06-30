@@ -37,7 +37,7 @@ import {
 const USC_LICENSE_FEE_RATE = 0.10; // 10%
 import { assignContact, fetchAssignableBuilders, fetchContacts } from '../lib/contacts';
 import {
-  Card, Button, Badge, Input, Select, FormField, Modal,
+  Card, Button, Badge, Input, Select, FormField, Label, Modal,
   ErrorBanner, SuccessBanner, WarningBanner, Spinner, ShedIcon,
 } from '../components/UI';
 
@@ -131,6 +131,15 @@ function normalizeChangeOrders(raw) {
 function parsePriceNum(p) {
   const n = parseFloat(String(p ?? '').replace(/[^0-9.\-]/g, ''));
   return isNaN(n) ? 0 : n;
+}
+
+// Display a change-order price: a numeric value (typed as "550" or "$550") prints as
+// currency; free text (e.g. "Included") prints as-is; blank → "—".
+function fmtCoPrice(p) {
+  const s = String(p ?? '').trim();
+  if (!s) return '—';
+  if (/^[$\s]*-?[\d,]+(\.\d+)?\s*$/.test(s)) return fmt(parsePriceNum(s));
+  return s;
 }
 
 // Format a change order's create date for display (falls back to the raw string).
@@ -736,12 +745,10 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
   }]);
   const removeCO = (i) => setChangeOrders(rows => rows.filter((_, idx) => idx !== i));
 
-  // Expand the details section automatically when the project already has any of
-  // this data (i.e. a synced ShedPro project), else keep it collapsed for a clean
-  // modal on a hand-made project. Either way the user can toggle it.
-  const [showWoDetails, setShowWoDetails] = useState(
-    DETAIL_TEXT_KEYS.some(k => String(project[k] ?? '').trim() !== '')
-  );
+  // The modal body is split into tabs (Details · Specification · Appearance · Change
+  // orders) — all fields stay in state regardless of the active tab, so switching never
+  // loses input and Save (in the footer) persists everything from any tab.
+  const [tab, setTab] = useState('details');
 
   // The name is BUILT from the draft shed data (size + style + order #), not typed —
   // so it updates live as you change the spec and is what gets saved to projects.name.
@@ -794,7 +801,7 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
       contact_id: contactId || null,
       name: derivedName || null,
       status,
-      sale_price: salePrice.trim() === '' ? null : parseFloat(salePrice),
+      sale_price: salePrice.trim() === '' ? null : parsePriceNum(salePrice),
       shed_size: cfg.size || null,
       style_package_id: cfg.stylePkgId || null,
       siding: cfg.siding || null,
@@ -830,101 +837,118 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
     </div>
   );
 
+  const TABS = [
+    { id:'details',    label:'Details' },
+    { id:'spec',       label:'Specification' },
+    { id:'appearance', label:'Appearance' },
+    { id:'changes',    label:`Change orders${changeOrders.length ? ` (${changeOrders.length})` : ''}` },
+  ];
+  const tabStrip = (
+    <div style={{ display:'flex', gap:0, borderBottom:`1px solid ${C.linenDarker}`, overflowX:'auto', overflowY:'hidden', padding:'0 28px' }}>
+      {TABS.map(t => {
+        const active = tab === t.id;
+        return (
+          <button key={t.id} type="button" onClick={() => setTab(t.id)}
+            style={{ flexShrink:0, fontFamily:'DM Sans', fontSize:13, fontWeight:600, padding:'11px 14px', border:'none', background:'transparent', cursor:'pointer', color: active ? C.sage : '#8C8478', borderBottom: active ? `2px solid ${C.sage}` : '2px solid transparent', marginBottom:-1, whiteSpace:'nowrap' }}>
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const coSubtotal = changeOrders.reduce((s, r) => s + parsePriceNum(r.price), 0);
+
   return (
-    <Modal title="Edit project" onClose={requestClose} width={640} footer={footer}>
-      <FormField label="Contact" style={{ marginBottom:16 }}>
-        <ContactPicker
-          value={contactId}
-          label={contactLabel}
-          onPick={(id, lbl) => { setContactId(id); setContactLabel(lbl); }}
-        />
-        {contactChanged && (
-          <div style={{ fontFamily:'DM Sans', fontSize:11.5, color:C.sand, marginTop:6 }}>
-            {contactId
-              ? 'This project will be linked to the selected contact (the builder follows that contact’s owner).'
-              : 'This project will be unlinked from its contact (admin-only until linked again).'}
-          </div>
-        )}
-      </FormField>
-
-      {/* Project name is built automatically from the shed data (size + style +
-          order #), so there's no name field — this just shows what it'll be. */}
-      <FormField label="Project name" style={{ marginBottom:16 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', minHeight:38, padding:'8px 12px', border:`1.5px solid ${C.linenDarker}`, borderRadius:4, background:C.linen }}>
-          <span style={{ fontFamily:'DM Sans', fontSize:14, fontWeight:600, color: derivedName ? C.charcoal : '#999' }}>
-            {derivedName || 'Set the size, style and order # below'}
-          </span>
-          <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sand }}>built from the shed data</span>
-        </div>
-      </FormField>
-
-      <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:16 }}>
-        <FormField label="Status" style={{ marginBottom:0 }}>
-          <Select value={status} onChange={setStatus} options={STATUS_OPTIONS} />
-        </FormField>
-        <FormField label="Sale price" style={{ marginBottom:0 }}>
-          <Input type="number" value={salePrice} onChange={setSalePrice} placeholder="0.00" />
-        </FormField>
-        {/* Order # lives here (not buried in the collapsible) since it completes the name. */}
-        <FormField label="Work order #" style={{ marginBottom:0 }}>
-          <Input value={details.project_number} onChange={v => setDetail('project_number', v)} placeholder="e.g. 5860" />
-        </FormField>
-        {canAssign && (
-          <FormField label="Assigned builder" style={{ marginBottom:0 }}>
-            <Select
-              value={builderId}
-              onChange={setBuilderId}
-              options={[
-                { value:'', label:'— Unassigned —' },
-                ...builders.map(b => ({ value:b.id, label:b.full_name || b.email })),
-              ]}
+    <Modal title="Edit project" onClose={requestClose} width={640} footer={footer} subheader={tabStrip}>
+      {/* ── Details ── */}
+      {tab === 'details' && (
+        <div>
+          <FormField label="Contact" style={{ marginBottom:16 }}>
+            <ContactPicker
+              value={contactId}
+              label={contactLabel}
+              onPick={(id, lbl) => { setContactId(id); setContactLabel(lbl); }}
             />
+            {contactChanged && (
+              <div style={{ fontFamily:'DM Sans', fontSize:11.5, color:C.sand, marginTop:6 }}>
+                {contactId
+                  ? 'This project will be linked to the selected contact (the builder follows that contact’s owner).'
+                  : 'This project will be unlinked from its contact (admin-only until linked again).'}
+              </div>
+            )}
           </FormField>
-        )}
-      </div>
 
-      {canAssign && builderId !== origOwner && (
-        <div style={{ fontFamily:'DM Sans', fontSize:11.5, color:C.sand, marginTop:8 }}>
-          Heads up: the builder is set on the contact, so this reassigns every project for {project.contact?.full_name || project.contact?.company_name || 'this contact'}.
+          {/* Name is auto-built from the shed data — shown here as a read-only heading. */}
+          <div style={{ marginBottom:16 }}>
+            <Label>Project name</Label>
+            <div style={{ display:'flex', alignItems:'baseline', gap:10, flexWrap:'wrap' }}>
+              <span style={{ fontFamily:'Cormorant Garamond, serif', fontSize:20, fontWeight:600, color: derivedName ? C.charcoal : '#aaa', lineHeight:1.2 }}>
+                {derivedName || 'Set the size, style and order #'}
+              </span>
+              <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sand }}>auto-generated from the spec</span>
+            </div>
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:16 }}>
+            <FormField label="Status" style={{ marginBottom:0 }}>
+              <Select value={status} onChange={setStatus} options={STATUS_OPTIONS} />
+            </FormField>
+            <FormField label="Sale price" style={{ marginBottom:0 }}>
+              <MoneyInput value={salePrice} onChange={setSalePrice} />
+            </FormField>
+            <FormField label="Work order #" style={{ marginBottom:0 }}>
+              <Input value={details.project_number} onChange={v => setDetail('project_number', v)} placeholder="e.g. 5860" />
+            </FormField>
+            {canAssign && (
+              <FormField label="Assigned builder" style={{ marginBottom:0 }}>
+                <Select
+                  value={builderId}
+                  onChange={setBuilderId}
+                  options={[
+                    { value:'', label:'— Unassigned —' },
+                    ...builders.map(b => ({ value:b.id, label:b.full_name || b.email })),
+                  ]}
+                />
+              </FormField>
+            )}
+          </div>
+
+          {canAssign && builderId !== origOwner && (
+            <div style={{ fontFamily:'DM Sans', fontSize:11.5, color:C.sand, marginTop:8 }}>
+              Heads up: the builder is set on the contact, so this reassigns every project for {project.contact?.full_name || project.contact?.company_name || 'this contact'}.
+            </div>
+          )}
         </div>
       )}
 
-      {/* Shed specification */}
-      <div style={{ borderTop:`1px solid ${C.linenDarker}`, margin:'20px 0 16px' }} />
-      <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand, marginBottom:6 }}>
-        Shed specification
-      </div>
-      <p style={{ fontFamily:'DM Sans', fontSize:12, color:'#999', margin:'0 0 14px' }}>
-        Size, style, siding and options. Drives the work order and the materials list.
-      </p>
-      <div style={{ maxWidth: isMobile ? '100%' : 360 }}>
-        <ConfigPanel cfg={cfg} setCfg={setCfg} packages={packages} />
-      </div>
+      {/* ── Specification ── */}
+      {tab === 'spec' && (
+        <div>
+          <p style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#777', margin:'0 0 14px' }}>
+            Size, style, siding and options. Drives the work order and the materials list.
+          </p>
+          <div style={{ maxWidth: isMobile ? '100%' : 380 }}>
+            <ConfigPanel cfg={cfg} setCfg={setCfg} packages={packages} />
+          </div>
+          {/* Other options are set by the checkboxes above; this is the one free-text add. */}
+          <div style={{ marginTop:20 }}>
+            <FormField label="Additional features" style={{ marginBottom:0 }}>
+              <Input value={details.additional_features} onChange={v => setDetail('additional_features', v)} placeholder="Any custom features not covered by the options above" />
+            </FormField>
+          </div>
+        </div>
+      )}
 
-      {/* Configured options (siding, doors, vents, floor, site prep, …) are set by
-          the option checkboxes in the spec above, so they aren't repeated here. The
-          one free-text field kept is Additional features, for custom add-ons. */}
-      <div style={{ marginTop:20 }}>
-        <FormField label="Additional features" style={{ marginBottom:0 }}>
-          <Input value={details.additional_features} onChange={v => setDetail('additional_features', v)} placeholder="Any custom features not covered by the options above" />
-        </FormField>
-      </div>
-
-      {/* Appearance — the cosmetic fields the work order shows (rendering image URLs
-          and colors). Collapsed by default on a project that has none of this yet. */}
-      <div style={{ borderTop:`1px solid ${C.linenDarker}`, margin:'20px 0 14px' }} />
-      <button type="button" onClick={() => setShowWoDetails(v => !v)}
-        style={{ display:'flex', alignItems:'center', gap:8, background:'none', border:'none', padding:0, cursor:'pointer', fontFamily:'DM Sans', fontSize:13, fontWeight:700, color:C.charcoal }}>
-        <span style={{ color:C.sage, fontSize:11 }}>{showWoDetails ? '▼' : '▶'}</span>
-        Appearance — renderings &amp; colors (optional)
-      </button>
-
-      {showWoDetails && (
-        <div style={{ marginTop:18 }}>
-          {/* Renderings & images */}
+      {/* ── Appearance ── */}
+      {tab === 'appearance' && (
+        <div>
+          <p style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#777', margin:'0 0 16px' }}>
+            Optional — the renderings and colors shown on the work order. None of this affects the price.
+          </p>
           <EditSubLabel>Renderings &amp; images</EditSubLabel>
           <p style={editHint}>Image URLs shown on the work order, in order.</p>
-          <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:20 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:22 }}>
             {RENDER_FIELDS.map(([k, label]) => (
               <FormField key={k} label={label} style={{ marginBottom:0 }}>
                 <Input value={details[k]} onChange={v => setDetail(k, v)} placeholder="https://…" />
@@ -932,10 +956,8 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
             ))}
           </div>
 
-          {/* Colors — cosmetic only, don't affect price (options live up by the spec). */}
           <EditSubLabel>Colors</EditSubLabel>
-          <p style={editHint}>Cosmetic finishes — these don’t change the price.</p>
-          <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:14, marginBottom:20 }}>
+          <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:14 }}>
             {COLOR_FIELDS.map(([k, label]) => (
               <FormField key={k} label={label} style={{ marginBottom:0 }}>
                 <Input value={details[k]} onChange={v => setDetail(k, v)} />
@@ -945,34 +967,77 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
         </div>
       )}
 
-      {/* Change orders — line items added in-app AFTER the sale. Each is stamped with
-          today's date + who added it and shows in the work order's Change Orders
-          section. (The ShedPro quote's own options aren't edited here.) */}
-      <div style={{ borderTop:`1px solid ${C.linenDarker}`, margin:'20px 0 14px' }} />
-      <EditSubLabel>Change orders</EditSubLabel>
-      <p style={editHint}>Add a line item for any change after the shed is sold. Each is stamped with today’s date and your name, and appears in the work order’s Change Orders section.</p>
-      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-        {changeOrders.map((r, i) => (
-          <div key={i} style={{ display:'flex', flexDirection:'column', gap:4 }}>
-            <div style={{ display:'flex', flexWrap:'wrap', gap:8, alignItems:'center' }}>
-              <div style={{ flex:'2 1 150px', minWidth:0 }}><Input value={r.label} onChange={v => setCO(i, 'label', v)} placeholder="Change order item" /></div>
-              <div style={{ flex:'2 1 150px', minWidth:0 }}><Input value={r.detail} onChange={v => setCO(i, 'detail', v)} placeholder="Detail (optional)" /></div>
-              <div style={{ flex:'1 1 90px', minWidth:0 }}><Input value={r.price} onChange={v => setCO(i, 'price', v)} placeholder="$0.00" /></div>
-              <button type="button" onClick={() => removeCO(i)} title="Remove change order"
-                style={{ flexShrink:0, width:30, height:30, borderRadius:4, border:`1px solid ${C.linenDarker}`, background:C.linen, color:C.error, cursor:'pointer', fontSize:16, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+      {/* ── Change orders ── */}
+      {tab === 'changes' && (
+        <div>
+          <p style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#777', margin:'0 0 16px' }}>
+            Line items for any change after the shed is sold. Each is stamped with today’s date and your name, shows in the work order’s Change Orders section, and adds to the final total.
+          </p>
+
+          {changeOrders.length === 0 ? (
+            <div style={{ border:`1px dashed ${C.linenDarker}`, borderRadius:6, padding:'18px 16px', textAlign:'center', fontFamily:'DM Sans', fontSize:13, color:'#999', marginBottom:14 }}>
+              No change orders yet.
             </div>
-            {(r.created_at || r.created_by_name) && (
-              <div style={{ fontFamily:'DM Sans', fontSize:11, color:'#999', paddingLeft:2 }}>
-                Added {fmtCoDate(r.created_at)}{r.created_by_name ? ` by ${r.created_by_name}` : ''}
+          ) : (
+            <>
+              {/* Column headers (desktop) */}
+              {!isMobile && (
+                <div style={{ display:'flex', gap:8, padding:'0 0 6px', fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:C.sand }}>
+                  <div style={{ flex:'2 1 150px' }}>Item</div>
+                  <div style={{ flex:'2 1 150px' }}>Detail</div>
+                  <div style={{ flex:'1 1 100px' }}>Price</div>
+                  <div style={{ width:30, flexShrink:0 }} />
+                </div>
+              )}
+              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                {changeOrders.map((r, i) => (
+                  <div key={i} style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:8, alignItems:'center' }}>
+                      <div style={{ flex:'2 1 150px', minWidth:0 }}><Input value={r.label} onChange={v => setCO(i, 'label', v)} placeholder="Change order item" /></div>
+                      <div style={{ flex:'2 1 150px', minWidth:0 }}><Input value={r.detail} onChange={v => setCO(i, 'detail', v)} placeholder="Detail (optional)" /></div>
+                      <div style={{ flex:'1 1 100px', minWidth:0 }}><MoneyInput value={r.price} onChange={v => setCO(i, 'price', v)} align="right" /></div>
+                      <button type="button" onClick={() => removeCO(i)} title="Remove change order"
+                        style={{ flexShrink:0, width:30, height:30, borderRadius:4, border:`1px solid ${C.linenDarker}`, background:C.linen, color:C.error, cursor:'pointer', fontSize:16, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+                    </div>
+                    {(r.created_at || r.created_by_name) && (
+                      <div style={{ fontFamily:'DM Sans', fontSize:11, color:'#999', paddingLeft:2 }}>
+                        Added {fmtCoDate(r.created_at)}{r.created_by_name ? ` by ${r.created_by_name}` : ''}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-            )}
+
+              {/* Running subtotal — mirrors the work order's Final-total math. */}
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginTop:14, paddingTop:12, borderTop:`1px solid ${C.linenDarker}` }}>
+                <span style={{ fontFamily:'DM Sans', fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', color:C.sand }}>Change orders subtotal</span>
+                <span style={{ fontFamily:'DM Sans', fontSize:15, fontWeight:700, color:C.charcoal, fontVariantNumeric:'tabular-nums' }}>{fmt(coSubtotal)}</span>
+              </div>
+            </>
+          )}
+
+          <div style={{ marginTop:14 }}>
+            <Button variant="ghost" size="sm" onClick={addCO}>+ Add line item</Button>
           </div>
-        ))}
-      </div>
-      <div style={{ marginTop:10 }}>
-        <Button variant="ghost" size="sm" onClick={addCO}>+ Add line item</Button>
-      </div>
+        </div>
+      )}
     </Modal>
+  );
+}
+
+// $-prefixed money input used in the edit modal (sale price + change-order prices).
+function MoneyInput({ value, onChange, placeholder = '0.00', align = 'left' }) {
+  return (
+    <div style={{ display:'flex', alignItems:'stretch', border:`1.5px solid ${C.linenDarker}`, borderRadius:4, background:'#FFFDF9', overflow:'hidden' }}>
+      <span style={{ display:'flex', alignItems:'center', padding:'0 9px', background:C.linen, color:'#8C8478', fontFamily:'DM Sans', fontSize:13, fontWeight:600 }}>$</span>
+      <input
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        inputMode="decimal"
+        style={{ border:'none', outline:'none', background:'transparent', padding:'9px 10px', fontFamily:'DM Sans', fontSize:14, color:C.charcoal, width:'100%', minWidth:0, textAlign:align }}
+      />
+    </div>
   );
 }
 
@@ -1316,7 +1381,7 @@ function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, 
                       </div>
                     )}
                   </td>
-                  <td style={{ ...woTd, textAlign:'right', whiteSpace:'nowrap', fontWeight:600 }}>{co.price || '—'}</td>
+                  <td style={{ ...woTd, textAlign:'right', whiteSpace:'nowrap', fontWeight:600 }}>{fmtCoPrice(co.price)}</td>
                 </tr>
               ))}
             </tbody>
@@ -1603,7 +1668,7 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
                   </span>
                 )}
               </span>
-              <span style={{ fontFamily:'DM Sans', fontSize:13.5, fontWeight:600, color:C.charcoal, whiteSpace:'nowrap' }}>{co.price || '—'}</span>
+              <span style={{ fontFamily:'DM Sans', fontSize:13.5, fontWeight:600, color:C.charcoal, whiteSpace:'nowrap' }}>{fmtCoPrice(co.price)}</span>
             </div>
           ))}
         </MoSection>
