@@ -167,8 +167,6 @@ function OptionsPanel({ cfg, setCfg, packages }) {
     flat_rate: pkg.flat_rate,
     count: cfg.selectedPkgs[pkg.id] || 0,
     setCount: v => setCfg(p => ({ ...p, selectedPkgs:{ ...p.selectedPkgs, [pkg.id]:v } })),
-    override: cfg.pkgOverrides[pkg.id] ?? '',
-    setOverride: v => setCfg(p => ({ ...p, pkgOverrides:{ ...p.pkgOverrides, [pkg.id]:v } })),
   }));
 
   const countable = allItems.filter(i => i.allow_quantity);
@@ -194,14 +192,6 @@ function OptionsPanel({ cfg, setCfg, packages }) {
                     <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sage, fontWeight:600 }}>{fmt(item.flat_rate)}</span>
                   )}
                 </div>
-                {item.count > 0 && (
-                  <div style={{ marginTop:5 }}>
-                    <input type="number" min="0" value={item.override}
-                      onChange={e => item.setOverride(e.target.value)}
-                      placeholder="Override unit price"
-                      style={{ width:'100%', padding:'4px 8px', border:`1px solid ${C.linenDarker}`, borderRadius:3, fontFamily:'DM Sans', fontSize:11, background:C.linen, boxSizing:'border-box', color:'#888' }} />
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -229,14 +219,6 @@ function OptionsPanel({ cfg, setCfg, packages }) {
                     <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sage, fontWeight:600 }}>{fmt(item.flat_rate)}</span>
                   )}
                 </label>
-                {item.count > 0 && (
-                  <div style={{ marginTop:5, marginLeft:21 }}>
-                    <input type="number" min="0" value={item.override}
-                      onChange={e => item.setOverride(e.target.value)}
-                      placeholder="Override price"
-                      style={{ width:'100%', padding:'4px 8px', border:`1px solid ${C.linenDarker}`, borderRadius:3, fontFamily:'DM Sans', fontSize:11, background:C.linen, boxSizing:'border-box', color:'#888' }} />
-                  </div>
-                )}
               </div>
             ))}
           </div>
