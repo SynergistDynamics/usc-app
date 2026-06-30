@@ -156,16 +156,18 @@ src/
                                  #work-order-print) showing every relevant detail: customer (name/company/full
                                  mailing address/phone/email, from the embedded contact), builder, shed spec
                                  (size/style/siding/multiplier), selected option packages, ShedPro finishes &
-                                 colors (the **Siding color is paired with its paint price** in the Finishes section —
-                                 `sidingColorPriceFor()` prefers a ShedPro-quoted paint/siding-color line, else the
-                                 app's **"Paint"** package price [the per-shed siding-color charge]; Paint is then
-                                 dropped from the app-priced options list so it isn't listed twice), the **ShedPro
+                                 colors (siding color shows WITHOUT a price in Finishes), the **ShedPro
                                  itemized options & pricing** list (shedpro_options →
                                  "Options & Pricing" table, or the options_summary text fallback, or — when a project
                                  has NEITHER, e.g. one created by hand — an **app-priced fallback**: the selected
                                  option packages priced by buildOutput's pkgGroups[].customerPkgPrice. When that
                                  app-priced fallback is what's showing, the plain "Options & Add-ons" pills are hidden
-                                 so the same options don't appear twice), renderings, and a **pricing breakdown** (see
+                                 so the same options don't appear twice. The **siding-color charge = the "Paint"
+                                 package** (per-shed paint cost): it's a selected package so it's already in the app's
+                                 total, and it shows as a line item in Options & Pricing — in the app-priced fallback it
+                                 lists as "Paint"; on a ShedPro quote `withSidingColorPrice()` fills the siding-color
+                                 line's blank price [e.g. "Techno Gray"] from the app's Paint price), renderings, and a
+                                 **pricing breakdown** (see
                                  below) + notes. A
                                  "🖨 Print work order" button prints it. **Printing now uses a hidden IFRAME** (copies
                                  the #work-order-print innerHTML into the iframe and calls iframe.print()) instead of
