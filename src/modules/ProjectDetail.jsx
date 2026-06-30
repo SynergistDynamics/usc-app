@@ -26,7 +26,7 @@ import {
   SHED_SIZES, C, fmt, getStyleMultiplier,
 } from '../lib/supabase';
 import { useAuth } from '../components/Auth';
-import { buildOutput, ConfigPanel, MaterialsListTab } from './PricingTool';
+import { buildOutput, ConfigPanel, MaterialsListTab, BASE_PRICE_KEY, SIDING_PRICE_KEY } from './PricingTool';
 import {
   getProject, updateProject, deleteProject, fetchBuilderPricingContext,
   PROJECT_STATUSES, PROJECT_STATUS_LABELS, PROJECT_MILESTONES, isSoldStatus,
@@ -282,13 +282,26 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const manualPricing = project ? (project.source !== 'shedpro' && project.source !== 'zapier') : false;
 
   // Live materials list from the saved config — same engine as the calculator,
-  // priced with the project builder's context (priceOverrides/Mults/SalesTax).
+  // priced with the project builder's context (priceOverrides/Mults/SalesTax). For a
+  // manually-added project this runs overridesOnly, so the itemized line prices are the
+  // entered ShedPro prices (blank = $0) rather than the material×multiplier calc.
   const out = useMemo(() => {
     if (!cfg) return { hasQty: false };
     return buildOutput({
       ...cfg, styleMults: priceStyleMults, salesTax: priceSalesTax, materials, overrides: priceOverrides, packages, pkgMaterials, pkgQuantities, overridesOnly: manualPricing,
     });
   }, [cfg, priceStyleMults, priceSalesTax, materials, priceOverrides, packages, pkgMaterials, pkgQuantities, manualPricing]);
+
+  // The app's OWN independent estimate (material × multiplier), IGNORING the entered
+  // price overrides — this is the "App calculated price" shown in the pricing section as
+  // a comparison number, and it always reflects the app's calc, never the typed prices.
+  const outCalc = useMemo(() => {
+    if (!cfg) return { hasQty: false };
+    if (!manualPricing) return null; // synced projects: `out` already IS the app calc
+    return buildOutput({
+      ...cfg, pkgOverrides: {}, styleMults: priceStyleMults, salesTax: priceSalesTax, materials, overrides: priceOverrides, packages, pkgMaterials, pkgQuantities,
+    });
+  }, [cfg, manualPricing, priceStyleMults, priceSalesTax, materials, priceOverrides, packages, pkgMaterials, pkgQuantities]);
 
   const stylePkg   = stylePkgs.find(p => p.id === cfg?.stylePkgId);
   const styleLabel = stylePkg?.name || '—';
@@ -360,17 +373,30 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   // Post-sale change orders added in-app (label/detail/price + when/who added them).
   const changeOrders = normalizeChangeOrders(project?.change_orders);
 
-  // Priced option line items from the app's OWN pricing engine — the fallback for
-  // the "Options & Pricing" section when a project has no ShedPro itemized quote
-  // (e.g. a project created by hand). Each selected option package shows with its
-  // calculated customer price (incl. any per-package override) — including Paint (the
-  // siding-color charge). Siding package + style excluded.
-  const optionPriceLines = (out?.pkgGroups || [])
-    .filter(g => !g.isSidingPkg && g.pkg && !g.pkg.is_style)
-    .map(g => ({
-      label: (g.pkgCount || 1) > 1 ? `${g.pkg.name} (×${g.pkgCount})` : g.pkg.name,
-      price: fmt(g.customerPkgPrice || 0),
-    }));
+  // Priced line items for the work order's "Options & Pricing" section (the fallback
+  // shown when a project has no ShedPro itemized quote, e.g. a hand-added project).
+  // For a MANUAL project these are the entered ShedPro prices (overridesOnly `out`),
+  // and they lead with the priced Base shed + Siding lines, then each option — anything
+  // left blank shows $0. For a synced project (no shedpro_options) it's the app-priced
+  // option packages. Style/siding handled explicitly; Paint excluded (siding-color line).
+  let optionPriceLines;
+  if (manualPricing) {
+    const lines = [];
+    if (out?.hasQty) {
+      if (cfg?.stylePkgId) lines.push({ label: `Base shed${styleLabel && styleLabel !== '—' ? ` — ${styleLabel}` : ''}`, price: fmt(out.baseCustomer || 0) });
+      (out.pkgGroups || []).filter(g => g.isSidingPkg).forEach(g => lines.push({ label: `Siding — ${g.pkg?.name || cfg?.siding}`, price: fmt(g.customerPkgPrice || 0) }));
+      (out.pkgGroups || []).filter(g => !g.isSidingPkg && g.pkg && !g.pkg.is_style && !isPaintPkg(g.pkg.name))
+        .forEach(g => lines.push({ label: (g.pkgCount || 1) > 1 ? `${g.pkg.name} (×${g.pkgCount})` : g.pkg.name, price: fmt(g.customerPkgPrice || 0) }));
+    }
+    optionPriceLines = lines;
+  } else {
+    optionPriceLines = (out?.pkgGroups || [])
+      .filter(g => !g.isSidingPkg && g.pkg && !g.pkg.is_style)
+      .map(g => ({
+        label: (g.pkgCount || 1) > 1 ? `${g.pkg.name} (×${g.pkgCount})` : g.pkg.name,
+        price: fmt(g.customerPkgPrice || 0),
+      }));
+  }
 
   // ── Pricing breakdown shown at the bottom of the work order ──
   // Material cost is the builder's (priced via their context above). The configurator
@@ -384,7 +410,10 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const hasBreakdown = salePriceNum != null && materialCost != null;
   const licenseFee   = hasBreakdown ? salePriceNum * USC_LICENSE_FEE_RATE : null;
   const laborProfit  = hasBreakdown ? salePriceNum - materialCost - licenseFee : null;
-  const appCalcPrice = out?.hasQty ? out.customerPrice : null;
+  // App calculated price = the app's OWN material×multiplier estimate; for a manual
+  // project that's outCalc (overrides ignored), else `out`. Always shown for comparison.
+  const calcSource   = manualPricing ? outCalc : out;
+  const appCalcPrice = calcSource?.hasQty ? calcSource.customerPrice : null;
 
   // Change-order subtotal + the FINAL total (sale price + change orders). When there are
   // change orders, the work order keeps the sale price visible as a line and shows the
@@ -396,7 +425,7 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
     : null;
 
   const pricing = {
-    materialCost, licenseFee, laborProfit, appCalcPrice, salePriceNum, overridesOnly: manualPricing,
+    materialCost, licenseFee, laborProfit, appCalcPrice, salePriceNum,
     licenseRatePct: Math.round(USC_LICENSE_FEE_RATE * 100),
     changeOrdersTotal, hasChangeOrders, finalTotal,
   };
@@ -1411,7 +1440,7 @@ function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, 
           )}
           {pricing.appCalcPrice != null && (
             <tr style={{ borderTop:`1px solid ${C.linen}` }}>
-              <td style={{ ...woTd, fontWeight:600 }}>{pricing.overridesOnly ? 'Itemized total' : 'App calculated price'}</td>
+              <td style={{ ...woTd, fontWeight:600 }}>App calculated price</td>
               <td style={{ ...woTd, textAlign:'right', fontWeight:600 }}>{fmt(pricing.appCalcPrice)}</td>
             </tr>
           )}
@@ -1573,8 +1602,8 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
         {monthly != null && (
           <div style={{ fontFamily:'DM Sans', fontSize:12.5, color:C.inkLight, marginTop:2 }}>or from {fmt(monthly)}/mo with financing</div>
         )}
-        {out?.hasQty && (
-          <div style={{ fontFamily:'DM Sans', fontSize:12, color:'#8C8478', marginTop:6 }}>{pricing.overridesOnly ? 'Itemized total' : 'App calculated price'} {fmt(out.customerPrice)}</div>
+        {pricing.appCalcPrice != null && (
+          <div style={{ fontFamily:'DM Sans', fontSize:12, color:'#8C8478', marginTop:6 }}>App calculated price {fmt(pricing.appCalcPrice)}</div>
         )}
       </div>
 
@@ -1686,7 +1715,7 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
         {pricing.materialCost != null && <MoPriceRow label="Material cost" value={fmt(pricing.materialCost)} muted />}
         {pricing.licenseFee != null && <MoPriceRow label={`Urban Sheds licensing fee (${pricing.licenseRatePct}%)`} value={fmt(pricing.licenseFee)} />}
         {pricing.laborProfit != null && <MoPriceRow label="Labor, overhead & profit" value={fmt(pricing.laborProfit)} />}
-        {pricing.appCalcPrice != null && <MoPriceRow label={pricing.overridesOnly ? 'Itemized total' : 'App calculated price'} value={fmt(pricing.appCalcPrice)} bold topBorder />}
+        {pricing.appCalcPrice != null && <MoPriceRow label="App calculated price" value={fmt(pricing.appCalcPrice)} bold topBorder />}
         {pricing.hasChangeOrders && (
           <>
             <MoPriceRow label="Sale price · configurator" value={salePriceNum != null ? fmt(salePriceNum) : '—'} topBorder />

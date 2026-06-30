@@ -194,16 +194,18 @@ src/
                                breaks the **configurator SALE price** into: **Material cost** (builder's local prices) +
                                **Urban Sheds licensing fee** (`USC_LICENSE_FEE_RATE` = 10% of the sale price) + **Labor,
                                overhead & profit** (= sale − material − fee). Below that sits the **App calculated price**
-                               (buildOutput's own customerPrice — the app's independent number, kept alongside so the two
-                               can be COMPARED; ideally they match). **PRICING SOURCE depends on the project's origin
-                               (2026-06-30):** a **ShedPro-synced** project (`source` shedpro/zapier) prices base/siding/
-                               options from the app's material×multiplier calc as before. A **manually-added** project
-                               (`source='manual'`, the default) is priced **overrides-only** — buildOutput is called with
-                               `overridesOnly:true`, so base/siding/options show ONLY their entered price override and
-                               anything left blank is **$0** (no material/flat-rate fallback). For those, the "App
-                               calculated price" line is relabeled **"Itemized total"** (it's the sum of what was entered).
-                               This is why the Specification-tab `$` price fields exist — a hand-added project carries the
-                               ShedPro prices and the work order shows exactly those (or $0). **When the project has NO change orders**, the large
+                               (the app's own material×multiplier estimate, an independent comparison number; ALWAYS
+                               shown when hasQty, for every project). **ITEMIZED PRICING depends on origin (2026-06-30):**
+                               a **ShedPro-synced** project (`source` shedpro/zapier) shows its synced quote (shedpro_options),
+                               or — failing that — app-priced option packages. A **manually-added** project (`source='manual'`,
+                               the default) shows its **entered ShedPro prices** in "Options & Pricing": `out` runs
+                               `overridesOnly:true` so the list leads with the priced **Base shed** + **Siding** lines and
+                               then each option, every line at its entered override (**blank = $0**, no material/flat-rate
+                               fallback). The separate **App calculated price** number for a manual project comes from a
+                               SECOND buildOutput (`outCalc`, called with `pkgOverrides:{}`) so it's the app's pure estimate
+                               and never the typed prices. This is why the Specification-tab `$` price fields exist — a
+                               hand-added project carries the ShedPro base/siding/option prices in the itemized list while the
+                               App calculated price stays as the app's reference. **When the project has NO change orders**, the large
                                green number is the **Sale price (configurator)**. **When it has change orders**, the sale
                                price stays visible as a line, a **Change orders** subtotal (+$X, summed from change_orders
                                prices via `parsePriceNum`) is added, and the large green number becomes the **Final total ·
