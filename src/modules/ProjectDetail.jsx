@@ -127,6 +127,12 @@ function normalizeChangeOrders(raw) {
   }).filter(Boolean);
 }
 
+// Parse a price string (e.g. "$550.00", "550", "Included") to a number; non-numeric → 0.
+function parsePriceNum(p) {
+  const n = parseFloat(String(p ?? '').replace(/[^0-9.\-]/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+
 // Format a change order's create date for display (falls back to the raw string).
 function fmtCoDate(s) {
   if (!s) return '';
@@ -365,9 +371,20 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const licenseFee   = hasBreakdown ? salePriceNum * USC_LICENSE_FEE_RATE : null;
   const laborProfit  = hasBreakdown ? salePriceNum - materialCost - licenseFee : null;
   const appCalcPrice = out?.hasQty ? out.customerPrice : null;
+
+  // Change-order subtotal + the FINAL total (sale price + change orders). When there are
+  // change orders, the work order keeps the sale price visible as a line and shows the
+  // final total as the big number; with no change orders the sale price IS the big number.
+  const changeOrdersTotal = changeOrders.reduce((s, co) => s + parsePriceNum(co.price), 0);
+  const hasChangeOrders = changeOrders.length > 0;
+  const finalTotal = (salePriceNum != null || hasChangeOrders)
+    ? (salePriceNum || 0) + changeOrdersTotal
+    : null;
+
   const pricing = {
     materialCost, licenseFee, laborProfit, appCalcPrice, salePriceNum,
     licenseRatePct: Math.round(USC_LICENSE_FEE_RATE * 100),
+    changeOrdersTotal, hasChangeOrders, finalTotal,
   };
 
   // Shared props for both work-order renderings (the paper doc + the mobile view).
@@ -1309,14 +1326,38 @@ function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, 
               <td style={{ ...woTd, textAlign:'right', fontWeight:600 }}>{fmt(pricing.appCalcPrice)}</td>
             </tr>
           )}
-          <tr style={{ borderTop:`1.5px solid ${C.linenDarker}` }}>
-            <td style={{ padding:'8px 0 0', fontFamily:'Cormorant Garamond, serif', fontSize:20, color:C.charcoal }}>
-              Sale price <span style={{ fontFamily:'DM Sans', fontSize:11, fontWeight:400, color:'#999' }}>· configurator</span>
-            </td>
-            <td style={{ padding:'8px 0 0', fontFamily:'Cormorant Garamond, serif', fontSize:24, fontWeight:700, color:C.sage, textAlign:'right' }}>
-              {salePriceNum != null ? fmt(salePriceNum) : '—'}
-            </td>
-          </tr>
+          {pricing.hasChangeOrders ? (
+            <>
+              {/* Sale price stays visible as a line; change orders add on; final total leads. */}
+              <tr style={{ borderTop:`1.5px solid ${C.linenDarker}` }}>
+                <td style={{ ...woTd, paddingTop:8 }}>
+                  Sale price <span style={{ color:'#999', fontSize:11 }}>· configurator</span>
+                </td>
+                <td style={{ ...woTd, paddingTop:8, textAlign:'right' }}>{salePriceNum != null ? fmt(salePriceNum) : '—'}</td>
+              </tr>
+              <tr>
+                <td style={woTd}>Change orders</td>
+                <td style={{ ...woTd, textAlign:'right' }}>+{fmt(pricing.changeOrdersTotal)}</td>
+              </tr>
+              <tr style={{ borderTop:`1.5px solid ${C.linenDarker}` }}>
+                <td style={{ padding:'8px 0 0', fontFamily:'Cormorant Garamond, serif', fontSize:20, color:C.charcoal }}>
+                  Final total <span style={{ fontFamily:'DM Sans', fontSize:11, fontWeight:400, color:'#999' }}>· incl. change orders</span>
+                </td>
+                <td style={{ padding:'8px 0 0', fontFamily:'Cormorant Garamond, serif', fontSize:24, fontWeight:700, color:C.sage, textAlign:'right' }}>
+                  {fmt(pricing.finalTotal)}
+                </td>
+              </tr>
+            </>
+          ) : (
+            <tr style={{ borderTop:`1.5px solid ${C.linenDarker}` }}>
+              <td style={{ padding:'8px 0 0', fontFamily:'Cormorant Garamond, serif', fontSize:20, color:C.charcoal }}>
+                Sale price <span style={{ fontFamily:'DM Sans', fontSize:11, fontWeight:400, color:'#999' }}>· configurator</span>
+              </td>
+              <td style={{ padding:'8px 0 0', fontFamily:'Cormorant Garamond, serif', fontSize:24, fontWeight:700, color:C.sage, textAlign:'right' }}>
+                {salePriceNum != null ? fmt(salePriceNum) : '—'}
+              </td>
+            </tr>
+          )}
           {monthlyPayment != null && String(monthlyPayment).trim() !== '' && (
             <tr>
               <td />
@@ -1421,15 +1462,25 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
       {/* Hero — lead with the shed */}
       <WoGallery images={renders} />
 
-      {/* Price headline */}
+      {/* Price headline — leads with the final total (incl. change orders) when there
+          are any, keeping the configurator sale price visible just below. */}
       <div style={{ background:C.paper, border:`1px solid ${C.linenDarker}`, borderRadius:12, padding:'15px 16px', marginBottom:20 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10 }}>
-          <span style={{ fontFamily:'DM Sans', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:C.sageDark }}>Sale price</span>
+          <span style={{ fontFamily:'DM Sans', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:C.sageDark }}>
+            {pricing.hasChangeOrders ? 'Final total' : 'Sale price'}
+          </span>
           <span style={{ fontFamily:'DM Sans', fontSize:11.5, color:'#8C8478' }}>{woNumber} · {PROJECT_STATUS_LABELS[status] || status}</span>
         </div>
         <div style={{ fontFamily:'Cormorant Garamond, serif', fontSize:38, fontWeight:700, color:C.sage, lineHeight:1.05, marginTop:1 }}>
-          {salePriceNum != null ? fmt(salePriceNum) : '—'}
+          {pricing.hasChangeOrders
+            ? fmt(pricing.finalTotal)
+            : (salePriceNum != null ? fmt(salePriceNum) : '—')}
         </div>
+        {pricing.hasChangeOrders && (
+          <div style={{ fontFamily:'DM Sans', fontSize:12.5, color:C.inkLight, marginTop:2 }}>
+            Sale price {salePriceNum != null ? fmt(salePriceNum) : '—'} + change orders {fmt(pricing.changeOrdersTotal)}
+          </div>
+        )}
         {monthly != null && (
           <div style={{ fontFamily:'DM Sans', fontSize:12.5, color:C.inkLight, marginTop:2 }}>or from {fmt(monthly)}/mo with financing</div>
         )}
@@ -1547,11 +1598,23 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
         {pricing.licenseFee != null && <MoPriceRow label={`Urban Sheds licensing fee (${pricing.licenseRatePct}%)`} value={fmt(pricing.licenseFee)} />}
         {pricing.laborProfit != null && <MoPriceRow label="Labor, overhead & profit" value={fmt(pricing.laborProfit)} />}
         {pricing.appCalcPrice != null && <MoPriceRow label="App calculated price" value={fmt(pricing.appCalcPrice)} bold topBorder />}
+        {pricing.hasChangeOrders && (
+          <>
+            <MoPriceRow label="Sale price · configurator" value={salePriceNum != null ? fmt(salePriceNum) : '—'} topBorder />
+            <MoPriceRow label="Change orders" value={`+${fmt(pricing.changeOrdersTotal)}`} />
+          </>
+        )}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginTop:8, paddingTop:10, borderTop:`1.5px solid ${C.linenDarker}` }}>
           <span style={{ fontFamily:'Cormorant Garamond, serif', fontSize:20, color:C.charcoal }}>
-            Sale price <span style={{ fontFamily:'DM Sans', fontSize:10.5, fontWeight:400, color:'#999' }}>· configurator</span>
+            {pricing.hasChangeOrders
+              ? <>Final total <span style={{ fontFamily:'DM Sans', fontSize:10.5, fontWeight:400, color:'#999' }}>· incl. change orders</span></>
+              : <>Sale price <span style={{ fontFamily:'DM Sans', fontSize:10.5, fontWeight:400, color:'#999' }}>· configurator</span></>}
           </span>
-          <span style={{ fontFamily:'Cormorant Garamond, serif', fontSize:26, fontWeight:700, color:C.sage }}>{salePriceNum != null ? fmt(salePriceNum) : '—'}</span>
+          <span style={{ fontFamily:'Cormorant Garamond, serif', fontSize:26, fontWeight:700, color:C.sage }}>
+            {pricing.hasChangeOrders
+              ? fmt(pricing.finalTotal)
+              : (salePriceNum != null ? fmt(salePriceNum) : '—')}
+          </span>
         </div>
         {monthly != null && (
           <div style={{ textAlign:'right', fontFamily:'DM Sans', fontSize:12, color:'#8C8478', marginTop:3 }}>or from {fmt(monthly)}/mo with financing</div>
