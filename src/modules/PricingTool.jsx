@@ -6,6 +6,19 @@ import {
 } from '../lib/supabase';
 import { SectionHeader, Select, Button, WarningBanner, Badge, QuantityTicker } from '../components/UI';
 
+// Stable keys in pkgOverrides for the base-shed and siding price overrides (option
+// overrides are keyed by their real UUID package id, so these constants never collide).
+// They let a manually-added project carry the ShedPro base + siding price.
+export const BASE_PRICE_KEY = '__base__';
+export const SIDING_PRICE_KEY = '__siding__';
+
+// Parse a price-override value ("$1,200" / "1200" / "") → number or null (blank/bad).
+function parsePkgOverride(v) {
+  if (v === undefined || v === null || String(v).trim() === '') return null;
+  const n = parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+  return isNaN(n) ? null : n;
+}
+
 // Exported so the Projects feature can render the same materials list from a
 // saved project's config (ProjectDetail.jsx) — same engine, one source of truth.
 export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrides, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities }) {
@@ -52,12 +65,22 @@ export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrid
     baseCost += total;
   }
   const styleMult    = getStyleMultiplier(styleMults, stylePkg);
-  const baseCustomer = baseCost * styleMult;
+  // A manually-set base price (ShedPro) overrides the calculated base × multiplier.
+  const baseOverride = parsePkgOverride(pkgOverrides?.[BASE_PRICE_KEY]);
+  const baseCustomer = baseOverride != null ? baseOverride : baseCost * styleMult;
 
   // ── Siding (package-backed) ──────────────────────────────
+  // A manually-set siding price (ShedPro) overrides the calculated/quote price.
+  const sidingOverride = parsePkgOverride(pkgOverrides?.[SIDING_PRICE_KEY]);
   if (siding === 'Western Red Cedar') {
-    lineItems.push({ group:'Siding', name:'Western Red Cedar', qty:'—', unitPrice:'—', total:0, quote:true });
-    addCatLine('Siding', 'Western Red Cedar', 0, 0, 0, '', true);
+    if (sidingOverride != null) {
+      lineItems.push({ group:'Siding', isSidingPkgTotal:true, name:'Western Red Cedar (set price)', sidingMatCost:0, sidingPkgPrice:sidingOverride });
+      pkgGroups.push({ pkg:{ id:SIDING_PRICE_KEY, name:'Western Red Cedar' }, customerPkgPrice:sidingOverride, materialCost:0, subItems:[], hasFlat:true, isSidingPkg:true });
+      pkgCost += sidingOverride;
+    } else {
+      lineItems.push({ group:'Siding', name:'Western Red Cedar', qty:'—', unitPrice:'—', total:0, quote:true });
+      addCatLine('Siding', 'Western Red Cedar', 0, 0, 0, '', true);
+    }
   } else if (siding && siding !== 'None') {
     const sidingKey = siding === 'T1-11' ? 't111' : siding === 'Clapboard' ? 'clapboard' : 'bAndB';
     const sidingPkg = (packages || []).find(p => p.siding_type === sidingKey);
@@ -71,14 +94,18 @@ export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrid
         return { name:mat.name, qty, unitPrice:mat.price, total:qty*mat.price, fn:addFn(mat.url) };
       }).filter(Boolean);
       const sidingMatCost  = subItems.reduce((a,b) => a+b.total, 0);
-      const sidingPkgPrice = sidingMatCost * (sidingPkg.multiplier ?? 1);
+      const sidingPkgPrice = sidingOverride != null ? sidingOverride : sidingMatCost * (sidingPkg.multiplier ?? 1);
       subItems.forEach(sub => {
         lineItems.push({ group:'Siding', name:sub.name, qty:sub.qty, unitPrice:sub.unitPrice, total:sub.total, isSidingComponent:true });
       });
-      lineItems.push({ group:'Siding', isSidingPkgTotal:true, name:`${sidingPkg.name} (${sidingPkg.multiplier}× multiplier)`, sidingMatCost, sidingPkgPrice });
+      lineItems.push({ group:'Siding', isSidingPkgTotal:true, name: sidingOverride != null ? `${sidingPkg.name} (set price)` : `${sidingPkg.name} (${sidingPkg.multiplier}× multiplier)`, sidingMatCost, sidingPkgPrice });
       pkgGroups.push({ pkg:sidingPkg, customerPkgPrice:sidingPkgPrice, materialCost:sidingMatCost, subItems, hasFlat:false, isSidingPkg:true });
       pkgCost    += sidingPkgPrice;
       pkgMatCost += sidingMatCost;
+    } else if (sidingOverride != null) {
+      lineItems.push({ group:'Siding', isSidingPkgTotal:true, name:`${siding} (set price)`, sidingMatCost:0, sidingPkgPrice:sidingOverride });
+      pkgGroups.push({ pkg:{ id:SIDING_PRICE_KEY, name:siding }, customerPkgPrice:sidingOverride, materialCost:0, subItems:[], hasFlat:true, isSidingPkg:true });
+      pkgCost += sidingOverride;
     } else {
       lineItems.push({ group:'Siding', name:`${siding} (no siding package configured)`, qty:'—', unitPrice:'—', total:0, quote:true });
       addCatLine('Siding', `${siding} (no siding package configured)`, 0, 0, 0, '', true);
@@ -135,6 +162,7 @@ export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrid
 export function ConfigPanel({ cfg, setCfg, packages, editPrices = false }) {
   const stylePkgs = (packages || []).filter(p => p.is_style);
   function set(k, v) { setCfg(p => ({ ...p, [k]: v })); }
+  const setOverride = (key, v) => setCfg(p => ({ ...p, pkgOverrides:{ ...p.pkgOverrides, [key]: v } }));
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
@@ -150,10 +178,22 @@ export function ConfigPanel({ cfg, setCfg, packages, editPrices = false }) {
             <div style={flbl}>Shed Style</div>
             <Select value={cfg.stylePkgId} onChange={v=>set('stylePkgId',v)}
               options={stylePkgs.length ? stylePkgs.map(p => ({ value:p.id, label:p.name })) : [{ value:'', label:'— no styles configured —' }]} />
+            {editPrices && (
+              <div style={{ marginTop:8, display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
+                <span style={{ fontFamily:'DM Sans', fontSize:12, color:'#8C8478' }}>Base price (ShedPro)</span>
+                <PriceField value={cfg.pkgOverrides?.[BASE_PRICE_KEY] ?? ''} onChange={v => setOverride(BASE_PRICE_KEY, v)} />
+              </div>
+            )}
           </div>
           <div>
             <div style={flbl}>Siding</div>
             <Select value={cfg.siding} onChange={v=>set('siding',v)} options={['T1-11','Clapboard','B&B','Western Red Cedar']} />
+            {editPrices && (
+              <div style={{ marginTop:8, display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
+                <span style={{ fontFamily:'DM Sans', fontSize:12, color:'#8C8478' }}>Siding price (ShedPro)</span>
+                <PriceField value={cfg.pkgOverrides?.[SIDING_PRICE_KEY] ?? ''} onChange={v => setOverride(SIDING_PRICE_KEY, v)} />
+              </div>
+            )}
           </div>
         </div>
       </div>
