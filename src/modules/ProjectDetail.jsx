@@ -37,7 +37,7 @@ import {
 const USC_LICENSE_FEE_RATE = 0.10; // 10%
 import { assignContact, fetchAssignableBuilders, fetchContacts } from '../lib/contacts';
 import {
-  Card, Button, Badge, Input, Select, FormField, Label, Modal,
+  Card, Button, Badge, Input, Select, FormField, Modal,
   ErrorBanner, SuccessBanner, WarningBanner, Spinner, ShedIcon,
 } from '../components/UI';
 
@@ -64,10 +64,11 @@ const RENDER_FIELDS = [
   ['layout_rendering_url', 'Layout / floor plan URL'],
 ];
 // Plain text columns edited in the modal. additional_features is the one free-text
-// option kept here. (construction_date is edited inline on the work order page, and
-// monthly_payment isn't edited in-app — both are left out of the modal.)
+// option kept here. (construction_date is edited inline on the work order page,
+// monthly_payment isn't edited in-app, and options_summary / shedpro_options come from
+// ShedPro and aren't edited here — all left out of the modal.)
 const DETAIL_TEXT_KEYS = [...COLOR_FIELDS, ...RENDER_FIELDS].map(([k]) => k)
-  .concat(['additional_features', 'project_number', 'options_summary']);
+  .concat(['additional_features', 'project_number']);
 
 // ShedPro's itemized options-with-prices (the "What's included" list on a ShedPro
 // quote), stored in projects.shedpro_options. Tolerant of however Zapier delivers
@@ -98,6 +99,39 @@ function normalizeShedproOptions(raw) {
     }
     return null;
   }).filter(Boolean);
+}
+
+// Post-sale CHANGE ORDERS (projects.change_orders jsonb). Each entry is a line item
+// added in-app after the sale, stamped with when it was added + who added it. Returns
+// a clean [{label, detail, price, created_at, created_by, created_by_name}].
+function normalizeChangeOrders(raw) {
+  let arr = raw;
+  if (typeof arr === 'string') {
+    const s = arr.trim();
+    if (!s) return [];
+    try { arr = JSON.parse(s); } catch { return []; }
+  }
+  if (!Array.isArray(arr)) return [];
+  return arr.map(it => {
+    if (!it || typeof it !== 'object') return null;
+    const label  = String(it.label ?? '').trim();
+    const detail = String(it.detail ?? '').trim();
+    const price  = it.price == null ? '' : String(it.price).trim();
+    if (!label && !price) return null;
+    return {
+      label, detail, price,
+      created_at: it.created_at || null,
+      created_by: it.created_by || null,
+      created_by_name: String(it.created_by_name ?? '').trim(),
+    };
+  }).filter(Boolean);
+}
+
+// Format a change order's create date for display (falls back to the raw string).
+function fmtCoDate(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? String(s) : d.toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
 }
 
 // project row → calculator cfg shape (see PricingTool).
@@ -303,6 +337,9 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const optionsSummary = project?.options_summary?.trim() || '';
   const monthlyPayment = project?.monthly_payment;
 
+  // Post-sale change orders added in-app (label/detail/price + when/who added them).
+  const changeOrders = normalizeChangeOrders(project?.change_orders);
+
   // Priced option line items from the app's OWN pricing engine — the fallback for
   // the "Options & Pricing" section when a project has no ShedPro itemized quote
   // (e.g. a project created by hand). Each selected option package shows with its
@@ -337,7 +374,7 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const woProps = {
     project, contact, title, status, salePrice, notes, cfg, size: cfg?.size,
     styleLabel, styleMult, out, selectedOptions, shedproOptions, optionsSummary,
-    optionPriceLines, monthlyPayment, pricing,
+    optionPriceLines, monthlyPayment, pricing, changeOrders,
   };
 
   return (
@@ -646,6 +683,7 @@ function ConstructionDateCard({ project, onSaved, isMobile }) {
 // project ownership is derived from the contact, so this changes the builder for
 // ALL of that contact's projects, not just this one (flagged in the UI).
 function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, overrides, packages, pkgMaterials, pkgQuantities, styleMults, salesTax, isMobile, onClose, onSaved }) {
+  const { profile } = useAuth();
   const [status,    setStatus]    = useState(project.status || 'draft');
   const [salePrice, setSalePrice] = useState(project.sale_price != null ? String(project.sale_price) : '');
   const [cfg,       setCfg]       = useState(toCfg(project, stylePkgs));
@@ -669,18 +707,23 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
   });
   const setDetail = (k, v) => setDetails(p => ({ ...p, [k]: v }));
 
-  // The itemized "Options & Pricing" line items (projects.shedpro_options jsonb).
-  const [lineItems, setLineItems] = useState(() => normalizeShedproOptions(project.shedpro_options));
-  const setLine    = (i, k, v) => setLineItems(rows => rows.map((r, idx) => idx === i ? { ...r, [k]: v } : r));
-  const addLine    = () => setLineItems(rows => [...rows, { label:'', detail:'', price:'' }]);
-  const removeLine = (i) => setLineItems(rows => rows.filter((_, idx) => idx !== i));
+  // Post-sale CHANGE ORDERS (projects.change_orders jsonb). Adding a row stamps it with
+  // today's date + the current user; editing an existing row keeps its original stamp.
+  const [changeOrders, setChangeOrders] = useState(() => normalizeChangeOrders(project.change_orders));
+  const setCO    = (i, k, v) => setChangeOrders(rows => rows.map((r, idx) => idx === i ? { ...r, [k]: v } : r));
+  const addCO    = () => setChangeOrders(rows => [...rows, {
+    label:'', detail:'', price:'',
+    created_at: new Date().toISOString(),
+    created_by: profile?.id || null,
+    created_by_name: profile?.full_name || profile?.email || '',
+  }]);
+  const removeCO = (i) => setChangeOrders(rows => rows.filter((_, idx) => idx !== i));
 
   // Expand the details section automatically when the project already has any of
   // this data (i.e. a synced ShedPro project), else keep it collapsed for a clean
   // modal on a hand-made project. Either way the user can toggle it.
   const [showWoDetails, setShowWoDetails] = useState(
-    normalizeShedproOptions(project.shedpro_options).length > 0
-    || DETAIL_TEXT_KEYS.some(k => String(project[k] ?? '').trim() !== '')
+    DETAIL_TEXT_KEYS.some(k => String(project[k] ?? '').trim() !== '')
   );
 
   // The name is BUILT from the draft shed data (size + style + order #), not typed —
@@ -708,9 +751,15 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
 
     const willBeSold = isSoldStatus(status);
     const textOrNull = v => (v == null || String(v).trim() === '') ? null : String(v).trim();
-    // shedpro_options is jsonb NOT NULL DEFAULT '[]' — always send an array, drop blank rows.
-    const cleanLines = lineItems
-      .map(r => ({ label:(r.label||'').trim(), detail:(r.detail||'').trim(), price:(r.price||'').trim() }))
+    // change_orders is jsonb NOT NULL DEFAULT '[]' — always send an array, drop blank
+    // rows, and keep/stamp each row's created_at + who added it.
+    const cleanChangeOrders = changeOrders
+      .map(r => ({
+        label:(r.label||'').trim(), detail:(r.detail||'').trim(), price:(r.price||'').trim(),
+        created_at: r.created_at || new Date().toISOString(),
+        created_by: r.created_by || profile?.id || null,
+        created_by_name: r.created_by_name || profile?.full_name || profile?.email || '',
+      }))
       .filter(r => r.label || r.price);
 
     const payload = {
@@ -725,7 +774,7 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
       package_overrides: cfg.pkgOverrides || {},
       // ShedPro / work-order detail fields (colors, renderings, finishes, …)
       ...Object.fromEntries(DETAIL_TEXT_KEYS.map(k => [k, textOrNull(details[k])])),
-      shedpro_options: cleanLines,
+      change_orders: cleanChangeOrders,
     };
     if (willBeSold && !project.sold_at) payload.sold_at = new Date().toISOString();
 
@@ -820,7 +869,7 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
       <button type="button" onClick={() => setShowWoDetails(v => !v)}
         style={{ display:'flex', alignItems:'center', gap:8, background:'none', border:'none', padding:0, cursor:'pointer', fontFamily:'DM Sans', fontSize:13, fontWeight:700, color:C.charcoal }}>
         <span style={{ color:C.sage, fontSize:11 }}>{showWoDetails ? '▼' : '▶'}</span>
-        Work order details — renderings, colors, line items
+        Work order details — renderings, colors
       </button>
 
       {showWoDetails && (
@@ -854,38 +903,36 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
               <Input value={details.project_number} onChange={v => setDetail('project_number', v)} placeholder="e.g. 5860" />
             </FormField>
           </div>
-          <div style={{ marginTop:14 }}>
-            <Label>Options summary (plain-text fallback)</Label>
-            <textarea
-              value={details.options_summary}
-              onChange={e => setDetail('options_summary', e.target.value)}
-              rows={2}
-              placeholder="Only used if there are no line items below."
-              style={{ fontFamily:'DM Sans, sans-serif', fontSize:14, padding:'10px 12px', border:`1.5px solid ${C.linenDarker}`, borderRadius:4, background:'#FFFDF9', color:C.charcoal, width:'100%', boxSizing:'border-box', resize:'vertical', lineHeight:1.5 }}
-            />
-          </div>
-
-          {/* Itemized options & pricing line items */}
-          <div style={{ marginTop:20 }}>
-            <EditSubLabel>Options &amp; pricing (line items)</EditSubLabel>
-            <p style={editHint}>Priced rows shown in the work order’s “Options &amp; Pricing” section. Leave empty to use the app-calculated option prices instead.</p>
-            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-              {lineItems.map((r, i) => (
-                <div key={i} style={{ display:'flex', flexWrap:'wrap', gap:8, alignItems:'center' }}>
-                  <div style={{ flex:'2 1 150px', minWidth:0 }}><Input value={r.label} onChange={v => setLine(i, 'label', v)} placeholder="Item" /></div>
-                  <div style={{ flex:'2 1 150px', minWidth:0 }}><Input value={r.detail} onChange={v => setLine(i, 'detail', v)} placeholder="Detail (optional)" /></div>
-                  <div style={{ flex:'1 1 90px', minWidth:0 }}><Input value={r.price} onChange={v => setLine(i, 'price', v)} placeholder="$0.00" /></div>
-                  <button type="button" onClick={() => removeLine(i)} title="Remove line"
-                    style={{ flexShrink:0, width:30, height:30, borderRadius:4, border:`1px solid ${C.linenDarker}`, background:C.linen, color:C.error, cursor:'pointer', fontSize:16, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
-                </div>
-              ))}
-            </div>
-            <div style={{ marginTop:10 }}>
-              <Button variant="ghost" size="sm" onClick={addLine}>+ Add line item</Button>
-            </div>
-          </div>
         </div>
       )}
+
+      {/* Change orders — line items added in-app AFTER the sale. Each is stamped with
+          today's date + who added it and shows in the work order's Change Orders
+          section. (The ShedPro quote's own options aren't edited here.) */}
+      <div style={{ borderTop:`1px solid ${C.linenDarker}`, margin:'20px 0 14px' }} />
+      <EditSubLabel>Change orders</EditSubLabel>
+      <p style={editHint}>Add a line item for any change after the shed is sold. Each is stamped with today’s date and your name, and appears in the work order’s Change Orders section.</p>
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        {changeOrders.map((r, i) => (
+          <div key={i} style={{ display:'flex', flexDirection:'column', gap:4 }}>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8, alignItems:'center' }}>
+              <div style={{ flex:'2 1 150px', minWidth:0 }}><Input value={r.label} onChange={v => setCO(i, 'label', v)} placeholder="Change order item" /></div>
+              <div style={{ flex:'2 1 150px', minWidth:0 }}><Input value={r.detail} onChange={v => setCO(i, 'detail', v)} placeholder="Detail (optional)" /></div>
+              <div style={{ flex:'1 1 90px', minWidth:0 }}><Input value={r.price} onChange={v => setCO(i, 'price', v)} placeholder="$0.00" /></div>
+              <button type="button" onClick={() => removeCO(i)} title="Remove change order"
+                style={{ flexShrink:0, width:30, height:30, borderRadius:4, border:`1px solid ${C.linenDarker}`, background:C.linen, color:C.error, cursor:'pointer', fontSize:16, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+            </div>
+            {(r.created_at || r.created_by_name) && (
+              <div style={{ fontFamily:'DM Sans', fontSize:11, color:'#999', paddingLeft:2 }}>
+                Added {fmtCoDate(r.created_at)}{r.created_by_name ? ` by ${r.created_by_name}` : ''}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop:10 }}>
+        <Button variant="ghost" size="sm" onClick={addCO}>+ Add line item</Button>
+      </div>
 
       <div style={{ display:'flex', justifyContent:'flex-end', gap:10, marginTop:22 }}>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
@@ -1045,7 +1092,7 @@ function printWorkOrder() {
 // ── Work order document (printable) ───────────────────────────────────────────
 // A formatted work order with every relevant project detail. Rendered on screen
 // inside #work-order-print and copied verbatim into the print window.
-function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, size, styleLabel, styleMult, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, pricing = {}, isMobile }) {
+function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, size, styleLabel, styleMult, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, pricing = {}, changeOrders = [], isMobile }) {
   // Show the at-a-glance pills only when the priced fallback ISN'T standing in for
   // them — otherwise the same options would appear twice (pills + priced lines).
   const usingPricedFallback = shedproOptions.length === 0 && !optionsSummary && optionPriceLines.length > 0;
@@ -1219,6 +1266,30 @@ function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, 
         </div>
       )}
 
+      {/* Change orders — line items added in-app after the sale */}
+      {changeOrders.length > 0 && (
+        <div style={{ marginBottom:16 }}>
+          <WoSection title="Change Orders" />
+          <table style={{ width:'100%', borderCollapse:'collapse' }}>
+            <tbody>
+              {changeOrders.map((co, i) => (
+                <tr key={i} style={{ borderBottom:`1px solid ${C.linen}` }}>
+                  <td style={{ ...woTd, paddingRight:12 }}>
+                    {co.label}{co.detail && <span style={{ color:'#888' }}> — {co.detail}</span>}
+                    {(co.created_at || co.created_by_name) && (
+                      <div style={{ fontFamily:'DM Sans', fontSize:10.5, color:'#aaa', marginTop:1 }}>
+                        Added {fmtCoDate(co.created_at)}{co.created_by_name ? ` by ${co.created_by_name}` : ''}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ ...woTd, textAlign:'right', whiteSpace:'nowrap', fontWeight:600 }}>{co.price || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Pricing */}
       <WoSection title="Pricing" />
       <table style={{ width:'100%', borderCollapse:'collapse', marginBottom: notes && notes.trim() ? 16 : 0 }}>
@@ -1306,7 +1377,7 @@ const woTd = { padding:'5px 0', fontFamily:'DM Sans', fontSize:13, color:C.charc
 // makes the customer's phone/email/address tappable, and stacks the tables. The
 // printable paper doc (WorkOrderDoc) is unchanged — it's still what gets printed
 // or saved to PDF from the sticky "Print / Save" button.
-function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, pricing = {} }) {
+function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, pricing = {}, changeOrders = [] }) {
   // Hide the pills when the priced fallback covers the same options (see WorkOrderDoc).
   const usingPricedFallback = shedproOptions.length === 0 && !optionsSummary && optionPriceLines.length > 0;
   const woNumber = project?.project_number ? `#${project.project_number}` : `#${String(project?.id || '').slice(0, 8).toUpperCase()}`;
@@ -1450,6 +1521,25 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
           ))}
         </MoSection>
       ) : null}
+
+      {/* Change orders — line items added in-app after the sale */}
+      {changeOrders.length > 0 && (
+        <MoSection title="Change Orders">
+          {changeOrders.map((co, i) => (
+            <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'9px 0', borderBottom:`1px solid ${C.linen}` }}>
+              <span style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal }}>
+                {co.label}{co.detail && <span style={{ color:'#8C8478' }}> — {co.detail}</span>}
+                {(co.created_at || co.created_by_name) && (
+                  <span style={{ display:'block', fontSize:11, color:'#aaa', marginTop:1 }}>
+                    Added {fmtCoDate(co.created_at)}{co.created_by_name ? ` by ${co.created_by_name}` : ''}
+                  </span>
+                )}
+              </span>
+              <span style={{ fontFamily:'DM Sans', fontSize:13.5, fontWeight:600, color:C.charcoal, whiteSpace:'nowrap' }}>{co.price || '—'}</span>
+            </div>
+          ))}
+        </MoSection>
+      )}
 
       {/* Pricing summary */}
       <MoSection title="Pricing">
