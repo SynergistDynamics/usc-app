@@ -203,10 +203,22 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
   const optionsSummary = project?.options_summary?.trim() || '';
   const monthlyPayment = project?.monthly_payment;
 
+  // Priced option line items from the app's OWN pricing engine — the fallback for
+  // the "Options & Pricing" section when a project has no ShedPro itemized quote
+  // (e.g. a project created by hand). Each selected option package shows with its
+  // calculated customer price (incl. any per-package override). Siding/style excluded.
+  const optionPriceLines = (out?.pkgGroups || [])
+    .filter(g => !g.isSidingPkg && g.pkg && !g.pkg.is_style)
+    .map(g => ({
+      label: (g.pkgCount || 1) > 1 ? `${g.pkg.name} (×${g.pkgCount})` : g.pkg.name,
+      price: fmt(g.customerPkgPrice || 0),
+    }));
+
   // Shared props for both work-order renderings (the paper doc + the mobile view).
   const woProps = {
     project, contact, title, status, salePrice, notes, cfg, size: cfg?.size,
-    styleLabel, styleMult, out, selectedOptions, shedproOptions, optionsSummary, monthlyPayment,
+    styleLabel, styleMult, out, selectedOptions, shedproOptions, optionsSummary,
+    optionPriceLines, monthlyPayment,
   };
 
   return (
@@ -757,7 +769,10 @@ function printWorkOrder() {
 // ── Work order document (printable) ───────────────────────────────────────────
 // A formatted work order with every relevant project detail. Rendered on screen
 // inside #work-order-print and copied verbatim into the print window.
-function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, shedproOptions = [], optionsSummary = '', monthlyPayment, isMobile }) {
+function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, isMobile }) {
+  // Show the at-a-glance pills only when the priced fallback ISN'T standing in for
+  // them — otherwise the same options would appear twice (pills + priced lines).
+  const usingPricedFallback = shedproOptions.length === 0 && !optionsSummary && optionPriceLines.length > 0;
   const dateStr = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
   const woNumber = project?.project_number ? `#${project.project_number}` : `#${String(project?.id || '').slice(0, 8).toUpperCase()}`;
 
@@ -840,7 +855,7 @@ function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, 
       </div>
 
       {/* Selected option packages */}
-      {selectedOptions.length > 0 && (
+      {selectedOptions.length > 0 && !usingPricedFallback && (
         <div style={{ marginBottom:16 }}>
           <div style={{ fontFamily:'DM Sans', fontSize:9.5, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:C.sand, marginBottom:6 }}>Options & Add-ons</div>
           <div style={{ display:'flex', flexWrap:'wrap', gap:'6px 10px' }}>
@@ -896,6 +911,21 @@ function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, 
         <div style={{ marginBottom:16 }}>
           <WoSection title="Options & Pricing" />
           <div style={{ fontFamily:'DM Sans', fontSize:13, color:C.charcoal, whiteSpace:'pre-wrap', lineHeight:1.6 }}>{optionsSummary}</div>
+        </div>
+      ) : optionPriceLines.length > 0 ? (
+        // No ShedPro quote — price the selected option packages with the app's engine.
+        <div style={{ marginBottom:16 }}>
+          <WoSection title="Options & Pricing" />
+          <table style={{ width:'100%', borderCollapse:'collapse' }}>
+            <tbody>
+              {optionPriceLines.map((o, i) => (
+                <tr key={i} style={{ borderBottom:`1px solid ${C.linen}` }}>
+                  <td style={{ ...woTd, paddingRight:12 }}>{o.label}</td>
+                  <td style={{ ...woTd, textAlign:'right', whiteSpace:'nowrap', fontWeight:600 }}>{o.price}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : null}
 
@@ -989,7 +1019,9 @@ const woTd = { padding:'5px 0', fontFamily:'DM Sans', fontSize:13, color:C.charc
 // makes the customer's phone/email/address tappable, and stacks the tables. The
 // printable paper doc (WorkOrderDoc) is unchanged — it's still what gets printed
 // or saved to PDF from the sticky "Print / Save" button.
-function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, shedproOptions = [], optionsSummary = '', monthlyPayment }) {
+function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment }) {
+  // Hide the pills when the priced fallback covers the same options (see WorkOrderDoc).
+  const usingPricedFallback = shedproOptions.length === 0 && !optionsSummary && optionPriceLines.length > 0;
   const woNumber = project?.project_number ? `#${project.project_number}` : `#${String(project?.id || '').slice(0, 8).toUpperCase()}`;
 
   const customerName = contact?.full_name || contact?.company_name || contact?.email || '—';
@@ -1078,7 +1110,7 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
       </MoSection>
 
       {/* Options & add-ons */}
-      {selectedOptions.length > 0 && (
+      {selectedOptions.length > 0 && !usingPricedFallback && (
         <MoSection title="Options & Add-ons">
           <div style={{ display:'flex', flexWrap:'wrap', gap:'7px 8px' }}>
             {selectedOptions.map(o => (
@@ -1119,6 +1151,15 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
       ) : optionsSummary ? (
         <MoSection title="Options & Pricing">
           <div style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal, whiteSpace:'pre-wrap', lineHeight:1.6 }}>{optionsSummary}</div>
+        </MoSection>
+      ) : optionPriceLines.length > 0 ? (
+        <MoSection title="Options & Pricing">
+          {optionPriceLines.map((o, i) => (
+            <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'9px 0', borderBottom:`1px solid ${C.linen}` }}>
+              <span style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal }}>{o.label}</span>
+              <span style={{ fontFamily:'DM Sans', fontSize:13.5, fontWeight:600, color:C.charcoal, whiteSpace:'nowrap' }}>{o.price}</span>
+            </div>
+          ))}
         </MoSection>
       ) : null}
 
