@@ -159,7 +159,8 @@ src/
                                • "Work Order" — a formatted, printable work-order document (rendered inside
                                  #work-order-print) showing every relevant detail: customer (name/company/full
                                  mailing address/phone/email, from the embedded contact), builder, shed spec
-                                 (size/style/siding/multiplier), selected option packages, ShedPro finishes &
+                                 (size/style/siding in the spec box; the **style multiplier** shows next to the
+                                 **App calculated price** in the Pricing section, not in the spec box), selected option packages, ShedPro finishes &
                                  colors (siding color shows WITHOUT a price in Finishes), the **ShedPro
                                  itemized options & pricing** list (shedpro_options →
                                  "Options & Pricing" table, or the options_summary text fallback, or — when a project
