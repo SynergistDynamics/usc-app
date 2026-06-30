@@ -1,4 +1,5 @@
 // src/components/UI.jsx
+import { useEffect } from 'react';
 import { C } from '../lib/supabase';
 
 // A simple line-drawn shed (mono-pitch roof) — the placeholder when a project has
@@ -188,23 +189,57 @@ export function SuccessBanner({ children }) {
   );
 }
 
-export function Modal({ title, children, onClose, width = 480 }) {
+// Modal. Esc and a backdrop click both call onClose. Pass an optional `footer` to get
+// a fixed layout — sticky title bar + scrolling body + sticky footer action bar — so
+// long forms keep the title and the primary actions in view (only the body scrolls).
+// Without `footer` the original single-scroll layout is used (unchanged).
+export function Modal({ title, children, onClose, width = 480, footer }) {
+  useEffect(() => {
+    const onKey = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const backdrop = {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    zIndex: 1000, padding: 20,
+  };
+  const closeBtn = (
+    <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#999', lineHeight: 1 }}>×</button>
+  );
+  const heading = (
+    <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 22, fontWeight: 600, color: C.charcoal, margin: 0 }}>
+      {title}
+    </h3>
+  );
+
+  if (footer) {
+    return (
+      <div style={backdrop} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+        <div style={{
+          background: '#fff', borderRadius: 8, width: '100%', maxWidth: width, maxHeight: '90vh',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '18px 28px', borderBottom: `1px solid ${C.linenDarker}`, flexShrink: 0 }}>
+            {heading}{closeBtn}
+          </div>
+          <div style={{ padding: '22px 28px', overflow: 'auto', flex: 1 }}>{children}</div>
+          <div style={{ padding: '14px 28px', borderTop: `1px solid ${C.linenDarker}`, flexShrink: 0, background: '#fff' }}>{footer}</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000, padding: 20,
-    }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div style={backdrop} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{
         background: '#fff', borderRadius: 8, padding: 32,
         width: '100%', maxWidth: width, maxHeight: '90vh',
         overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 22, fontWeight: 600, color: C.charcoal, margin: 0 }}>
-            {title}
-          </h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#999', lineHeight: 1 }}>×</button>
+          {heading}{closeBtn}
         </div>
         {children}
       </div>
