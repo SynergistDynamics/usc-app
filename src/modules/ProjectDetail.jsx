@@ -618,7 +618,7 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
         Size, style, siding and options. Drives the work order and the materials list.
       </p>
       <div style={{ maxWidth: isMobile ? '100%' : 360 }}>
-        <ConfigPanel cfg={cfg} setCfg={setCfg} packages={packages} />
+        <ConfigPanel cfg={cfg} setCfg={setCfg} packages={packages} allowOverrides={false} />
       </div>
 
       <div style={{ display:'flex', justifyContent:'flex-end', gap:10, marginTop:22 }}>

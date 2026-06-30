@@ -126,7 +126,7 @@ export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrid
 
 // ── Config Panel ──────────────────────────────────────────────
 // Exported for reuse on the project page (ProjectDetail.jsx).
-export function ConfigPanel({ cfg, setCfg, packages }) {
+export function ConfigPanel({ cfg, setCfg, packages, allowOverrides = true }) {
   const stylePkgs = (packages || []).filter(p => p.is_style);
   function set(k, v) { setCfg(p => ({ ...p, [k]: v })); }
 
@@ -153,12 +153,12 @@ export function ConfigPanel({ cfg, setCfg, packages }) {
       </div>
 
       {/* Option packages (incl. former add-ons) */}
-      <OptionsPanel cfg={cfg} setCfg={setCfg} packages={packages} />
+      <OptionsPanel cfg={cfg} setCfg={setCfg} packages={packages} allowOverrides={allowOverrides} />
     </div>
   );
 }
 
-function OptionsPanel({ cfg, setCfg, packages }) {
+function OptionsPanel({ cfg, setCfg, packages, allowOverrides = true }) {
   const regularPkgs = (packages || []).filter(p => !p.siding_type && !p.is_style);
 
   const allItems = regularPkgs.map(pkg => ({
@@ -194,7 +194,7 @@ function OptionsPanel({ cfg, setCfg, packages }) {
                     <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sage, fontWeight:600 }}>{fmt(item.flat_rate)}</span>
                   )}
                 </div>
-                {item.count > 0 && (
+                {allowOverrides && item.count > 0 && (
                   <div style={{ marginTop:5 }}>
                     <input type="number" min="0" value={item.override}
                       onChange={e => item.setOverride(e.target.value)}
@@ -229,7 +229,7 @@ function OptionsPanel({ cfg, setCfg, packages }) {
                     <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sage, fontWeight:600 }}>{fmt(item.flat_rate)}</span>
                   )}
                 </label>
-                {item.count > 0 && (
+                {allowOverrides && item.count > 0 && (
                   <div style={{ marginTop:5, marginLeft:21 }}>
                     <input type="number" min="0" value={item.override}
                       onChange={e => item.setOverride(e.target.value)}
