@@ -25,6 +25,15 @@ resources, and financing info.
   auto-builds (`npm run build`) and publishes `dist/`. Workflow: do work on a feature branch, push it,
   then **merge into `main` to go live** (no more manual zip uploads). The Supabase env vars are set in
   Vercel (Project Settings → Environment Variables), so builds always have them.
+  - **GOTCHA — a `main` merge can occasionally NOT trigger a production deploy** (seen 2026-06-30: a
+    `--no-ff` merge whose file tree is identical to a branch preview Vercel had JUST built was skipped, so
+    production stayed one commit behind and the changes "didn't show up"). If a merge to `main` doesn't
+    produce a new **production** deployment, don't fight it — **push one more (tree-changing) commit to
+    `main`** (e.g. a docs touch) to force a fresh production build, or redeploy/promote in the Vercel
+    dashboard. Verify with the Vercel deployments list that the newest `target:"production"` deployment is
+    the latest `main` SHA. (Also note: the **local** `npm run build` in the web sandbox can emit a frozen,
+    cached bundle that doesn't reflect source — Vercel builds clean from a fresh clone, so trust the Vercel
+    build, not a local one, when verifying what shipped.)
   - **SPA routing:** the app now uses **React Router** (see "Routing" below), so direct links like
     `build.urban-sheds.com/admin` work. `vercel.json`'s `rewrites` rule serves `index.html` for any path
     (Vercel auto-detects the Vite framework, build command, and `dist` output, but `vercel.json` pins them
