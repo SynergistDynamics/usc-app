@@ -192,8 +192,9 @@ export function SuccessBanner({ children }) {
 // Modal. Esc and a backdrop click both call onClose. Pass an optional `footer` to get
 // a fixed layout — sticky title bar + scrolling body + sticky footer action bar — so
 // long forms keep the title and the primary actions in view (only the body scrolls).
+// An optional `subheader` (e.g. a tab strip) renders fixed just under the title.
 // Without `footer` the original single-scroll layout is used (unchanged).
-export function Modal({ title, children, onClose, width = 480, footer }) {
+export function Modal({ title, children, onClose, width = 480, footer, subheader }) {
   useEffect(() => {
     const onKey = e => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -221,9 +222,10 @@ export function Modal({ title, children, onClose, width = 480, footer }) {
           background: '#fff', borderRadius: 8, width: '100%', maxWidth: width, maxHeight: '90vh',
           display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '18px 28px', borderBottom: `1px solid ${C.linenDarker}`, flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: subheader ? '18px 28px 14px' : '18px 28px', borderBottom: subheader ? 'none' : `1px solid ${C.linenDarker}`, flexShrink: 0 }}>
             {heading}{closeBtn}
           </div>
+          {subheader && <div style={{ flexShrink: 0 }}>{subheader}</div>}
           <div style={{ padding: '22px 28px', overflow: 'auto', flex: 1 }}>{children}</div>
           <div style={{ padding: '14px 28px', borderTop: `1px solid ${C.linenDarker}`, flexShrink: 0, background: '#fff' }}>{footer}</div>
         </div>
