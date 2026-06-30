@@ -191,9 +191,14 @@ src/
                                **Urban Sheds licensing fee** (`USC_LICENSE_FEE_RATE` = 10% of the sale price) + **Labor,
                                overhead & profit** (= sale − material − fee). Below that sits the **App calculated price**
                                (buildOutput's own customerPrice — the app's independent number, kept alongside so the two
-                               can be COMPARED; ideally they match), then the large green **Sale price (configurator)** and
-                               the "or from $X/mo" financing line. The Material+fee+labor breakdown only renders when there's
-                               BOTH a material cost (hasQty) and a sale price; app-calc shows whenever hasQty.
+                               can be COMPARED; ideally they match). **When the project has NO change orders**, the large
+                               green number is the **Sale price (configurator)**. **When it has change orders**, the sale
+                               price stays visible as a line, a **Change orders** subtotal (+$X, summed from change_orders
+                               prices via `parsePriceNum`) is added, and the large green number becomes the **Final total ·
+                               incl. change orders** (= sale price + change-order subtotal). The mobile price-headline card
+                               leads with the same Final total. Then the "or from $X/mo" financing line. The Material+fee+labor
+                               breakdown only renders when there's BOTH a material cost (hasQty) and a sale price; app-calc
+                               shows whenever hasQty.
                                EDITING — an "✎ Edit project" button (header + footer) opens **EditProjectModal**:
                                a **Contact** picker (link/change/unlink the project's contact — ContactPicker
                                loads contacts lazily on first expand, RLS-scoped), status, sale price (a plain
