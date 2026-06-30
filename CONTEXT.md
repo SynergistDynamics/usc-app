@@ -161,7 +161,19 @@ src/
                                a **Contact** picker (link/change/unlink the project's contact — ContactPicker
                                loads contacts lazily on first expand, RLS-scoped), name, status, sale price,
                                notes, the shed spec (PricingTool's ConfigPanel: size, style, siding, option
-                               packages), and — for **admins** — an "Assigned builder" dropdown. The
+                               packages), and — for **admins** — an "Assigned builder" dropdown. A collapsible
+                               **"Work order details"** section edits EVERY other field the work order shows: the
+                               5 rendering/image URLs (rendering_url_1..4 + layout_rendering_url), the 16 ShedPro
+                               **colors & finishes** text fields (siding_type/overhang_size/siding_color/trim_color/
+                               door_color/roof_color/doors/windows/vents/roof/floor/transom_package/site_prep/
+                               building_permit/access/additional_features), **quote details** (project_number,
+                               monthly_payment [numeric], construction_date [date], options_summary), and an
+                               **editable line-item table** for the itemized `shedpro_options` (jsonb — add/remove
+                               rows of label/detail/price; sent as an array since the column is NOT NULL DEFAULT
+                               '[]'; clearing it falls back to the app-calculated option prices). The section
+                               auto-expands when the project already has any of that data (a synced ShedPro
+                               project), else starts collapsed. These all write straight to the projects columns
+                               (lib/projects.js getProject/updateProject already SELECT '*'). The
                                modal edits a draft and only persists on Save (Cancel discards); "Use calc"
                                reflects the draft spec's live price. The Contact picker is how you link a
                                **contact-less project** (sets projects.contact_id); switching the contact makes

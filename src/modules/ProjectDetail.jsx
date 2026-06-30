@@ -40,6 +40,28 @@ import {
 const STATUS_OPTIONS = PROJECT_STATUSES.map(s => ({ value: s, label: PROJECT_STATUS_LABELS[s] }));
 const TABS = [['work-order', 'Work Order'], ['materials', 'Materials List']];
 
+// Editable ShedPro-sourced fields on a project (all `text` columns). These appear
+// on the work order; the Edit modal lets you change them by hand. [column, label].
+const FINISH_FIELDS = [
+  ['siding_type', 'Siding type'],   ['overhang_size', 'Overhang'],
+  ['siding_color', 'Siding color'], ['trim_color', 'Trim color'],
+  ['door_color', 'Door color'],     ['roof_color', 'Roof color'],
+  ['doors', 'Doors'],               ['windows', 'Windows'],
+  ['vents', 'Vents'],               ['roof', 'Roof'],
+  ['floor', 'Floor'],               ['transom_package', 'Transom'],
+  ['site_prep', 'Site prep'],       ['building_permit', 'Building permit'],
+  ['access', 'Access'],             ['additional_features', 'Additional features'],
+];
+const RENDER_FIELDS = [
+  ['rendering_url_1', 'Rendering 1 URL'], ['rendering_url_2', 'Rendering 2 URL'],
+  ['rendering_url_3', 'Rendering 3 URL'], ['rendering_url_4', 'Rendering 4 URL'],
+  ['layout_rendering_url', 'Layout rendering URL'],
+];
+// Plain text/date columns edited alongside the above (monthly_payment is numeric,
+// handled separately on save).
+const DETAIL_TEXT_KEYS = [...FINISH_FIELDS, ...RENDER_FIELDS].map(([k]) => k)
+  .concat(['project_number', 'options_summary', 'construction_date']);
+
 // ShedPro's itemized options-with-prices (the "What's included" list on a ShedPro
 // quote), stored in projects.shedpro_options. Tolerant of however Zapier delivers
 // them: an array of objects ({label/name/option/title, detail/sub/color/note,
@@ -501,6 +523,31 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState('');
 
+  // ── ShedPro / work-order detail fields (colors, renderings, finishes, etc.) ──
+  // One object holds every text/date field; monthly_payment is kept as a string.
+  const [details, setDetails] = useState(() => {
+    const d = {};
+    DETAIL_TEXT_KEYS.forEach(k => { d[k] = project[k] ?? ''; });
+    d.monthly_payment = project.monthly_payment != null ? String(project.monthly_payment) : '';
+    return d;
+  });
+  const setDetail = (k, v) => setDetails(p => ({ ...p, [k]: v }));
+
+  // The itemized "Options & Pricing" line items (projects.shedpro_options jsonb).
+  const [lineItems, setLineItems] = useState(() => normalizeShedproOptions(project.shedpro_options));
+  const setLine    = (i, k, v) => setLineItems(rows => rows.map((r, idx) => idx === i ? { ...r, [k]: v } : r));
+  const addLine    = () => setLineItems(rows => [...rows, { label:'', detail:'', price:'' }]);
+  const removeLine = (i) => setLineItems(rows => rows.filter((_, idx) => idx !== i));
+
+  // Expand the details section automatically when the project already has any of
+  // this data (i.e. a synced ShedPro project), else keep it collapsed for a clean
+  // modal on a hand-made project. Either way the user can toggle it.
+  const [showWoDetails, setShowWoDetails] = useState(
+    normalizeShedproOptions(project.shedpro_options).length > 0
+    || DETAIL_TEXT_KEYS.some(k => String(project[k] ?? '').trim() !== '')
+    || project.monthly_payment != null
+  );
+
   // Live price from the DRAFT spec so "Use calc" reflects unsaved changes.
   const out = useMemo(() => buildOutput({
     ...cfg, styleMults, salesTax, materials, overrides, packages, pkgMaterials, pkgQuantities,
@@ -522,6 +569,13 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
     }
 
     const willBeSold = isSoldStatus(status);
+    const textOrNull = v => (v == null || String(v).trim() === '') ? null : String(v).trim();
+    const mp = parseFloat(details.monthly_payment);
+    // shedpro_options is jsonb NOT NULL DEFAULT '[]' — always send an array, drop blank rows.
+    const cleanLines = lineItems
+      .map(r => ({ label:(r.label||'').trim(), detail:(r.detail||'').trim(), price:(r.price||'').trim() }))
+      .filter(r => r.label || r.price);
+
     const payload = {
       contact_id: contactId || null,
       name: name.trim() || null,
@@ -533,6 +587,10 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
       siding: cfg.siding || null,
       selected_packages: cfg.selectedPkgs || {},
       package_overrides: cfg.pkgOverrides || {},
+      // ShedPro / work-order detail fields (colors, renderings, finishes, …)
+      ...Object.fromEntries(DETAIL_TEXT_KEYS.map(k => [k, textOrNull(details[k])])),
+      monthly_payment: details.monthly_payment.trim() === '' || isNaN(mp) ? null : mp,
+      shedpro_options: cleanLines,
     };
     if (willBeSold && !project.sold_at) payload.sold_at = new Date().toISOString();
 
@@ -621,6 +679,85 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
         <ConfigPanel cfg={cfg} setCfg={setCfg} packages={packages} />
       </div>
 
+      {/* Work order details — every other field the work order shows (renderings,
+          colors & finishes, quote details, and the itemized line items). Collapsed
+          by default on a project that has none of this yet. */}
+      <div style={{ borderTop:`1px solid ${C.linenDarker}`, margin:'20px 0 14px' }} />
+      <button type="button" onClick={() => setShowWoDetails(v => !v)}
+        style={{ display:'flex', alignItems:'center', gap:8, background:'none', border:'none', padding:0, cursor:'pointer', fontFamily:'DM Sans', fontSize:13, fontWeight:700, color:C.charcoal }}>
+        <span style={{ color:C.sage, fontSize:11 }}>{showWoDetails ? '▼' : '▶'}</span>
+        Work order details — renderings, colors, finishes, line items
+      </button>
+
+      {showWoDetails && (
+        <div style={{ marginTop:18 }}>
+          {/* Renderings & images */}
+          <EditSubLabel>Renderings &amp; images</EditSubLabel>
+          <p style={editHint}>Image URLs shown on the work order, in order.</p>
+          <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:20 }}>
+            {RENDER_FIELDS.map(([k, label]) => (
+              <FormField key={k} label={label} style={{ marginBottom:0 }}>
+                <Input value={details[k]} onChange={v => setDetail(k, v)} placeholder="https://…" />
+              </FormField>
+            ))}
+          </div>
+
+          {/* Colors & finishes */}
+          <EditSubLabel>Colors &amp; finishes</EditSubLabel>
+          <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:14, marginBottom:20 }}>
+            {FINISH_FIELDS.map(([k, label]) => (
+              <FormField key={k} label={label} style={{ marginBottom:0 }}>
+                <Input value={details[k]} onChange={v => setDetail(k, v)} />
+              </FormField>
+            ))}
+          </div>
+
+          {/* Quote details */}
+          <EditSubLabel>Quote details</EditSubLabel>
+          <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap:14 }}>
+            <FormField label="Work order #" style={{ marginBottom:0 }}>
+              <Input value={details.project_number} onChange={v => setDetail('project_number', v)} placeholder="e.g. 5860" />
+            </FormField>
+            <FormField label="Financing ($/mo)" style={{ marginBottom:0 }}>
+              <Input type="number" value={details.monthly_payment} onChange={v => setDetail('monthly_payment', v)} placeholder="0.00" />
+            </FormField>
+            <FormField label="Construction date" style={{ marginBottom:0 }}>
+              <Input type="date" value={details.construction_date} onChange={v => setDetail('construction_date', v)} />
+            </FormField>
+          </div>
+          <div style={{ marginTop:14 }}>
+            <Label>Options summary (plain-text fallback)</Label>
+            <textarea
+              value={details.options_summary}
+              onChange={e => setDetail('options_summary', e.target.value)}
+              rows={2}
+              placeholder="Only used if there are no line items below."
+              style={{ fontFamily:'DM Sans, sans-serif', fontSize:14, padding:'10px 12px', border:`1.5px solid ${C.linenDarker}`, borderRadius:4, background:'#FFFDF9', color:C.charcoal, width:'100%', boxSizing:'border-box', resize:'vertical', lineHeight:1.5 }}
+            />
+          </div>
+
+          {/* Itemized options & pricing line items */}
+          <div style={{ marginTop:20 }}>
+            <EditSubLabel>Options &amp; pricing (line items)</EditSubLabel>
+            <p style={editHint}>Priced rows shown in the work order’s “Options &amp; Pricing” section. Leave empty to use the app-calculated option prices instead.</p>
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              {lineItems.map((r, i) => (
+                <div key={i} style={{ display:'flex', flexWrap:'wrap', gap:8, alignItems:'center' }}>
+                  <div style={{ flex:'2 1 150px', minWidth:0 }}><Input value={r.label} onChange={v => setLine(i, 'label', v)} placeholder="Item" /></div>
+                  <div style={{ flex:'2 1 150px', minWidth:0 }}><Input value={r.detail} onChange={v => setLine(i, 'detail', v)} placeholder="Detail (optional)" /></div>
+                  <div style={{ flex:'1 1 90px', minWidth:0 }}><Input value={r.price} onChange={v => setLine(i, 'price', v)} placeholder="$0.00" /></div>
+                  <button type="button" onClick={() => removeLine(i)} title="Remove line"
+                    style={{ flexShrink:0, width:30, height:30, borderRadius:4, border:`1px solid ${C.linenDarker}`, background:C.linen, color:C.error, cursor:'pointer', fontSize:16, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop:10 }}>
+              <Button variant="ghost" size="sm" onClick={addLine}>+ Add line item</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ display:'flex', justifyContent:'flex-end', gap:10, marginTop:22 }}>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
         <Button onClick={save} loading={saving}>Save project</Button>
@@ -628,6 +765,16 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
     </Modal>
   );
 }
+
+// Small uppercase section label used inside the Edit project modal.
+function EditSubLabel({ children }) {
+  return (
+    <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand, marginBottom:6 }}>
+      {children}
+    </div>
+  );
+}
+const editHint = { fontFamily:'DM Sans', fontSize:12, color:'#999', margin:'0 0 14px' };
 
 // Inline contact picker for the edit modal: shows the linked contact (if any) and,
 // when expanded, a searchable list to pick a different one. Contacts load on first
