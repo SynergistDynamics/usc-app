@@ -144,7 +144,11 @@ src/
                                  mailing address/phone/email, from the embedded contact), builder, shed spec
                                  (size/style/siding/multiplier), selected option packages, ShedPro finishes &
                                  colors, the **ShedPro itemized options & pricing** list (shedpro_options →
-                                 "Options & Pricing" table, or the options_summary text fallback), renderings,
+                                 "Options & Pricing" table, or the options_summary text fallback, or — when a project
+                                 has NEITHER, e.g. one created by hand — an **app-priced fallback**: the selected
+                                 option packages priced by buildOutput's pkgGroups[].customerPkgPrice. When that
+                                 app-priced fallback is what's showing, the plain "Options & Add-ons" pills are hidden
+                                 so the same options don't appear twice), renderings,
                                  pricing (material/labor/calc + sale price + "from $X/mo" financing) and notes. A
                                  "🖨 Print work order" button prints it. **Printing now uses a hidden IFRAME** (copies
                                  the #work-order-print innerHTML into the iframe and calls iframe.print()) instead of
