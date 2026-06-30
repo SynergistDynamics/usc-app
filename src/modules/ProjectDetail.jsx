@@ -1305,7 +1305,7 @@ function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, 
       {/* Shed specifications */}
       <WoSection title="Shed Specifications" />
       <div style={{ display:'flex', gap:24, flexWrap:'wrap', background:C.linen, borderRadius:4, padding:'12px 16px', marginBottom:16 }}>
-        {[['Size', size], ['Style', styleLabel], ['Siding', cfg?.siding], ['Multiplier', styleMult != null ? `${styleMult}×` : '—']].map(([k, v]) => (
+        {[['Size', size], ['Style', styleLabel], ['Siding', cfg?.siding]].map(([k, v]) => (
           <div key={k}>
             <div style={{ fontFamily:'DM Sans', fontSize:9, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:C.sand }}>{k}</div>
             <div style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, color:C.charcoal }}>{v || '—'}</div>
@@ -1440,7 +1440,10 @@ function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, 
           )}
           {pricing.appCalcPrice != null && (
             <tr style={{ borderTop:`1px solid ${C.linen}` }}>
-              <td style={{ ...woTd, fontWeight:600 }}>App calculated price</td>
+              <td style={{ ...woTd, fontWeight:600 }}>
+                App calculated price
+                {styleMult != null && <span style={{ color:'#aaa', fontSize:11, fontWeight:400 }}> · {styleMult}× multiplier</span>}
+              </td>
               <td style={{ ...woTd, textAlign:'right', fontWeight:600 }}>{fmt(pricing.appCalcPrice)}</td>
             </tr>
           )}
@@ -1573,7 +1576,7 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
 
   const salePriceNum = salePrice != null && String(salePrice).trim() !== '' ? parseFloat(salePrice) : null;
   const monthly = monthlyPayment != null && String(monthlyPayment).trim() !== '' ? parseFloat(monthlyPayment) : null;
-  const specs = [['Size', size], ['Style', styleLabel], ['Siding', cfg?.siding], ['Multiplier', styleMult != null ? `${styleMult}×` : '—']];
+  const specs = [['Size', size], ['Style', styleLabel], ['Siding', cfg?.siding]];
 
   return (
     <div>
@@ -1715,7 +1718,7 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
         {pricing.materialCost != null && <MoPriceRow label="Material cost" value={fmt(pricing.materialCost)} muted />}
         {pricing.licenseFee != null && <MoPriceRow label={`Urban Sheds licensing fee (${pricing.licenseRatePct}%)`} value={fmt(pricing.licenseFee)} />}
         {pricing.laborProfit != null && <MoPriceRow label="Labor, overhead & profit" value={fmt(pricing.laborProfit)} />}
-        {pricing.appCalcPrice != null && <MoPriceRow label="App calculated price" value={fmt(pricing.appCalcPrice)} bold topBorder />}
+        {pricing.appCalcPrice != null && <MoPriceRow label={<>App calculated price{styleMult != null && <span style={{ color:'#aaa', fontWeight:400 }}> · {styleMult}×</span>}</>} value={fmt(pricing.appCalcPrice)} bold topBorder />}
         {pricing.hasChangeOrders && (
           <>
             <MoPriceRow label="Sale price · configurator" value={salePriceNum != null ? fmt(salePriceNum) : '—'} topBorder />
