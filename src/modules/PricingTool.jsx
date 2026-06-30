@@ -90,7 +90,10 @@ export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrid
     const pkgCount = selectedPkgs[pkg.id] || 0;
     if (!pkgCount) continue;
     const overrideVal = pkgOverrides[pkg.id];
-    const useFlat     = overrideVal !== undefined && overrideVal !== '' ? parseFloat(overrideVal) : pkg.flat_rate;
+    // Override is a per-unit price (e.g. the ShedPro option price); tolerate $/commas.
+    const useFlat     = overrideVal !== undefined && String(overrideVal).trim() !== ''
+      ? parseFloat(String(overrideVal).replace(/[^0-9.\-]/g, ''))
+      : pkg.flat_rate;
     const components  = pkgMaterials.filter(pm => pm.package_id === pkg.id);
 
     // Scale sub-item quantities by pkgCount
@@ -125,8 +128,11 @@ export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrid
 }
 
 // ── Config Panel ──────────────────────────────────────────────
-// Exported for reuse on the project page (ProjectDetail.jsx).
-export function ConfigPanel({ cfg, setCfg, packages }) {
+// Exported for reuse on the project page (ProjectDetail.jsx). `editPrices` turns on a
+// per-option price field (writes cfg.pkgOverrides) so a manually-added project can carry
+// the ShedPro price for each selected option — used in the project Edit modal, off in
+// the Materials Calculator.
+export function ConfigPanel({ cfg, setCfg, packages, editPrices = false }) {
   const stylePkgs = (packages || []).filter(p => p.is_style);
   function set(k, v) { setCfg(p => ({ ...p, [k]: v })); }
 
@@ -153,12 +159,23 @@ export function ConfigPanel({ cfg, setCfg, packages }) {
       </div>
 
       {/* Option packages (incl. former add-ons) */}
-      <OptionsPanel cfg={cfg} setCfg={setCfg} packages={packages} />
+      <OptionsPanel cfg={cfg} setCfg={setCfg} packages={packages} editPrices={editPrices} />
     </div>
   );
 }
 
-function OptionsPanel({ cfg, setCfg, packages }) {
+// $-prefixed price input for a selected option's ShedPro price (writes cfg.pkgOverrides).
+function PriceField({ value, onChange }) {
+  return (
+    <div style={{ display:'flex', alignItems:'stretch', border:`1.5px solid ${C.linenDarker}`, borderRadius:4, background:'#fff', overflow:'hidden', width:104, flexShrink:0 }}>
+      <span style={{ display:'flex', alignItems:'center', padding:'0 7px', background:C.linen, color:'#8C8478', fontFamily:'DM Sans', fontSize:12, fontWeight:600 }}>$</span>
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder="0.00" inputMode="decimal"
+        style={{ border:'none', outline:'none', background:'transparent', padding:'6px 8px', fontFamily:'DM Sans', fontSize:13, color:C.charcoal, width:'100%', minWidth:0, textAlign:'right' }} />
+    </div>
+  );
+}
+
+function OptionsPanel({ cfg, setCfg, packages, editPrices = false }) {
   const regularPkgs = (packages || []).filter(p => !p.siding_type && !p.is_style);
 
   const allItems = regularPkgs.map(pkg => ({
@@ -167,6 +184,8 @@ function OptionsPanel({ cfg, setCfg, packages }) {
     flat_rate: pkg.flat_rate,
     count: cfg.selectedPkgs[pkg.id] || 0,
     setCount: v => setCfg(p => ({ ...p, selectedPkgs:{ ...p.selectedPkgs, [pkg.id]:v } })),
+    price: cfg.pkgOverrides?.[pkg.id] ?? '',
+    setPrice: v => setCfg(p => ({ ...p, pkgOverrides:{ ...p.pkgOverrides, [pkg.id]:v } })),
   }));
 
   const countable = allItems.filter(i => i.allow_quantity);
@@ -186,10 +205,14 @@ function OptionsPanel({ cfg, setCfg, packages }) {
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                   <QuantityTicker value={item.count} min={0} onChange={item.setCount} />
                   <span style={{ fontFamily:'DM Sans', fontSize:13, color: item.count > 0 ? C.charcoal : '#999', flex:1 }}>
-                    {item.label}
+                    {item.label}{editPrices && item.count > 1 ? <span style={{ color:'#aaa', fontSize:11 }}> (each)</span> : ''}
                   </span>
-                  {item.flat_rate != null && item.count > 0 && (
-                    <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sage, fontWeight:600 }}>{fmt(item.flat_rate)}</span>
+                  {editPrices ? (
+                    item.count > 0 && <PriceField value={item.price} onChange={item.setPrice} />
+                  ) : (
+                    item.flat_rate != null && item.count > 0 && (
+                      <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sage, fontWeight:600 }}>{fmt(item.flat_rate)}</span>
+                    )
                   )}
                 </div>
               </div>
@@ -209,16 +232,20 @@ function OptionsPanel({ cfg, setCfg, packages }) {
           <p style={glbl}>Options</p>
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
             {boolean.map(item => (
-              <div key={item.id}>
-                <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontFamily:'DM Sans', fontSize:13, color:C.charcoal }}>
+              <div key={item.id} style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontFamily:'DM Sans', fontSize:13, color:C.charcoal, flex:1, minWidth:0 }}>
                   <input type="checkbox" checked={item.count > 0}
                     onChange={e => item.setCount(e.target.checked ? 1 : 0)}
-                    style={{ accentColor:C.sage, width:13, height:13 }} />
-                  <span style={{ flex:1 }}>{item.label}</span>
-                  {item.flat_rate != null && item.count > 0 && (
-                    <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sage, fontWeight:600 }}>{fmt(item.flat_rate)}</span>
-                  )}
+                    style={{ accentColor:C.sage, width:13, height:13, flexShrink:0 }} />
+                  <span style={{ flex:1, minWidth:0 }}>{item.label}</span>
                 </label>
+                {editPrices ? (
+                  item.count > 0 && <PriceField value={item.price} onChange={item.setPrice} />
+                ) : (
+                  item.flat_rate != null && item.count > 0 && (
+                    <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sage, fontWeight:600 }}>{fmt(item.flat_rate)}</span>
+                  )
+                )}
               </div>
             ))}
           </div>

@@ -217,10 +217,15 @@ src/
                                  (`project_number`, here since it completes the name), and — for **admins** — an
                                  **Assigned builder** dropdown.
                                • **Specification** — PricingTool's ConfigPanel (size, style, siding, option packages) +
-                                 the one free-text **Additional features** field. (The other ShedPro option/finish columns
-                                 — siding_type, overhang, doors, windows, vents, roof, floor, transom_package, site_prep,
-                                 building_permit, access — are NOT edited; they're driven by the option checkboxes here and
-                                 preserved as-is on save.)
+                                 the one free-text **Additional features** field. ConfigPanel is rendered with
+                                 **`editPrices`** here (off in the Materials Calculator): each SELECTED option shows a
+                                 **$ price field** so a manually-added project can carry the **ShedPro price per option**
+                                 — it writes `cfg.pkgOverrides` (→ `projects.package_overrides`), which buildOutput applies
+                                 as the option's unit price, so it flows into the work order's app-priced "Options &
+                                 Pricing" list and the app total. (The other ShedPro option/finish columns — siding_type,
+                                 overhang, doors, windows, vents, roof, floor, transom_package, site_prep, building_permit,
+                                 access — are NOT edited; they're driven by the option checkboxes here and preserved as-is
+                                 on save.)
                                • **Appearance** (optional) — the 5 rendering/image URLs (rendering_url_1..4 +
                                  layout_rendering_url) and the 4 cosmetic **Colors** (siding_color/trim_color/door_color/
                                  roof_color — don't affect price).
@@ -474,7 +479,9 @@ Notes:
   blank/`'0'` → NULL like contacts do — see MIGRATION_projects_zapier_upsert.sql),
   plus the **Materials Calculator inputs** so a materials list can be generated: shed_size, style_package_id (→
   packages, ON DELETE SET NULL), siding, selected_packages (jsonb `{package_id: count}`), package_overrides
-  (jsonb `{package_id: unit_price_override}`); sale_price, sold_at (stamped the first time status becomes
+  (jsonb `{package_id: unit_price_override}` — a per-option price that overrides the app-calculated one; set
+  via the **$ price field per selected option** on the project Edit modal's Specification tab [ConfigPanel
+  `editPrices`], used to carry ShedPro option prices on manually-added projects); sale_price, sold_at (stamped the first time status becomes
   sold/completed by the app), notes, created_at, updated_at (auto via `projects_set_updated_at` trigger).
   **change_orders** (jsonb NOT NULL DEFAULT '[]') — post-sale change-order line items added in-app, each
   `{label, detail, price, created_at, created_by (uuid), created_by_name}`; the Edit modal's "Change orders"
