@@ -161,11 +161,7 @@ src/
                                a **Contact** picker (link/change/unlink the project's contact — ContactPicker
                                loads contacts lazily on first expand, RLS-scoped), name, status, sale price,
                                notes, the shed spec (PricingTool's ConfigPanel: size, style, siding, option
-                               packages — passed `allowOverrides={false}` here so the per-option "Override price"
-                               inputs are HIDDEN in the project edit popup; they still show in the Materials
-                               Calculator, which renders ConfigPanel with the default `allowOverrides`. Any
-                               package_overrides already saved on a project are preserved, just not editable here),
-                               and — for **admins** — an "Assigned builder" dropdown. The
+                               packages), and — for **admins** — an "Assigned builder" dropdown. The
                                modal edits a draft and only persists on Save (Cancel discards); "Use calc"
                                reflects the draft spec's live price. The Contact picker is how you link a
                                **contact-less project** (sets projects.contact_id); switching the contact makes

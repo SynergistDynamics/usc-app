@@ -126,7 +126,7 @@ export function buildOutput({ size, stylePkgId, siding, selectedPkgs, pkgOverrid
 
 // ── Config Panel ──────────────────────────────────────────────
 // Exported for reuse on the project page (ProjectDetail.jsx).
-export function ConfigPanel({ cfg, setCfg, packages, allowOverrides = true }) {
+export function ConfigPanel({ cfg, setCfg, packages }) {
   const stylePkgs = (packages || []).filter(p => p.is_style);
   function set(k, v) { setCfg(p => ({ ...p, [k]: v })); }
 
@@ -153,12 +153,12 @@ export function ConfigPanel({ cfg, setCfg, packages, allowOverrides = true }) {
       </div>
 
       {/* Option packages (incl. former add-ons) */}
-      <OptionsPanel cfg={cfg} setCfg={setCfg} packages={packages} allowOverrides={allowOverrides} />
+      <OptionsPanel cfg={cfg} setCfg={setCfg} packages={packages} />
     </div>
   );
 }
 
-function OptionsPanel({ cfg, setCfg, packages, allowOverrides = true }) {
+function OptionsPanel({ cfg, setCfg, packages }) {
   const regularPkgs = (packages || []).filter(p => !p.siding_type && !p.is_style);
 
   const allItems = regularPkgs.map(pkg => ({
@@ -167,8 +167,6 @@ function OptionsPanel({ cfg, setCfg, packages, allowOverrides = true }) {
     flat_rate: pkg.flat_rate,
     count: cfg.selectedPkgs[pkg.id] || 0,
     setCount: v => setCfg(p => ({ ...p, selectedPkgs:{ ...p.selectedPkgs, [pkg.id]:v } })),
-    override: cfg.pkgOverrides[pkg.id] ?? '',
-    setOverride: v => setCfg(p => ({ ...p, pkgOverrides:{ ...p.pkgOverrides, [pkg.id]:v } })),
   }));
 
   const countable = allItems.filter(i => i.allow_quantity);
@@ -194,14 +192,6 @@ function OptionsPanel({ cfg, setCfg, packages, allowOverrides = true }) {
                     <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sage, fontWeight:600 }}>{fmt(item.flat_rate)}</span>
                   )}
                 </div>
-                {allowOverrides && item.count > 0 && (
-                  <div style={{ marginTop:5 }}>
-                    <input type="number" min="0" value={item.override}
-                      onChange={e => item.setOverride(e.target.value)}
-                      placeholder="Override unit price"
-                      style={{ width:'100%', padding:'4px 8px', border:`1px solid ${C.linenDarker}`, borderRadius:3, fontFamily:'DM Sans', fontSize:11, background:C.linen, boxSizing:'border-box', color:'#888' }} />
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -229,14 +219,6 @@ function OptionsPanel({ cfg, setCfg, packages, allowOverrides = true }) {
                     <span style={{ fontFamily:'DM Sans', fontSize:11, color:C.sage, fontWeight:600 }}>{fmt(item.flat_rate)}</span>
                   )}
                 </label>
-                {allowOverrides && item.count > 0 && (
-                  <div style={{ marginTop:5, marginLeft:21 }}>
-                    <input type="number" min="0" value={item.override}
-                      onChange={e => item.setOverride(e.target.value)}
-                      placeholder="Override price"
-                      style={{ width:'100%', padding:'4px 8px', border:`1px solid ${C.linenDarker}`, borderRadius:3, fontFamily:'DM Sans', fontSize:11, background:C.linen, boxSizing:'border-box', color:'#888' }} />
-                  </div>
-                )}
               </div>
             ))}
           </div>
