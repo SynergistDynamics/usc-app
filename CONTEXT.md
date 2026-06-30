@@ -194,11 +194,13 @@ src/
                                at the top of the modal (and used for the page title), and saved to `projects.name` on
                                Save so lists/search stay in sync. The style description prefers the raw ShedPro
                                `shed_style` text, falling back to the style package name for hand-made projects.
-                               Right below the spec sits an always-visible **"Options & finishes"** group — the 12
-                               material/pricing-related text fields (siding_type/overhang_size/doors/windows/vents/
-                               roof/floor/transom_package/site_prep/building_permit/access/additional_features),
-                               kept UP with the spec because they tie to the materials & pricing. A collapsible
-                               **"Work order details"** section edits the rest of what the work order shows: the
+                               Right below the spec sits a single **"Additional features"** free-text field (for
+                               custom add-ons). The other ShedPro option/finish columns (siding_type, overhang,
+                               doors, windows, vents, roof, floor, transom_package, site_prep, building_permit,
+                               access) are NOT edited in the modal — they're driven by the option checkboxes in the
+                               spec above, so they're left out of the editable set and preserved as-is on save. A
+                               collapsible **"Work order details"** section edits the rest of what the work order
+                               shows: the
                                5 rendering/image URLs (rendering_url_1..4 + layout_rendering_url), the 4 cosmetic
                                **Colors** text fields (siding_color/trim_color/door_color/roof_color — these don't
                                affect price), **quote details** (project_number,
