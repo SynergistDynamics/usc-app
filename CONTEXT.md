@@ -169,6 +169,13 @@ src/
                                cleaned array straight to `change_orders` via updateProject. Like notes, this is the ONLY
                                place change orders are edited — the "Change orders" tab was removed from the Edit modal
                                (2026-07-01), so the Edit modal is now THREE tabs (Details · Specification · Appearance).
+                               Below that is an **Attachments card** (AttachmentsCard, 2026-07-01) — a "📎 Add files"
+                               button (multi-file) + a thumbnail grid of everything attached to the project (permits,
+                               contracts, site photos, …). Images preview inline; other files show a 📄 tile; each tile
+                               opens the file (new tab) and has a × to delete. Files live in the PRIVATE `project-files`
+                               storage bucket (keyed `{project_id}/…`) with metadata in `project_attachments`; because
+                               the bucket is private everything is reached via short-lived SIGNED urls (no public url).
+                               All data access is in `lib/attachments.js`; RLS scopes it to the project's owner + admins.
                                Below the stepper are TWO TABS:
                                • "Work Order" — a formatted, printable work-order document (rendered inside
                                  #work-order-print) showing every relevant detail: customer (name/company/full
@@ -351,6 +358,12 @@ src/
                                LABELS / COLORS, SOLD_STATUSES, isSoldStatus. Embeds the parent contact — incl.
                                full contact details (phone, address, city, state, zip) so ProjectDetail can
                                render a complete work order — plus its owner profile, and the style package name.
+  lib/attachments.js         — Project file/image attachments data/service layer (2026-07-01). Upload to the
+                               PRIVATE `project-files` bucket + record a `project_attachments` row; fetch/list;
+                               delete (removes the storage object then the row); mint short-lived SIGNED urls
+                               (single `signedUrl` + batch `signedUrlMap` for image thumbnails, since the bucket is
+                               private). Helpers: isImageAttachment, fmtBytes, MAX_ATTACHMENT_BYTES (25 MB). Used by
+                               ProjectDetail's AttachmentsCard; RLS is the security boundary (owner + admins).
   modules/ (cont.)
     Profile.jsx              — My Profile (/profile, all users) — each user edits their OWN profile
                                (name, business, phone, market, website, bio) + uploads a profile photo
@@ -601,6 +614,16 @@ Notes:
   and the **non-material** groups (Building Permit, Access Fees, Travel Charges) are intentionally ignored.
   Loft is NOT here (the function picks Loft Modern vs Loft Traditional from the project's style). RLS: admins
   manage; the Edge Function uses service_role. Seeded 2026-06-29 (43 rows) — see `MIGRATION_shedpro_option_map.sql`.
+- `project_attachments` — files/images attached to a project (permits, contracts, site photos, …).
+  Columns: id, project_id (→ projects, **ON DELETE CASCADE**), storage_path (object key in the
+  `project-files` bucket, `{project_id}/{ts}-{name}`), file_name (original, for display), file_type (mime),
+  size_bytes, uploaded_by (→ profiles, ON DELETE SET NULL), created_at. **RLS enabled**: one ALL policy
+  "Access attachments for owned projects, admins all" mirrors the projects policy — a builder reads/writes
+  rows for a project whose linked contact they own; admins all. The bytes live in the PRIVATE `project-files`
+  storage bucket (see Storage Buckets); deleting a project cascades the rows but NOT the storage objects (the
+  app removes those on per-file delete; whole-project deletes can orphan objects — harmless, revisit later).
+  Managed by ProjectDetail's AttachmentsCard via `lib/attachments.js`. See
+  `MIGRATION_project_attachments.sql` (applied 2026-07-01 via MCP).
 - LEGACY (kept as backup, no longer read by the app): `quantities` (old global base/add-on quantities),
   `styles` (old shed styles with markup %). Safe to drop once the migration is verified.
 
@@ -614,6 +637,14 @@ Notes:
   own folder so it doesn't allow bucket-wide listing. The path is `{user_id}/{timestamp}.{ext}` and the
   resulting public URL is saved to `profiles.avatar_url`. See `MIGRATION_profile_fields_and_avatars.sql`
   (applied 2026-06-23).
+- `project-files` — **PRIVATE** bucket for project attachments (ProjectDetail's AttachmentsCard). Objects are
+  keyed `{project_id}/{timestamp}-{safe_name}`, so the first path segment is the project id. RLS on
+  `storage.objects` (4 policies: select/insert/update/delete) checks that project via
+  `((storage.foldername(name))[1])::uuid` and allows access only to the project's owner (contact.user_id =
+  auth.uid()) or admins — same ownership shape as the projects table. **Private**, so there is NO public URL:
+  the app serves images/files via short-lived SIGNED urls (`lib/attachments.js` signedUrl / signedUrlMap).
+  Object metadata is tracked in the `project_attachments` table (above). See
+  `MIGRATION_project_attachments.sql` (applied 2026-07-01 via MCP).
 
 ## Edge Functions
 - `shedpro-project-sync` (`supabase/functions/shedpro-project-sync/index.ts`, deployed 2026-06-29,
