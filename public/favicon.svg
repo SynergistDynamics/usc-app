@@ -1,5 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="20" fill="#1A1510"/>
-  <text x="50" y="68" text-anchor="middle" font-family="Georgia, serif" font-size="58" font-weight="700" fill="#7A9B76">U</text>
-  <text x="50" y="84" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#B8986A" letter-spacing="4">SC</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#000000"/>
+  <!-- green roof line -->
+  <line x1="70" y1="150" x2="442" y2="104" stroke="#9DBE4F" stroke-width="20" stroke-linecap="round"/>
+  <!-- URBN wordmark -->
+  <g fill="#ECE7DC" font-family="Arial, 'Helvetica Neue', Helvetica, sans-serif" font-weight="700" font-size="168">
+    <text x="86"  y="278">U</text>
+    <text x="214" y="278">R</text>
+    <text x="86"  y="418">B</text>
+    <text x="214" y="418">N</text>
+  </g>
+  <!-- SHEDS, set vertically down the right edge -->
+  <text x="372" y="150" fill="#9DBE4F"
+        font-family="Arial, 'Helvetica Neue', Helvetica, sans-serif"
+        font-weight="700" font-size="74" letter-spacing="6"
+        transform="rotate(90 372 150)">SHEDS</text>
+  <!-- small dash mark above SHEDS -->
+  <rect x="360" y="118" width="10" height="34" rx="3" fill="#9DBE4F"/>
 </svg>

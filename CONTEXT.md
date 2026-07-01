@@ -59,7 +59,12 @@ resources, and financing info.
 ```
 /index.html                  — Vite entry HTML (loads /src/main.jsx)
 /package.json, vite.config.js, eslint.config.js
-/public/                     — static assets (favicon.svg, hero.png, icons.svg, etc.)
+/public/                     — static assets. **Favicon = the URBN SHEDS logo** (green roof line +
+                               cream "URBN" block + vertical green "SHEDS" on black), authored as a
+                               scalable `favicon.svg` (primary) with raster fallbacks generated from it:
+                               `favicon.ico` (32px, for the browser's default /favicon.ico request),
+                               `favicon-32.png`, `apple-touch-icon.png` (180px, iOS home screen), and
+                               `icon-512.png` — all linked in `index.html`. Plus hero.png, icons.svg, etc.
 /public/assessment/          — PUBLIC pages (see "Public marketing & payment pages" below):
 /public/licensing/             self-contained static HTML served as-is, no login. Vite copies
 /public/affiliate-program/     public/ to dist/ root; Vercel serves real files before the SPA
