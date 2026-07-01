@@ -324,11 +324,13 @@ src/
                                ContactProfile) owns the primary actions, so the header Edit button is desktop-only and
                                the footer's Delete becomes a quiet, separated text button (page gets bottom padding so
                                the bar never covers content). **Management cards moved on mobile (readability pass
-                               2026-07-01):** the four per-project editing cards (Construction date, Project notes, Change
-                               orders, Attachments — the shared `managementCards` fragment) render ABOVE the tabs on
-                               desktop but BELOW the work order on mobile, under a **"Project tools"** divider, so the
-                               phone leads with the document instead of a wall of editing cards. All gated by the
-                               `isMobile` resize-listener state. Needs the global material/package data, passed as props
+                               2026-07-01):** three per-project editing cards (Project notes, Change orders, Attachments —
+                               the shared `managementCards` fragment) render ABOVE the tabs on desktop but BELOW the work
+                               order on mobile, under a **"Project tools"** divider, so the phone leads with the document
+                               instead of a wall of editing cards. The **Construction/Install date** card is the exception
+                               — important glanceable logistics, so it stays up top (right under the milestone stepper) on
+                               BOTH breakpoints, as a compact inline date (labeled "📅 Install date" on mobile) that
+                               adds/edits without opening the Edit modal. All gated by the `isMobile` resize-listener state. Needs the global material/package data, passed as props
                                like the calculator.
     LeadRoutingModal.jsx     — Admin-only modal (from Contacts) to map ShedPro territory → builder; lists
                                unmapped territories seen on contacts, edits/removes mappings, adds new ones.
