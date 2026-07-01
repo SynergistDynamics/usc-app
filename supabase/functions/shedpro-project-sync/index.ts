@@ -211,7 +211,12 @@ Deno.serve(async (req) => {
   }
   let result;
   if (existingId) {
-    result = await supa.from("projects").update(payload).eq("id", existingId).select("id").single();
+    // On UPDATE, don't clobber fields the app/Stripe own after a deposit is paid: `deposit`
+    // (the amount Stripe actually collected), `stripe_session_id`, `deposit_paid_at`. A later
+    // ShedPro re-sync would otherwise overwrite the paid deposit with ShedPro's quote figure.
+    // (status/sold_at/contact_id are already left out of `payload` for the same reason.)
+    const { deposit: _d, ...updatePayload } = payload as Record<string, unknown>;
+    result = await supa.from("projects").update(updatePayload).eq("id", existingId).select("id").single();
   } else {
     result = await supa.from("projects").insert({ ...payload, status: appStatus }).select("id").single();
   }

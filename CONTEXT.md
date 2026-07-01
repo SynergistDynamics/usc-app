@@ -501,7 +501,11 @@ Notes:
   projects); sale_price, **deposit** (numeric — the shed deposit/down payment from ShedPro, shown above the
   sale price on the work order and editable on the Edit modal's Details tab; see
   `MIGRATION_projects_deposit.sql`, applied 2026-06-30), sold_at (stamped the first time status becomes
-  sold/completed by the app), notes, created_at, updated_at (auto via `projects_set_updated_at` trigger).
+  sold/completed by the app — OR by the Stripe deposit webhook when a deposit is paid),
+  **stripe_session_id** (the Stripe Checkout Session that paid the deposit; UNIQUE partial index =
+  the idempotency key for the `stripe-deposit-paid` Edge Function so a re-delivered webhook is a
+  no-op) + **deposit_paid_at** (when the deposit was paid via Stripe; see
+  `MIGRATION_projects_stripe_deposit.sql` + `STRIPE_DEPOSIT.md`), notes, created_at, updated_at (auto via `projects_set_updated_at` trigger).
   **change_orders** (jsonb NOT NULL DEFAULT '[]') — post-sale change-order line items added in-app, each
   `{label, detail, price, created_at, created_by (uuid), created_by_name}`; the Edit modal's "Change orders"
   editor appends them (stamping date + current user) and the work order renders them in a Change Orders
@@ -610,7 +614,9 @@ Notes:
   charge — skipped for Western Red Cedar), stores the raw options in `shedpro_options`, and **upserts on `shedpro_project_id`**
   (top-level ShedPro `Id`). On UPDATE it deliberately omits `status`/`sold_at`/`contact_id` so the app keeps
   control of the pipeline + contact linking; on INSERT it sets status from ShedPro (quote-request→quoted) and
-  the `projects_auto_link_contact` BEFORE INSERT trigger links the contact by email. **Why an Edge Function
+  the `projects_auto_link_contact` BEFORE INSERT trigger links the contact by email. **On UPDATE it also omits
+  `deposit`** (added 2026-07-01, alongside status/sold_at/contact_id) so a re-sync can't overwrite the deposit
+  amount a customer actually PAID through Stripe (see `stripe-deposit-paid` below). **Why an Edge Function
   (not the plain REST upsert used for contacts):** a project's options arrive across several NESTED arrays,
   which Zapier's flat field-mapping / a single REST upsert can't assemble. The Zap is **ShedPro trigger → Code
   by Zapier** (Run Javascript) that POSTs the trigger fields to the function; ShedPro emits each option list as
@@ -621,6 +627,21 @@ Notes:
   the computed mapping WITHOUT writing or auth (for testing). **LIVE & verified 2026-06-29** end-to-end:
   ShedPro project #5864 (Id 6a42…) synced → 14 packages, auto-linked to its contact + builder by email.
   Setup: `ZAPIER_PROJECTS.md`.
+- `stripe-deposit-paid` (`supabase/functions/stripe-deposit-paid/index.ts`, `verify_jwt=false`) — the
+  **Stripe deposit webhook**. Fires on Stripe's `checkout.session.completed` (only when
+  `payment_status='paid'`) after a customer pays their 25% shed deposit. It **verifies the Stripe
+  signature** (`STRIPE_WEBHOOK_SECRET` env, HMAC-SHA256 over `t.rawBody`, 5-min replay window — no SDK),
+  finds the project (`client_reference_id`→`shedpro_project_id`, then `metadata.project_number`, then
+  `metadata.customer_email`/`customer_details.email`→most-recent unsold), then sets **status=sold**,
+  stamps **sold_at** (only if unset), writes **deposit** = the amount Stripe collected (`amount_total`/100,
+  NOT a recomputed 25%), and stamps **deposit_paid_at** + **stripe_session_id**. **Idempotent** on
+  `stripe_session_id` (repeat delivery → `already_processed`; unique index backstops a concurrent double).
+  Then it **emails the builder** (project→contact→owner `profiles.email`) CC admin via **Resend**
+  (`RESEND_API_KEY`); no builder linked → admin only; **no project matched → admin alert** (payment never
+  lost). Optional env: `MAIL_FROM`, `APP_URL`, `ADMIN_NOTIFY_EMAIL` (else admins from `profiles`). Needs the
+  existing Zap that creates the deposit link to set `client_reference_id`=ShedPro Id (+ metadata). `?dry_run=1`
+  returns the computed match with no signature check / no write. Full setup + Stripe webhook registration +
+  the Zap change: `STRIPE_DEPOSIT.md`; schema: `MIGRATION_projects_stripe_deposit.sql`.
 
 ## CRITICAL Supabase / React gotchas
 - **1000-row API cap — `.range()` does NOT bypass it.** Supabase's PostgREST `max-rows` (default 1000)
