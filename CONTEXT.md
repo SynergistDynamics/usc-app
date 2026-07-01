@@ -306,7 +306,16 @@ src/
                                📞 Call / 💬 Text / ✉️ Email / 🧭 Map links — same pattern as ContactProfile), (d) uses
                                **lighter section headers** (`MoSection`: small sage label + hairline rule, not the
                                print doc's solid sage bars) and **stacked rows** for the options/pricing tables (no
-                               2-col table to overflow), and (e) a clean 2×2 spec grid. The **printable paper doc
+                               2-col table to overflow), and (e) a 3-stat spec row (Size/Style/Siding — no orphan cell).
+                               **Section order + consolidation (readability pass 2026-07-01):** the mobile flow is Hero →
+                               Price headline → Specifications → **Customer** → **What's included** → Change orders →
+                               Price breakdown → **Builder** (moved DOWN, it's job logistics) → **Notes**. "What's
+                               included" leads with the priced **Options & Pricing** list and shows the plain option
+                               **chips only as a no-price fallback** (`hasPricedList`) so options never appear twice, then
+                               the cosmetic **Finishes** grid. The free-text project notes (`additional_features`, which
+                               used to be a cramped cell in the Finishes grid) + any legacy `notes` now render together as
+                               a proper **Notes** text block at the end. (Desktop `WorkOrderDoc` still keeps the old
+                               layout — notes in the Finishes list, Builder beside Customer.) The **printable paper doc
                                (`WorkOrderDoc`) is unchanged** — on mobile it's rendered hidden (offscreen, still
                                `#work-order-print`) so Print/Save works from either tab. Page chrome also went
                                mobile-first: the **milestone stepper** circles are 40px (≥ touch target) and the 4

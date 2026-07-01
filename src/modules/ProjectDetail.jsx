@@ -1858,8 +1858,10 @@ const woTd = { padding:'5px 0', fontFamily:'DM Sans', fontSize:13, color:C.charc
 // printable paper doc (WorkOrderDoc) is unchanged — it's still what gets printed
 // or saved to PDF from the sticky "Print / Save" button.
 function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size, styleLabel, styleMult, out, selectedOptions, shedproOptions = [], optionsSummary = '', optionPriceLines = [], monthlyPayment, deposit = null, pricing = {}, changeOrders = [] }) {
-  // Hide the pills when the priced fallback covers the same options (see WorkOrderDoc).
-  const usingPricedFallback = shedproOptions.length === 0 && !optionsSummary && optionPriceLines.length > 0;
+  // Is there a priced "Options & Pricing" list (synced quote, text summary, or app-priced
+  // fallback)? If so it already itemizes the options, so the plain "Options & Add-ons"
+  // chips would just repeat them and are hidden — the chips are a no-price fallback only.
+  const hasPricedList = shedproOptions.length > 0 || !!optionsSummary || optionPriceLines.length > 0;
   const woNumber = project?.project_number ? `#${project.project_number}` : `#${String(project?.id || '').slice(0, 8).toUpperCase()}`;
 
   const customerName = contact?.full_name || contact?.company_name || contact?.email || '—';
@@ -1889,8 +1891,12 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
     ['Site prep', project?.site_prep],
     ['Building permit', project?.building_permit],
     ['Access', project?.access],
-    ['Project notes', project?.additional_features],
   ].filter(([, v]) => v != null && String(v).trim() !== '');
+
+  // Free-text notes: the project notes (additional_features) + any legacy `notes`. Pulled
+  // OUT of the cramped Finishes grid into a proper text block near the bottom (see below).
+  const addlFeatures = (project?.additional_features || '').trim();
+  const notesText    = (notes || '').trim();
 
   const salePriceNum = salePrice != null && String(salePrice).trim() !== '' ? parseFloat(salePrice) : null;
   const monthly = monthlyPayment != null && String(monthlyPayment).trim() !== '' ? parseFloat(monthlyPayment) : null;
@@ -1946,13 +1952,13 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
         )}
       </div>
 
-      {/* Specifications — clean 2×2 grid */}
+      {/* Specifications — 3 compact stats side by side (no orphan grid cell) */}
       <MoSection title="Specifications">
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px 12px' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:10 }}>
           {specs.map(([k, v]) => (
             <div key={k} style={{ background:C.linen, borderRadius:8, padding:'10px 12px' }}>
               <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', color:C.sand }}>{k}</div>
-              <div style={{ fontFamily:'DM Sans', fontSize:14, fontWeight:600, color:C.charcoal, marginTop:2 }}>{v || '—'}</div>
+              <div style={{ fontFamily:'DM Sans', fontSize:13.5, fontWeight:600, color:C.charcoal, marginTop:2 }}>{v || '—'}</div>
             </div>
           ))}
         </div>
@@ -1969,15 +1975,34 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
         <CustomerActions contact={contact} />
       </MoSection>
 
-      {/* Builder */}
-      <MoSection title="Builder">
-        <div style={{ fontFamily:'DM Sans', fontSize:14.5, fontWeight:600, color:C.charcoal }}>{builderName}</div>
-        {builderEmail && <div style={{ ...woMobLine, wordBreak:'break-word' }}>{builderEmail}</div>}
-        {project?.construction_date && <div style={woMobLine}>Construction date: {project.construction_date}</div>}
-      </MoSection>
-
-      {/* Options & add-ons */}
-      {selectedOptions.length > 0 && !usingPricedFallback && (
+      {/* ── What's included ───────────────────────────────────────────────────────
+          Lead with the priced "Options & Pricing" list (synced quote / text summary /
+          app-priced fallback). Only when there's NO priced list do the plain option
+          chips show instead — so the same options never appear twice. Then the cosmetic
+          Finishes grid. */}
+      {hasPricedList ? (
+        <MoSection title="Options & Pricing">
+          {shedproOptions.length > 0 ? (
+            shedproOptions.map((o, i) => (
+              <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'9px 0', borderBottom:`1px solid ${C.linen}` }}>
+                <span style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal }}>
+                  {o.label}{o.detail && <span style={{ color:'#8C8478' }}> — {o.detail}</span>}
+                </span>
+                <span style={{ fontFamily:'DM Sans', fontSize:13.5, fontWeight:600, color:C.charcoal, whiteSpace:'nowrap' }}>{o.price || '—'}</span>
+              </div>
+            ))
+          ) : optionsSummary ? (
+            <div style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal, whiteSpace:'pre-wrap', lineHeight:1.6 }}>{optionsSummary}</div>
+          ) : (
+            optionPriceLines.map((o, i) => (
+              <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'9px 0', borderBottom:`1px solid ${C.linen}` }}>
+                <span style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal }}>{o.label}</span>
+                <span style={{ fontFamily:'DM Sans', fontSize:13.5, fontWeight:600, color:C.charcoal, whiteSpace:'nowrap' }}>{o.price}</span>
+              </div>
+            ))
+          )}
+        </MoSection>
+      ) : selectedOptions.length > 0 ? (
         <MoSection title="Options & Add-ons">
           <div style={{ display:'flex', flexWrap:'wrap', gap:'7px 8px' }}>
             {selectedOptions.map(o => (
@@ -1987,9 +2012,9 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
             ))}
           </div>
         </MoSection>
-      )}
+      ) : null}
 
-      {/* Finishes & configuration */}
+      {/* Finishes & configuration — the cosmetic/config facts not in the priced list */}
       {finishes.length > 0 && (
         <MoSection title="Finishes & Configuration">
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px 16px' }}>
@@ -2002,33 +2027,6 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
           </div>
         </MoSection>
       )}
-
-      {/* Options & pricing — stacked rows (no two-column table to overflow) */}
-      {shedproOptions.length > 0 ? (
-        <MoSection title="Options & Pricing">
-          {shedproOptions.map((o, i) => (
-            <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'9px 0', borderBottom:`1px solid ${C.linen}` }}>
-              <span style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal }}>
-                {o.label}{o.detail && <span style={{ color:'#8C8478' }}> — {o.detail}</span>}
-              </span>
-              <span style={{ fontFamily:'DM Sans', fontSize:13.5, fontWeight:600, color:C.charcoal, whiteSpace:'nowrap' }}>{o.price || '—'}</span>
-            </div>
-          ))}
-        </MoSection>
-      ) : optionsSummary ? (
-        <MoSection title="Options & Pricing">
-          <div style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal, whiteSpace:'pre-wrap', lineHeight:1.6 }}>{optionsSummary}</div>
-        </MoSection>
-      ) : optionPriceLines.length > 0 ? (
-        <MoSection title="Options & Pricing">
-          {optionPriceLines.map((o, i) => (
-            <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'9px 0', borderBottom:`1px solid ${C.linen}` }}>
-              <span style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal }}>{o.label}</span>
-              <span style={{ fontFamily:'DM Sans', fontSize:13.5, fontWeight:600, color:C.charcoal, whiteSpace:'nowrap' }}>{o.price}</span>
-            </div>
-          ))}
-        </MoSection>
-      ) : null}
 
       {/* Change orders — line items added in-app after the sale */}
       {changeOrders.length > 0 && (
@@ -2063,10 +2061,18 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
         </MoSection>
       )}
 
-      {/* Notes */}
-      {notes && notes.trim() && (
+      {/* Builder — job logistics, kept below the customer-facing content */}
+      <MoSection title="Builder">
+        <div style={{ fontFamily:'DM Sans', fontSize:14.5, fontWeight:600, color:C.charcoal }}>{builderName}</div>
+        {builderEmail && <div style={{ ...woMobLine, wordBreak:'break-word' }}>{builderEmail}</div>}
+        {project?.construction_date && <div style={woMobLine}>Construction date: {project.construction_date}</div>}
+      </MoSection>
+
+      {/* Notes — the free-text project notes + any legacy notes, as proper text blocks */}
+      {(addlFeatures || notesText) && (
         <MoSection title="Notes" last>
-          <div style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal, whiteSpace:'pre-wrap', lineHeight:1.55 }}>{notes}</div>
+          {addlFeatures && <div style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal, whiteSpace:'pre-wrap', lineHeight:1.55 }}>{addlFeatures}</div>}
+          {notesText && <div style={{ fontFamily:'DM Sans', fontSize:13.5, color:C.charcoal, whiteSpace:'pre-wrap', lineHeight:1.55, marginTop: addlFeatures ? 10 : 0 }}>{notesText}</div>}
         </MoSection>
       )}
     </div>
