@@ -1,8 +1,12 @@
-# USC Materials & Pricing Manager
+# USC Builder Portal
 
 A React + Vite web app for Urban Sheds Collective — a network of licensed shed builders.
-Provides pricing management, materials calculation, configurator pricing, blueprint access,
-affiliate resources, and financing info.
+The central portal each builder runs their business from: customers/leads (CRM), projects &
+printable work orders, pricing management, materials calculation, configurator pricing,
+blueprint access, affiliate resources, and financing info.
+
+> Formerly the "USC Materials & Pricing Manager" — renamed in 2026-07 now that it's a full
+> builder portal, not just a pricing tool. (The repo/folder stays `usc-app`.)
 
 ## Stack
 - **Frontend:** React 19 + Vite, React Router 7 (real URLs for each section)

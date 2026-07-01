@@ -173,7 +173,7 @@ export function LoginPage() {
             color: '#B8986A', marginTop: 10, letterSpacing: '0.1em',
             textTransform: 'uppercase', fontStyle: 'italic',
           }}>
-            Materials & Pricing Manager
+            Builder Portal
           </div>
         </div>
 
@@ -344,7 +344,7 @@ export function UpdatePasswordPage({ onDone }) {
             color: '#B8986A', marginTop: 10, letterSpacing: '0.1em',
             textTransform: 'uppercase', fontStyle: 'italic',
           }}>
-            Materials & Pricing Manager
+            Builder Portal
           </div>
         </div>
 
@@ -412,7 +412,7 @@ export function BlockedScreen({ onSignOut }) {
           color: C.sage, marginBottom: 40, letterSpacing: '0.06em',
           textTransform: 'uppercase',
         }}>
-          Materials & Pricing Manager
+          Builder Portal
         </div>
 
         <div style={{
