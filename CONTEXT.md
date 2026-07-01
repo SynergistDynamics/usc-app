@@ -59,8 +59,8 @@ resources, and financing info.
 ```
 /index.html                  — Vite entry HTML (loads /src/main.jsx)
 /package.json, vite.config.js, eslint.config.js
-/public/                     — static assets. **Favicon = the URBN SHEDS logo** (green roof line +
-                               cream "URBN" block + vertical green "SHEDS" on black), authored as a
+/public/                     — static assets. **Favicon = the URBN logo** (rounded black tile, tilted
+                               green roofline, cream "UR"/"BN" stacked & centered), authored as a
                                scalable `favicon.svg` (primary) with raster fallbacks generated from it:
                                `favicon.ico` (32px, for the browser's default /favicon.ico request),
                                `favicon-32.png`, `apple-touch-icon.png` (180px, iOS home screen), and
