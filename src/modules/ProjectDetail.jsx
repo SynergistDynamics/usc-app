@@ -37,6 +37,10 @@ import {
 const USC_LICENSE_FEE_RATE = 0.10; // 10%
 import { assignContact, fetchAssignableBuilders, fetchContacts } from '../lib/contacts';
 import {
+  fetchAttachments, uploadAttachment, deleteAttachment, signedUrl, signedUrlMap,
+  isImageAttachment, fmtBytes, MAX_ATTACHMENT_BYTES,
+} from '../lib/attachments';
+import {
   Card, Button, Badge, Input, Select, FormField, Label, Modal,
   ErrorBanner, SuccessBanner, WarningBanner, Spinner, ShedIcon,
 } from '../components/UI';
@@ -489,6 +493,9 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
       {/* Change orders — one-click add/edit of post-sale change-order line items via
           their own popup, without opening the full Edit project modal. */}
       <ChangeOrdersCard project={project} onSaved={setProject} isMobile={isMobile} />
+
+      {/* Attachments — upload/preview/delete files & images tied to this project. */}
+      <AttachmentsCard projectId={project?.id} isMobile={isMobile} />
 
       {/* Tabs — two tabs, so on mobile they split the width evenly (no scrolling). */}
       <div style={{ display:'flex', gap:0, marginBottom:20, borderBottom:`2px solid ${C.linenDarker}`, flexWrap:'nowrap', overflowY:'hidden' }}>
@@ -974,6 +981,132 @@ function ChangeOrdersModal({ project, isMobile, onClose, onSaved }) {
         <Button variant="ghost" size="sm" onClick={addCO}>+ Add line item</Button>
       </div>
     </Modal>
+  );
+}
+
+// ── Attachments ───────────────────────────────────────────────────────────────
+// Files & images tied to a project (permits, contracts, site photos, …). Uploads go
+// to the PRIVATE `project-files` bucket keyed by project id; metadata lives in
+// project_attachments. RLS (MIGRATION_project_attachments.sql) scopes everything to the
+// project's owner + admins, so this card just calls the lib and trusts the policy.
+// Because the bucket is private, images preview via short-lived SIGNED urls and a file
+// opens by minting a fresh signed url on click — there is no public url.
+function AttachmentsCard({ projectId, isMobile }) {
+  const { profile } = useAuth();
+  const fileRef = useRef(null);
+  const [items,     setItems]     = useState([]);
+  const [urls,      setUrls]      = useState({});   // storage_path → signed thumbnail url (images)
+  const [loading,   setLoading]   = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [busyId,    setBusyId]    = useState(null); // attachment id currently deleting
+  const [error,     setError]     = useState('');
+
+  // Load (or reload) the list + pre-signed image thumbnails. `cancelled` lets the mount
+  // effect ignore a load that resolves after the project changed/unmounted.
+  async function load(cancelled) {
+    if (!projectId) return;
+    setLoading(true); setError('');
+    const { data, error: e } = await fetchAttachments(projectId);
+    if (cancelled?.()) return;
+    setLoading(false);
+    if (e) { setError(e.message); return; }
+    const list = data || [];
+    setItems(list);
+    // Pre-sign the image thumbnails in one batch.
+    const map = await signedUrlMap(list.filter(isImageAttachment).map(a => a.storage_path));
+    if (!cancelled?.()) setUrls(map);
+  }
+
+  // Load on mount / when the project changes. Inline async IIFE (not a direct call to
+  // load) so the setState-in-effect lint rule treats it as a deferred callback.
+  useEffect(() => {
+    let dead = false;
+    (async () => { await load(() => dead); })();
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  async function onPick(e) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = ''; // let the same file be re-picked later
+    if (!files.length) return;
+    setError(''); setUploading(true);
+    const errs = [];
+    for (const file of files) {
+      if (file.size > MAX_ATTACHMENT_BYTES) { errs.push(`${file.name} is too large (max 25 MB).`); continue; }
+      const { error: e } = await uploadAttachment(projectId, file, profile?.id);
+      if (e) errs.push(`${file.name}: ${e.message}`);
+    }
+    setUploading(false);
+    if (errs.length) setError(errs.join(' '));
+    await load();
+  }
+
+  async function open(a) {
+    const { url, error: e } = await signedUrl(a.storage_path);
+    if (e || !url) { setError(e?.message || 'Could not open file.'); return; }
+    window.open(url, '_blank', 'noopener');
+  }
+
+  async function remove(a) {
+    if (!window.confirm(`Remove "${a.file_name}"? This deletes the file permanently.`)) return;
+    setBusyId(a.id); setError('');
+    const { error: e } = await deleteAttachment(a);
+    setBusyId(null);
+    if (e) { setError(e.message); return; }
+    setItems(list => list.filter(x => x.id !== a.id));
+  }
+
+  const tile = isMobile ? 96 : 116;
+
+  return (
+    <Card style={{ marginBottom:20, padding: isMobile ? '14px 14px' : '16px 20px' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap', marginBottom: items.length || loading ? 14 : 0 }}>
+        <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand, flexShrink:0 }}>
+          Attachments
+        </div>
+        <div style={{ flex:'1 1 120px', minWidth:0, fontFamily:'DM Sans', fontSize:13, color:'#8C8478' }}>
+          {loading ? '' : items.length ? `${items.length} file${items.length === 1 ? '' : 's'}` : 'No files attached yet'}
+        </div>
+        <input ref={fileRef} type="file" multiple onChange={onPick} style={{ display:'none' }} />
+        <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()} disabled={uploading || !projectId} style={{ flexShrink:0 }}>
+          {uploading ? 'Uploading…' : '📎 Add files'}
+        </Button>
+      </div>
+
+      {error && <div style={{ fontFamily:'DM Sans', fontSize:12.5, color:C.error, marginBottom:12 }}>{error}</div>}
+
+      {loading ? (
+        <div style={{ padding:'8px 0' }}><Spinner size={18} /></div>
+      ) : items.length > 0 && (
+        <div style={{ display:'grid', gridTemplateColumns:`repeat(auto-fill, minmax(${tile}px, 1fr))`, gap:12 }}>
+          {items.map(a => {
+            const img = isImageAttachment(a);
+            const thumb = urls[a.storage_path];
+            return (
+              <div key={a.id} style={{ position:'relative', border:`1px solid ${C.linenDarker}`, borderRadius:8, overflow:'hidden', background:C.linen }}>
+                <button type="button" onClick={() => open(a)} title={`Open ${a.file_name}`}
+                  style={{ display:'block', width:'100%', border:'none', background:'transparent', cursor:'pointer', padding:0 }}>
+                  <div style={{ height:tile, display:'flex', alignItems:'center', justifyContent:'center', background:'#F4F1EA', overflow:'hidden' }}>
+                    {img && thumb
+                      ? <img src={thumb} alt={a.file_name} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                      : <span style={{ fontSize:34, lineHeight:1 }}>{img ? '🖼️' : '📄'}</span>}
+                  </div>
+                  <div style={{ padding:'7px 8px', textAlign:'left' }}>
+                    <div style={{ fontFamily:'DM Sans', fontSize:11.5, fontWeight:600, color:C.charcoal, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.file_name}</div>
+                    <div style={{ fontFamily:'DM Sans', fontSize:10.5, color:'#aaa' }}>{fmtBytes(a.size_bytes)}</div>
+                  </div>
+                </button>
+                <button type="button" onClick={() => remove(a)} disabled={busyId === a.id} title="Remove file"
+                  style={{ position:'absolute', top:5, right:5, width:24, height:24, borderRadius:'50%', border:'none', background:'rgba(0,0,0,0.55)', color:'#fff', cursor:'pointer', fontSize:14, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  {busyId === a.id ? '·' : '×'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
   );
 }
 
