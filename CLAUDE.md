@@ -1,4 +1,4 @@
-# Claude Code Instructions — USC Materials & Pricing Manager
+# Claude Code Instructions — USC Builder Portal
 
 > ⚠️ ALWAYS KEEP THE DOCS UP TO DATE. Whenever you change code, schema, structure, conventions,
 > or discover a new gotcha, update the markdown files (`CONTEXT.md`, `CLAUDE.md`, `README.md`) in the

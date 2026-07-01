@@ -1,4 +1,4 @@
-# USC Materials & Pricing Manager — Developer Context
+# USC Builder Portal — Developer Context
 
 > Read this file at the start of any session before making changes.
 > And KEEP IT CURRENT: whenever code, schema, structure, or gotchas change, update this file (and

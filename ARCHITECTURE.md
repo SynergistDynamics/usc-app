@@ -13,7 +13,8 @@
 
 ## 1. The vision
 
-The app started as the **USC Materials & Pricing Manager** (an internal pricing tool). The long-term
+The app started as the **USC Materials & Pricing Manager** (an internal pricing tool) and is now the
+**USC Builder Portal** (renamed 2026-07, §5). The long-term
 goal is for it to become the **central platform for Urban Sheds Collective LLC** — a network of
 solo shed builders. Planned capabilities, to be built **piece by piece**:
 
@@ -165,9 +166,14 @@ Parallel track (independent of the app): **rebuild the marketing site** off Wix 
 ---
 
 ## 5. Naming note
-Internally the product is still "USC Materials & Pricing Manager." As it becomes the USC platform,
-plan to **rename the product** (the repo and existing docs can stay) so framing matches scope.
-Cosmetic, but it shapes how the app is thought about.
+The product is named the **USC Builder Portal** (renamed 2026-07 from "USC Materials & Pricing
+Manager" now that it's a full builder portal — CRM, projects/work orders, dashboards — not just a
+pricing tool). It's **builder-facing** and deliberately keeps the Urban Sheds / USC brand in it.
+- Where it shows: the browser tab title (`index.html` → "USC Builder Portal") and the login/reset/
+  update-password screens (`Auth.jsx`), where "Builder Portal" is the tagline under the "Urban Sheds
+  Collective" wordmark.
+- The **repo/folder stays `usc-app`** and the app domain stays `build.urban-sheds.com` — the rename is
+  cosmetic/product-framing, no infra change.
 
 ---
 
