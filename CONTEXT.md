@@ -162,7 +162,14 @@ src/
                                `additional_features` via updateProject (blank clears it). This is the ONLY place notes
                                are edited — the field was removed from the Edit modal's Specification tab (2026-07-01).
                                On the work order the notes render as a "Project notes" line in Finishes (label renamed
-                               from "Additional features"). Below the stepper are TWO TABS:
+                               from "Additional features"). Below that is a **Change orders card** (ChangeOrdersCard) —
+                               shows a summary (item count · subtotal) and an **"+ Add change order" / "✎ Edit change
+                               orders" button** that opens a focused **ChangeOrdersModal** popup (the add/edit/remove
+                               line-item editor with subtotal, each row stamped with date + current user) saving the
+                               cleaned array straight to `change_orders` via updateProject. Like notes, this is the ONLY
+                               place change orders are edited — the "Change orders" tab was removed from the Edit modal
+                               (2026-07-01), so the Edit modal is now THREE tabs (Details · Specification · Appearance).
+                               Below the stepper are TWO TABS:
                                • "Work Order" — a formatted, printable work-order document (rendered inside
                                  #work-order-print) showing every relevant detail: customer (name/company/full
                                  mailing address/phone/email, from the embedded contact), builder, shed spec
@@ -227,7 +234,7 @@ src/
                                Cancel/Save action bar stay fixed while only the body scrolls; Esc/×/backdrop/Cancel route
                                through a **discard guard** — a `dirty` snapshot prompts "Discard unsaved changes?" in the
                                footer instead of losing edits; save errors show inline in the footer). The body is split
-                               into **four tabs** (all fields stay in state regardless of the active tab, so switching
+                               into **three tabs** (all fields stay in state regardless of the active tab, so switching
                                never loses input and Save persists everything):
                                • **Details** — the **Contact** picker (link/change/unlink — ContactPicker loads contacts
                                  lazily on first expand, RLS-scoped), the read-only **Project name** heading, **Status**,
@@ -253,13 +260,14 @@ src/
                                • **Appearance** (optional) — the 5 rendering/image URLs (rendering_url_1..4 +
                                  layout_rendering_url) and the 4 cosmetic **Colors** (siding_color/trim_color/door_color/
                                  roof_color — don't affect price).
-                               • **Change orders** — `+ Add line item` rows (Item/Detail/`$` MoneyInput price, with column
-                                 headers + an empty state + a **live subtotal**) for changes AFTER the sale; each NEW row is
-                                 stamped with today's date + the current user (`profile.full_name||email`), existing rows
-                                 keep their stamp, and the cleaned array saves to **`projects.change_orders`** (jsonb NOT
-                                 NULL DEFAULT '[]'). The tab label shows a count. These render in the work order's **Change
-                                 Orders** section (price via `fmtCoPrice`, with the create date + who added it) and roll into
-                                 the Final total.
+                               **Change orders** are NO LONGER a tab here (removed 2026-07-01) — they're edited via the
+                               **Change orders card + ChangeOrdersModal popup** on the page (see the page description
+                               above). The `+ Add line item` editor (Item/Detail/`$` MoneyInput price, column headers, a
+                               **live subtotal**) now lives in that popup: each NEW row is stamped with today's date + the
+                               current user (`profile.full_name||email`), existing rows keep their stamp, and the cleaned
+                               array saves to **`projects.change_orders`** (jsonb NOT NULL DEFAULT '[]'). They render in
+                               the work order's **Change Orders** section (price via `fmtCoPrice`, with the create date +
+                               who added it) and roll into the Final total.
                                **The project NAME is NOT editable** — it's BUILT from the shed data as `{size} {style desc}
                                #{order#}` (e.g. "4x8 Tall Modern #5860") by `composeProjectName(...)`, shown as a read-only
                                heading on the Details tab (and used for the page title), and saved to `projects.name` on
