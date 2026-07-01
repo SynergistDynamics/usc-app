@@ -640,11 +640,15 @@ Notes:
 - `project-files` — **PRIVATE** bucket for project attachments (ProjectDetail's AttachmentsCard). Objects are
   keyed `{project_id}/{timestamp}-{safe_name}`, so the first path segment is the project id. RLS on
   `storage.objects` (4 policies: select/insert/update/delete) checks that project via
-  `((storage.foldername(name))[1])::uuid` and allows access only to the project's owner (contact.user_id =
-  auth.uid()) or admins — same ownership shape as the projects table. **Private**, so there is NO public URL:
-  the app serves images/files via short-lived SIGNED urls (`lib/attachments.js` signedUrl / signedUrlMap).
-  Object metadata is tracked in the `project_attachments` table (above). See
-  `MIGRATION_project_attachments.sql` (applied 2026-07-01 via MCP).
+  `((storage.foldername(objects.name))[1])::uuid` and allows access only to the project's owner
+  (contact.user_id = auth.uid()) or admins — same ownership shape as the projects table. **Private**, so there
+  is NO public URL: the app serves images/files via short-lived SIGNED urls (`lib/attachments.js` signedUrl /
+  signedUrlMap). Object metadata is tracked in the `project_attachments` table (above).
+  **GOTCHA (fixed 2026-07-01):** the object name MUST be qualified `objects.name` — inside the policy's
+  `select 1 from projects p` subquery a bare `name` binds to `projects.name` (the project title), so
+  foldername() never yields the project id and every upload 400s with "new row violates row-level security
+  policy" (avatars is immune — no other `name` in scope). See `MIGRATION_project_attachments.sql` +
+  `MIGRATION_project_attachments_fix_foldername` (both applied 2026-07-01 via MCP).
 
 ## Edge Functions
 - `shedpro-project-sync` (`supabase/functions/shedpro-project-sync/index.ts`, deployed 2026-06-29,

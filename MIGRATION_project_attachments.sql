@@ -68,7 +68,13 @@ create policy "Access attachments for owned projects, admins all"
   );
 
 -- 3b. Storage RLS — same ownership check, keyed off the {project_id}/ folder --
--- The project id is the first path segment (storage.foldername(name))[1]::uuid.
+-- The project id is the first path segment (storage.foldername(objects.name))[1]::uuid.
+-- GOTCHA (fixed 2026-07-01, MIGRATION_project_attachments_fix_foldername): the object's
+-- name column MUST be qualified as `objects.name`. Inside `select 1 from projects p`, a
+-- bare `name` binds to projects.name (the project title, e.g. "4x8 Tall Modern #5860"),
+-- so foldername() never yields the project id and EVERY upload/read/delete is RLS-rejected
+-- with HTTP 400 "new row violates row-level security policy". (The avatars policy is
+-- immune — its subquery has no other `name` column in scope.)
 drop policy if exists "Read project files for owned projects" on storage.objects;
 create policy "Read project files for owned projects"
   on storage.objects for select to authenticated
@@ -76,7 +82,7 @@ create policy "Read project files for owned projects"
     bucket_id = 'project-files'
     and exists (
       select 1 from public.projects p
-      where p.id = ((storage.foldername(name))[1])::uuid
+      where p.id = ((storage.foldername(objects.name))[1])::uuid
         and (
           exists (select 1 from public.contacts c where c.id = p.contact_id and c.user_id = auth.uid())
           or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
@@ -91,7 +97,7 @@ create policy "Upload project files for owned projects"
     bucket_id = 'project-files'
     and exists (
       select 1 from public.projects p
-      where p.id = ((storage.foldername(name))[1])::uuid
+      where p.id = ((storage.foldername(objects.name))[1])::uuid
         and (
           exists (select 1 from public.contacts c where c.id = p.contact_id and c.user_id = auth.uid())
           or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
@@ -106,7 +112,7 @@ create policy "Update project files for owned projects"
     bucket_id = 'project-files'
     and exists (
       select 1 from public.projects p
-      where p.id = ((storage.foldername(name))[1])::uuid
+      where p.id = ((storage.foldername(objects.name))[1])::uuid
         and (
           exists (select 1 from public.contacts c where c.id = p.contact_id and c.user_id = auth.uid())
           or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
@@ -121,7 +127,7 @@ create policy "Delete project files for owned projects"
     bucket_id = 'project-files'
     and exists (
       select 1 from public.projects p
-      where p.id = ((storage.foldername(name))[1])::uuid
+      where p.id = ((storage.foldername(objects.name))[1])::uuid
         and (
           exists (select 1 from public.contacts c where c.id = p.contact_id and c.user_id = auth.uid())
           or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
