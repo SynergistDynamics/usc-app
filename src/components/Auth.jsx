@@ -9,6 +9,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(undefined); // undefined = loading
   const [profile, setProfile] = useState(null);
+  const [recovery, setRecovery] = useState(false);   // true after a password-reset link is opened
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -16,7 +17,8 @@ export function AuthProvider({ children }) {
       if (data.session) loadProfile(data.session.user.id);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true);
       setSession(session ?? null);
       if (session) loadProfile(session.user.id);
       else setProfile(null);
@@ -75,7 +77,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ session, profile, signOut, reloadProfile: () => session && loadProfile(session.user.id) }}>
+    <AuthContext.Provider value={{ session, profile, signOut, recovery, clearRecovery: () => setRecovery(false), reloadProfile: () => session && loadProfile(session.user.id) }}>
       {children}
     </AuthContext.Provider>
   );
@@ -87,12 +89,15 @@ export function useAuth() {
 
 // ── LOGIN PAGE ───────────────────────────────────────────────
 export function LoginPage() {
+  const [mode, setMode] = useState('magic');   // 'magic' | 'password'
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [sent, setSent] = useState(false);       // magic link sent
+  const [resetSent, setResetSent] = useState(false); // password-reset link sent
   const [error, setError] = useState('');
 
-  async function handleSubmit() {
+  async function handleMagic() {
     if (!email.trim()) return;
     setLoading(true);
     setError('');
@@ -105,6 +110,34 @@ export function LoginPage() {
     else setSent(true);
   }
 
+  async function handlePassword() {
+    if (!email.trim() || !password) return;
+    setLoading(true);
+    setError('');
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    setLoading(false);
+    if (error) setError(error.message);
+    // On success, onAuthStateChange in AuthProvider takes over from here.
+  }
+
+  async function handleReset() {
+    if (!email.trim()) {
+      setError('Enter your email above first, then tap “Forgot password?”');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: window.location.origin,
+    });
+    setLoading(false);
+    if (error) setError(error.message);
+    else setResetSent(true);
+  }
+
   async function handleGoogle() {
     setError('');
     const { error } = await supabase.auth.signInWithOAuth({
@@ -113,6 +146,12 @@ export function LoginPage() {
     });
     if (error) setError(error.message);
   }
+
+  const linkBtn = {
+    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+    fontFamily: 'DM Sans, sans-serif', fontSize: 13, fontWeight: 600,
+    color: C.sage, textDecoration: 'underline',
+  };
 
   return (
     <div style={{
@@ -153,13 +192,29 @@ export function LoginPage() {
                 Use a different email
               </Button>
             </div>
+          ) : resetSent ? (
+            <div style={{ textAlign: 'center', padding: '8px 0' }}>
+              <div style={{ fontSize: 40, marginBottom: 16 }}>🔑</div>
+              <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 22, fontWeight: 600, color: C.charcoal, margin: '0 0 10px' }}>
+                Reset link sent
+              </h3>
+              <p style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 14, color: '#666', margin: '0 0 20px', lineHeight: 1.6 }}>
+                We sent a password-reset link to <strong>{email}</strong>.<br />
+                Click it to choose a new password, then sign in.
+              </p>
+              <Button variant="ghost" size="sm" onClick={() => { setResetSent(false); }}>
+                Back to sign in
+              </Button>
+            </div>
           ) : (
             <>
               <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 22, fontWeight: 600, color: C.charcoal, margin: '0 0 6px' }}>
                 Sign in
               </h3>
               <p style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: '#888', margin: '0 0 24px' }}>
-                Enter your email and we'll send you a sign-in link.
+                {mode === 'password'
+                  ? 'Enter your email and password.'
+                  : "Enter your email and we'll send you a sign-in link."}
               </p>
 
               {error && <ErrorBanner onDismiss={() => setError('')}>{error}</ErrorBanner>}
@@ -174,15 +229,43 @@ export function LoginPage() {
                 />
               </FormField>
 
+              {mode === 'password' && (
+                <FormField label="Password">
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={setPassword}
+                    placeholder="Your password"
+                  />
+                  <div style={{ textAlign: 'right', marginTop: 6 }}>
+                    <button type="button" onClick={handleReset} style={linkBtn}>
+                      Forgot password?
+                    </button>
+                  </div>
+                </FormField>
+              )}
+
               <Button
-                onClick={handleSubmit}
+                onClick={mode === 'password' ? handlePassword : handleMagic}
                 loading={loading}
-                disabled={!email.trim()}
+                disabled={mode === 'password' ? (!email.trim() || !password) : !email.trim()}
                 size="lg"
                 style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
               >
-                Send magic link
+                {mode === 'password' ? 'Sign in' : 'Send magic link'}
               </Button>
+
+              <div style={{ textAlign: 'center', marginTop: 14 }}>
+                <button
+                  type="button"
+                  onClick={() => { setMode(mode === 'password' ? 'magic' : 'password'); setError(''); setPassword(''); }}
+                  style={linkBtn}
+                >
+                  {mode === 'password'
+                    ? 'Sign in with a magic link instead'
+                    : 'Sign in with a password instead'}
+                </button>
+              </div>
 
               <div style={{ display:'flex', alignItems:'center', gap:10, margin:'16px 0 4px' }}>
                 <div style={{ flex:1, height:1, background:'#E5E0D8' }} />
@@ -217,6 +300,93 @@ export function LoginPage() {
         <p style={{ textAlign: 'center', fontFamily: 'DM Sans, sans-serif', fontSize: 11, color: '#aaa', marginTop: 20 }}>
           Access is invite-only. Contact your USC admin if you need access.
         </p>
+      </div>
+    </div>
+  );
+}
+
+// ── UPDATE PASSWORD PAGE ─────────────────────────────────────
+// Shown after a user opens a password-reset link (recovery session). Lets them
+// set a new password, then hands back to the app.
+export function UpdatePasswordPage({ onDone }) {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSave() {
+    if (password.length < 8) { setError('Use at least 8 characters.'); return; }
+    if (password !== confirm) { setError('Those passwords don’t match.'); return; }
+    setLoading(true);
+    setError('');
+    const { error } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (error) { setError(error.message); return; }
+    onDone?.(); // clears the recovery flag → drops into the app (already signed in)
+  }
+
+  return (
+    <div style={{
+      minHeight: '100vh', background: '#F7F3EC',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 20,
+    }}>
+      <div style={{ width: '100%', maxWidth: 420 }}>
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div style={{
+            fontFamily: 'Cormorant Garamond, serif', fontSize: 38,
+            fontWeight: 600, color: '#1A1A1A', lineHeight: 1.1, letterSpacing: '-0.02em',
+          }}>
+            Urban Sheds<br />Collective
+          </div>
+          <div style={{
+            fontFamily: 'DM Sans, sans-serif', fontSize: 11,
+            color: '#B8986A', marginTop: 10, letterSpacing: '0.1em',
+            textTransform: 'uppercase', fontStyle: 'italic',
+          }}>
+            Materials & Pricing Manager
+          </div>
+        </div>
+
+        <div style={{ background:'#FFFDF9', border:'1px solid #DDD6C9', borderRadius:8, padding:32 }}>
+          <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 22, fontWeight: 600, color: C.charcoal, margin: '0 0 6px' }}>
+            Choose a new password
+          </h3>
+          <p style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: '#888', margin: '0 0 24px' }}>
+            Set a password you'll use to sign in from now on.
+          </p>
+
+          {error && <ErrorBanner onDismiss={() => setError('')}>{error}</ErrorBanner>}
+
+          <FormField label="New password">
+            <Input
+              type="password"
+              value={password}
+              onChange={setPassword}
+              placeholder="At least 8 characters"
+              autoFocus
+            />
+          </FormField>
+
+          <FormField label="Confirm password">
+            <Input
+              type="password"
+              value={confirm}
+              onChange={setConfirm}
+              placeholder="Re-enter your password"
+            />
+          </FormField>
+
+          <Button
+            onClick={handleSave}
+            loading={loading}
+            disabled={!password || !confirm}
+            size="lg"
+            style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
+          >
+            Save password &amp; continue
+          </Button>
+        </div>
       </div>
     </div>
   );
