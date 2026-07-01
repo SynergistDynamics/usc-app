@@ -1,5 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="20" fill="#1A1510"/>
-  <text x="50" y="68" text-anchor="middle" font-family="Georgia, serif" font-size="58" font-weight="700" fill="#7A9B76">U</text>
-  <text x="50" y="84" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#B8986A" letter-spacing="4">SC</text>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="96" fill="#0a0a0a"/>
+  <!-- Green tilted roofline -->
+  <rect x="90" y="118" width="332" height="26" rx="13" fill="#9ccc5a" transform="rotate(-7 256 131)"/>
+  <!-- URBN letters -->
+  <text x="256" y="290" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="180" fill="#ece7de" text-anchor="middle" letter-spacing="6">UR</text>
+  <text x="256" y="440" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="180" fill="#ece7de" text-anchor="middle" letter-spacing="6">BN</text>
 </svg>
