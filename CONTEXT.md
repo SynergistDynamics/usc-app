@@ -501,7 +501,11 @@ Notes:
   projects); sale_price, **deposit** (numeric — the shed deposit/down payment from ShedPro, shown above the
   sale price on the work order and editable on the Edit modal's Details tab; see
   `MIGRATION_projects_deposit.sql`, applied 2026-06-30), sold_at (stamped the first time status becomes
-  sold/completed by the app), notes, created_at, updated_at (auto via `projects_set_updated_at` trigger).
+  sold/completed by the app — OR by the Stripe deposit webhook when a deposit is paid),
+  **stripe_session_id** (the Stripe Checkout Session that paid the deposit; UNIQUE partial index =
+  the idempotency key for the `stripe-deposit-paid` Edge Function so a re-delivered webhook is a
+  no-op) + **deposit_paid_at** (when the deposit was paid via Stripe; see
+  `MIGRATION_projects_stripe_deposit.sql` + `STRIPE_DEPOSIT.md`), notes, created_at, updated_at (auto via `projects_set_updated_at` trigger).
   **change_orders** (jsonb NOT NULL DEFAULT '[]') — post-sale change-order line items added in-app, each
   `{label, detail, price, created_at, created_by (uuid), created_by_name}`; the Edit modal's "Change orders"
   editor appends them (stamping date + current user) and the work order renders them in a Change Orders
@@ -610,7 +614,9 @@ Notes:
   charge — skipped for Western Red Cedar), stores the raw options in `shedpro_options`, and **upserts on `shedpro_project_id`**
   (top-level ShedPro `Id`). On UPDATE it deliberately omits `status`/`sold_at`/`contact_id` so the app keeps
   control of the pipeline + contact linking; on INSERT it sets status from ShedPro (quote-request→quoted) and
-  the `projects_auto_link_contact` BEFORE INSERT trigger links the contact by email. **Why an Edge Function
+  the `projects_auto_link_contact` BEFORE INSERT trigger links the contact by email. **On UPDATE it also omits
+  `deposit`** (added 2026-07-01, alongside status/sold_at/contact_id) so a re-sync can't overwrite the deposit
+  amount a customer actually PAID through Stripe (see `stripe-deposit-paid` below). **Why an Edge Function
   (not the plain REST upsert used for contacts):** a project's options arrive across several NESTED arrays,
   which Zapier's flat field-mapping / a single REST upsert can't assemble. The Zap is **ShedPro trigger → Code
   by Zapier** (Run Javascript) that POSTs the trigger fields to the function; ShedPro emits each option list as
@@ -621,6 +627,34 @@ Notes:
   the computed mapping WITHOUT writing or auth (for testing). **LIVE & verified 2026-06-29** end-to-end:
   ShedPro project #5864 (Id 6a42…) synced → 14 packages, auto-linked to its contact + builder by email.
   Setup: `ZAPIER_PROJECTS.md`.
+- `stripe-deposit-paid` (`supabase/functions/stripe-deposit-paid/index.ts`, `verify_jwt=false`) — the
+  **Stripe deposit webhook**. Fires on Stripe's `checkout.session.completed` (only when
+  `payment_status='paid'`) after a customer pays their 25% shed deposit. It **verifies the Stripe
+  signature** (`STRIPE_WEBHOOK_SECRET` env, HMAC-SHA256 over `t.rawBody`, 5-min replay window — no SDK),
+  then **GATES on a shed-deposit tag** so it ignores the account's OTHER Stripe checkouts (the $499
+  onboarding-fee / $1,495 license-activation Payment Links, subscription signups): it acts ONLY when the
+  session carries `client_reference_id` (=`shedpro_project_id`), `metadata.project_number`, or
+  `metadata.type='shed_deposit'` — a bare customer email is NOT a marker (untagged → `ignored`, no email/
+  write; subscription renewals fire `invoice.paid`, not this event, so they never arrive). It then
+  finds the project (`client_reference_id`→`shedpro_project_id`, then `metadata.project_number`, then
+  `metadata.customer_email`/`customer_details.email`→most-recent unsold), then sets **status=sold**,
+  stamps **sold_at** (only if unset), writes **deposit** = the amount Stripe collected (`amount_total`/100,
+  NOT a recomputed 25%), and stamps **deposit_paid_at** + **stripe_session_id**. **Idempotent** on
+  `stripe_session_id` (repeat delivery → `already_processed`; unique index backstops a concurrent double).
+  Then it **emails the builder** (project→contact→owner `profiles.email`) CC admin via **Resend**
+  (`RESEND_API_KEY`); no builder linked → admin only; **no project matched → admin alert** (payment never
+  lost). Optional env: `MAIL_FROM`, `APP_URL`, `ADMIN_NOTIFY_EMAIL` (else admins from `profiles`). Needs the
+  existing Zap that creates the deposit link to set `client_reference_id`=ShedPro Id (+ metadata). `?dry_run=1`
+  returns the computed match with no signature check / no write. **STRIPE CONNECT:** the deposit is a
+  **direct charge on the builder's connected account** (builder = merchant of record) with an
+  `application_fee_amount` to the platform, so the event fires on the connected account and the Stripe
+  webhook endpoint is a **Connected accounts** destination (`urban_supabase`); the event's extra
+  top-level `account` (`acct_…`) is ignored. The deposit Zap ("ShedPro to Proposal Email") creates the
+  session via a raw `POST` to the Stripe API (Webhooks by Zapier, Form) and sets the tags as
+  **session-level** `client_reference_id` + `metadata[type|project_number|customer_email]` (NOT under
+  `payment_intent_data`, which the session event can't see). **LIVE & verified 2026-07-01** end-to-end
+  ($1 deposit on project #5888 → sold + recorded + builder emailed). Full setup + Stripe webhook
+  registration + the Zap change: `STRIPE_DEPOSIT.md`; schema: `MIGRATION_projects_stripe_deposit.sql`.
 
 ## CRITICAL Supabase / React gotchas
 - **1000-row API cap — `.range()` does NOT bypass it.** Supabase's PostgREST `max-rows` (default 1000)
@@ -697,4 +731,11 @@ anytime a style grid looks empty/partial.
 5. Admin can delete users (removes profile row; auth account remains in Supabase dashboard).
 
 ## Custom Email
-Supabase Auth uses custom SMTP via Resend — magic links come from info@urban-sheds.com as "Urban Sheds Collective".
+- **Resend** is the email provider. The `urban-sheds.com` domain was **verified in Resend on
+  2026-07-01** (via Resend's Cloudflare auto-configure — SPF/DKIM on subdomains, root MX untouched).
+  The `stripe-deposit-paid` Edge Function sends the builder "deposit received" email through the Resend
+  API (`RESEND_API_KEY` secret), from `info@urban-sheds.com` as "Urban Sheds Collective".
+- **Supabase Auth custom SMTP via Resend is NOT actually configured yet** (an earlier note claimed it
+  was — that was aspirational). Now that the Resend domain is verified, Auth SMTP can be pointed at
+  Resend so magic links also come from `info@urban-sheds.com`; until then Auth uses Supabase's default
+  email. TODO if/when magic-link branding matters.
