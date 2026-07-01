@@ -445,6 +445,19 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
     optionPriceLines, monthlyPayment, deposit, pricing, changeOrders,
   };
 
+  // Per-project management tools (inline construction date + the notes/change-orders/
+  // attachments popups). On DESKTOP these sit above the tabs; on MOBILE they're moved
+  // BELOW the work order so the document itself leads (the phone's first screens
+  // shouldn't be a wall of editing cards).
+  const managementCards = (
+    <>
+      <ConstructionDateCard project={project} onSaved={setProject} isMobile={isMobile} />
+      <ProjectNotesCard project={project} onSaved={setProject} isMobile={isMobile} />
+      <ChangeOrdersCard project={project} onSaved={setProject} isMobile={isMobile} />
+      <AttachmentsCard projectId={project?.id} isMobile={isMobile} />
+    </>
+  );
+
   return (
     <div style={{ paddingBottom: isMobile ? 92 : 0 }}>
       <BackLink />
@@ -483,19 +496,9 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
         isMobile={isMobile}
       />
 
-      {/* Construction date — builders set/update the install date inline here. */}
-      <ConstructionDateCard project={project} onSaved={setProject} isMobile={isMobile} />
-
-      {/* Project notes — one-click add/edit of the free-text notes (additional_features)
-          via its own popup, without opening the full Edit project modal. */}
-      <ProjectNotesCard project={project} onSaved={setProject} isMobile={isMobile} />
-
-      {/* Change orders — one-click add/edit of post-sale change-order line items via
-          their own popup, without opening the full Edit project modal. */}
-      <ChangeOrdersCard project={project} onSaved={setProject} isMobile={isMobile} />
-
-      {/* Attachments — upload/preview/delete files & images tied to this project. */}
-      <AttachmentsCard projectId={project?.id} isMobile={isMobile} />
+      {/* Management tools — construction date + notes/change-orders/attachments.
+          DESKTOP: above the tabs. MOBILE: moved below the work order (see below). */}
+      {!isMobile && managementCards}
 
       {/* Tabs — two tabs, so on mobile they split the width evenly (no scrolling). */}
       <div style={{ display:'flex', gap:0, marginBottom:20, borderBottom:`2px solid ${C.linenDarker}`, flexWrap:'nowrap', overflowY:'hidden' }}>
@@ -546,6 +549,18 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
               <MaterialsListTab out={out} cfg={cfg} size={cfg.size} style={styleLabel} multiplier={styleMult} isMobile={isMobile} />
             )}
           </div>
+        </div>
+      )}
+
+      {/* Mobile: the management tools live down here, after the document, under a
+          clear divider — so the work order leads and editing stays out of the way. */}
+      {isMobile && (
+        <div style={{ marginTop:26 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
+            <span style={{ fontFamily:'DM Sans', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.09em', color:C.sageDark, whiteSpace:'nowrap' }}>Project tools</span>
+            <span style={{ flex:1, height:1, background:C.linenDarker }} />
+          </div>
+          {managementCards}
         </div>
       )}
 
@@ -1881,6 +1896,13 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
   const monthly = monthlyPayment != null && String(monthlyPayment).trim() !== '' ? parseFloat(monthlyPayment) : null;
   const specs = [['Size', size], ['Style', styleLabel], ['Siding', cfg?.siding]];
 
+  // The customer-facing total (final total when there are change orders, else the sale
+  // price) and — new — the balance still owed after any deposit. These lead the headline;
+  // the material/fee/labor split stays in the lower "Price breakdown" section.
+  const totalNum   = pricing.hasChangeOrders ? pricing.finalTotal : salePriceNum;
+  const balanceDue = (totalNum != null && deposit != null) ? totalNum - deposit : null;
+  const hasBreakdown = pricing.materialCost != null || pricing.appCalcPrice != null;
+
   return (
     <div>
       {/* Hero — lead with the shed */}
@@ -1905,11 +1927,22 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
             Sale price {salePriceNum != null ? fmt(salePriceNum) : '—'} + change orders {fmt(pricing.changeOrdersTotal)}
           </div>
         )}
-        {monthly != null && (
-          <div style={{ fontFamily:'DM Sans', fontSize:12.5, color:C.inkLight, marginTop:2 }}>or from {fmt(monthly)}/mo with financing</div>
+        {(deposit != null || balanceDue != null) && (
+          <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${C.linenDarker}` }}>
+            {deposit != null && (
+              <div style={{ display:'flex', justifyContent:'space-between', gap:12, fontFamily:'DM Sans', fontSize:13, color:C.inkLight, padding:'2px 0' }}>
+                <span>Deposit paid</span><span style={{ whiteSpace:'nowrap' }}>−{fmt(deposit)}</span>
+              </div>
+            )}
+            {balanceDue != null && (
+              <div style={{ display:'flex', justifyContent:'space-between', gap:12, fontFamily:'DM Sans', fontSize:14.5, fontWeight:700, color:C.charcoal, padding:'2px 0' }}>
+                <span>Balance due</span><span style={{ whiteSpace:'nowrap' }}>{fmt(balanceDue)}</span>
+              </div>
+            )}
+          </div>
         )}
-        {pricing.appCalcPrice != null && (
-          <div style={{ fontFamily:'DM Sans', fontSize:12, color:'#8C8478', marginTop:6 }}>App calculated price {fmt(pricing.appCalcPrice)}</div>
+        {monthly != null && (
+          <div style={{ fontFamily:'DM Sans', fontSize:12.5, color:C.inkLight, marginTop:8 }}>or from {fmt(monthly)}/mo with financing</div>
         )}
       </div>
 
@@ -2016,35 +2049,19 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
         </MoSection>
       )}
 
-      {/* Pricing summary */}
-      <MoSection title="Pricing">
-        {pricing.materialCost != null && <MoPriceRow label="Material cost" value={fmt(pricing.materialCost)} muted />}
-        {pricing.licenseFee != null && <MoPriceRow label={`Urban Sheds licensing fee (${pricing.licenseRatePct}%)`} value={fmt(pricing.licenseFee)} />}
-        {pricing.laborProfit != null && <MoPriceRow label="Labor, overhead & profit" value={fmt(pricing.laborProfit)} />}
-        {pricing.appCalcPrice != null && <MoPriceRow label={<>App calculated price{styleMult != null && <span style={{ color:'#aaa', fontWeight:400 }}> · {styleMult}×</span>}</>} value={fmt(pricing.appCalcPrice)} bold topBorder />}
-        {deposit != null && <MoPriceRow label="Deposit (paid)" value={fmt(deposit)} topBorder />}
-        {pricing.hasChangeOrders && (
-          <>
-            <MoPriceRow label="Sale price · configurator" value={salePriceNum != null ? fmt(salePriceNum) : '—'} topBorder />
-            <MoPriceRow label="Change orders" value={`+${fmt(pricing.changeOrdersTotal)}`} />
-          </>
-        )}
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginTop:8, paddingTop:10, borderTop:`1.5px solid ${C.linenDarker}` }}>
-          <span style={{ fontFamily:'Cormorant Garamond, serif', fontSize:20, color:C.charcoal }}>
-            {pricing.hasChangeOrders
-              ? <>Final total <span style={{ fontFamily:'DM Sans', fontSize:10.5, fontWeight:400, color:'#999' }}>· incl. change orders</span></>
-              : <>Sale price <span style={{ fontFamily:'DM Sans', fontSize:10.5, fontWeight:400, color:'#999' }}>· configurator</span></>}
-          </span>
-          <span style={{ fontFamily:'Cormorant Garamond, serif', fontSize:26, fontWeight:700, color:C.sage }}>
-            {pricing.hasChangeOrders
-              ? fmt(pricing.finalTotal)
-              : (salePriceNum != null ? fmt(salePriceNum) : '—')}
-          </span>
-        </div>
-        {monthly != null && (
-          <div style={{ textAlign:'right', fontFamily:'DM Sans', fontSize:12, color:'#8C8478', marginTop:3 }}>or from {fmt(monthly)}/mo with financing</div>
-        )}
-      </MoSection>
+      {/* Price breakdown — the BUILDER's split of the sale price (material + fee + labor)
+          plus the app's own comparison estimate. The customer-facing total, deposit,
+          balance and financing all live in the headline card up top, so they're NOT
+          repeated here. Hidden entirely when there's nothing to break down. */}
+      {hasBreakdown && (
+        <MoSection title="Price breakdown">
+          <div style={{ fontFamily:'DM Sans', fontSize:11.5, color:'#8C8478', marginBottom:6 }}>How the sale price breaks down — for reference.</div>
+          {pricing.materialCost != null && <MoPriceRow label="Material cost" value={fmt(pricing.materialCost)} muted />}
+          {pricing.licenseFee != null && <MoPriceRow label={`Urban Sheds licensing fee (${pricing.licenseRatePct}%)`} value={fmt(pricing.licenseFee)} />}
+          {pricing.laborProfit != null && <MoPriceRow label="Labor, overhead & profit" value={fmt(pricing.laborProfit)} />}
+          {pricing.appCalcPrice != null && <MoPriceRow label={<>App calculated price{styleMult != null && <span style={{ color:'#aaa', fontWeight:400 }}> · {styleMult}×</span>}</>} value={fmt(pricing.appCalcPrice)} bold topBorder />}
+        </MoSection>
+      )}
 
       {/* Notes */}
       {notes && notes.trim() && (

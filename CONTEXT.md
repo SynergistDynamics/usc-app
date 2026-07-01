@@ -296,8 +296,13 @@ src/
                                for an **app-style reading view** (`MobileWorkOrder`) — design-led, NOT the print sheet
                                scaled down. It (a) **leads with the renderings** (`WoGallery`: one large `contain`
                                image, or a scroll-snap carousel that lets the next one peek; `<ShedIcon>` when none),
-                               (b) puts a **price headline card** up top (sale price big in sage + "from $X/mo" +
-                               calc price), (c) makes the **Customer block tappable** (`CustomerActions`: native
+                               (b) puts a **price headline card** up top — the CUSTOMER-facing number: final total
+                               (or sale price) big in sage, then **Deposit paid** + **Balance due** (total − deposit),
+                               then "from $X/mo". The builder-only split (material + licensing fee + labor + the app
+                               calculated price) is NOT repeated here — it lives in a lower **"Price breakdown"** section
+                               (`hasBreakdown`-gated; hidden when there's nothing to split), and the app-calc number was
+                               removed from the headline (readability pass 2026-07-01: de-duplicate the price, surface
+                               deposit/balance), (c) makes the **Customer block tappable** (`CustomerActions`: native
                                📞 Call / 💬 Text / ✉️ Email / 🧭 Map links — same pattern as ContactProfile), (d) uses
                                **lighter section headers** (`MoSection`: small sage label + hairline rule, not the
                                print doc's solid sage bars) and **stacked rows** for the options/pricing tables (no
@@ -309,8 +314,13 @@ src/
                                bottom sticky action bar** (🖨 Print/Save · ✎ Edit, iOS safe-area padding, matches
                                ContactProfile) owns the primary actions, so the header Edit button is desktop-only and
                                the footer's Delete becomes a quiet, separated text button (page gets bottom padding so
-                               the bar never covers content). All gated by the `isMobile` resize-listener state.
-                               Needs the global material/package data, passed as props like the calculator.
+                               the bar never covers content). **Management cards moved on mobile (readability pass
+                               2026-07-01):** the four per-project editing cards (Construction date, Project notes, Change
+                               orders, Attachments — the shared `managementCards` fragment) render ABOVE the tabs on
+                               desktop but BELOW the work order on mobile, under a **"Project tools"** divider, so the
+                               phone leads with the document instead of a wall of editing cards. All gated by the
+                               `isMobile` resize-listener state. Needs the global material/package data, passed as props
+                               like the calculator.
     LeadRoutingModal.jsx     — Admin-only modal (from Contacts) to map ShedPro territory → builder; lists
                                unmapped territories seen on contacts, edits/removes mappings, adds new ones.
     Dashboard.jsx            — Builder Dashboard (/dashboard, landing page). Role-gated:
