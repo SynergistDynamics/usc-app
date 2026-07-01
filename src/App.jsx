@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, NavLink, Link } from 'react-router-dom';
 import { supabase, C, canManagePackages } from './lib/supabase';
-import { AuthProvider, useAuth, LoginPage, LoadingScreen, BlockedScreen } from './components/Auth';
+import { AuthProvider, useAuth, LoginPage, LoadingScreen, BlockedScreen, UpdatePasswordPage } from './components/Auth';
 import { Spinner, Button } from './components/UI';
 import Dashboard             from './modules/Dashboard';
 import Contacts              from './modules/Contacts';
@@ -29,7 +29,8 @@ export default function App() {
 }
 
 function AppShell() {
-  const { session, profile, signOut } = useAuth();
+  const { session, profile, signOut, recovery, clearRecovery } = useAuth();
+  if (recovery) return <UpdatePasswordPage onDone={clearRecovery} />;
   if (session === undefined || (session && !profile)) return <LoadingScreen />;
   if (!session) return <LoginPage />;
   if (profile?.role === 'blocked') return <BlockedScreen onSignOut={signOut} />;

@@ -76,7 +76,18 @@ src/
                                prop to get the fixed layout — sticky title bar + scrolling body + sticky footer action
                                bar — and an optional **`subheader`** (e.g. a tab strip) that renders fixed just under the
                                title (used by EditProjectModal's tabs). Without `footer` it's the original single-scroll modal.
-    Auth.jsx                 — AuthProvider, login, profile loading, access gating
+    Auth.jsx                 — AuthProvider, login, profile loading, access gating. The LoginPage offers
+                               THREE sign-in options: a **magic link** (`signInWithOtp`, the default), an
+                               **email + password** form (toggle "Sign in with a password instead" →
+                               `signInWithPassword`), and **Continue with Google** (`signInWithOAuth`). The
+                               password form has a **"Forgot password?"** link (`resetPasswordForEmail`,
+                               redirects to origin) — needed because invite-only users may have no password
+                               yet, so this is also how they FIRST set one. When a reset link is opened,
+                               Supabase fires a `PASSWORD_RECOVERY` auth event; AuthProvider tracks it as a
+                               `recovery` flag (exposed via useAuth), and AppShell renders **UpdatePasswordPage**
+                               (also exported here) so the user picks a new password (`updateUser`) before
+                               dropping into the app. All three methods land the same authenticated session and
+                               run through the same profile-loading / invite / access-gating path.
   modules/
     Contacts.jsx             — Contacts list (/contacts) — each builder's customers/leads; admins see all.
                                Loads its OWN data via lib/contacts.js (per-route loading, ARCHITECTURE §3.3),
