@@ -67,11 +67,14 @@ On the **"Create Checkout Session"** Stripe action in the Zap that makes the dep
 | Field | Value (from the ShedPro trigger) |
 |---|---|
 | `Client Reference ID` | ShedPro **Id** (the same value that becomes `projects.shedpro_project_id`) |
+| `Metadata` → `type` | the literal `shed_deposit` |
 | `Metadata` → `project_number` | ShedPro **Reference Order Num** |
 | `Metadata` → `customer_email` | **Billing Email** |
 
-All three are available on the trigger when the session is created. `client_reference_id` is the
-primary match key; the metadata are fallbacks.
+`client_reference_id` is the primary match key; the metadata are fallbacks. **`type=shed_deposit`
+is what marks the checkout as a shed deposit** — the function IGNORES any `checkout.session.completed`
+that has none of these tags, so your other Stripe payments (see below) are never touched. Setting at
+least `client_reference_id` OR `type=shed_deposit` is required for the function to act.
 
 > If the deposit link is created some other way (a Payment Link, or code), just make sure the
 > resulting Checkout Session carries `client_reference_id = <ShedPro Id>` (and ideally the metadata).
@@ -101,6 +104,22 @@ want to test with test-mode checkouts first.
    (idempotency).
 
 ---
+
+## Only shed deposits are acted on (other Stripe payments are safe)
+
+The webhook subscribes to `checkout.session.completed` only, and the function then **gates on a shed-
+deposit tag** (`client_reference_id` / `metadata.project_number` / `metadata.type='shed_deposit'`). So:
+
+- **Subscription renewals** (recurring $1,495/mo license charges) fire `invoice.paid`, not
+  `checkout.session.completed` — they never reach the function.
+- **One-time Payment Links** (the $499 onboarding fee, the $1,495 license activation) and
+  **subscription signups** DO fire `checkout.session.completed`, but they carry none of the shed-deposit
+  tags, so the function returns `{"ignored":"not a shed deposit"}` — **no email, no project change.**
+- A bare customer email is deliberately NOT treated as a marker (that would risk a license payer who
+  shares an email with a shed customer wrongly marking that shed sold).
+
+This is why the Zap MUST set `client_reference_id` (and ideally `metadata.type=shed_deposit`) — it's
+both the match key and the "this is a real shed deposit" signal.
 
 ## Notes & gotchas
 

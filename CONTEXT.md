@@ -631,6 +631,11 @@ Notes:
   **Stripe deposit webhook**. Fires on Stripe's `checkout.session.completed` (only when
   `payment_status='paid'`) after a customer pays their 25% shed deposit. It **verifies the Stripe
   signature** (`STRIPE_WEBHOOK_SECRET` env, HMAC-SHA256 over `t.rawBody`, 5-min replay window — no SDK),
+  then **GATES on a shed-deposit tag** so it ignores the account's OTHER Stripe checkouts (the $499
+  onboarding-fee / $1,495 license-activation Payment Links, subscription signups): it acts ONLY when the
+  session carries `client_reference_id` (=`shedpro_project_id`), `metadata.project_number`, or
+  `metadata.type='shed_deposit'` — a bare customer email is NOT a marker (untagged → `ignored`, no email/
+  write; subscription renewals fire `invoice.paid`, not this event, so they never arrive). It then
   finds the project (`client_reference_id`→`shedpro_project_id`, then `metadata.project_number`, then
   `metadata.customer_email`/`customer_details.email`→most-recent unsold), then sets **status=sold**,
   stamps **sold_at** (only if unset), writes **deposit** = the amount Stripe collected (`amount_total`/100,

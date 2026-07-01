@@ -101,6 +101,19 @@ Deno.serve(async (req) => {
   const amountTotal = typeof session.amount_total === "number" ? session.amount_total : null;
   const depositAmount = amountTotal != null ? Math.round(amountTotal) / 100 : null;
 
+  // GATE: only act on checkouts that are actually SHED DEPOSITS. Other checkout.session.completed
+  // events (one-time Payment Links like the $499 onboarding fee / $1,495 license activation, and
+  // subscription signups) must NOT touch projects. A shed deposit is identified ONLY by a tag the
+  // deposit Zap attaches — client_reference_id (= shedpro_project_id), metadata.project_number, or
+  // metadata.type='shed_deposit'. A bare customer email is NOT a marker (that was the risky path:
+  // a license payer who happens to share an email with a shed customer). No marker → ignore (200,
+  // no email, no write). Subscription signups also lack the marker, so they're ignored here too.
+  const markedDeposit = L(session.metadata?.type) === "shed_deposit";
+  const isShedDeposit = !!(shedproProjectId || projectNumber || markedDeposit);
+  if (!isShedDeposit) {
+    return json({ ignored: "not a shed deposit", mode: S(session.mode) || null, session: sessionId });
+  }
+
   const supa = createClient(SUPABASE_URL, SERVICE_KEY);
 
   // ---- find the project: shedpro id → order number → most-recent unsold by email ----
