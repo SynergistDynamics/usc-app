@@ -12,6 +12,7 @@
 -- with the service_role key, bypassing RLS like the other syncs).
 --
 -- Run once in the Supabase SQL Editor. See STRIPE_DEPOSIT.md for the full setup.
+-- Applied to the live project 2026-07-01 via MCP.
 
 ALTER TABLE public.projects
   ADD COLUMN IF NOT EXISTS stripe_session_id text,

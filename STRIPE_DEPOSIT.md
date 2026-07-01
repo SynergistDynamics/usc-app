@@ -1,5 +1,9 @@
 # Stripe deposit → mark shed sold + notify builder (setup guide)
 
+> **STATUS: LIVE & verified 2026-07-01.** End-to-end test: a real deposit on project #5888 flipped it
+> to **sold**, recorded the deposit, stamped `sold_at`/`deposit_paid_at`/`stripe_session_id`, and
+> emailed the builder. The steps below reflect how it's actually wired.
+
 When a ShedPro design comes in, a Zap already creates a **Stripe Checkout Session** link for 25% of
 the shed total and emails the customer so they can pay a deposit. This integration handles the
 **other end**: when the customer actually **pays**, the app marks the shed **sold**, records the
@@ -13,6 +17,14 @@ Customer pays Stripe deposit  →  Stripe webhook (checkout.session.completed)
 ```
 
 No app (React) code — the function writes straight to `projects`; the app just reads it.
+
+> **⚠️ This is a Stripe CONNECT setup.** The deposit is a **direct charge on the builder's connected
+> account** (the builder is the merchant of record) with an `application_fee_amount` going to the USC
+> platform account. Because the charge lives on the connected account, the `checkout.session.completed`
+> event fires **on the connected account** — so the webhook endpoint MUST be a **Connected accounts**
+> destination (a "Your account" endpoint would never see it). Signature verification, matching, and the
+> function are otherwise identical; the event just carries an extra top-level `account` (`acct_…`) the
+> function ignores (it matches projects against our own DB).
 
 ---
 
@@ -62,46 +74,58 @@ verification only needs the webhook secret.
 
 ## Step 4 — Tag the Checkout Session (change to the EXISTING deposit Zap)
 
-On the **"Create Checkout Session"** Stripe action in the Zap that makes the deposit link, set:
+The live deposit Zap ("ShedPro to Proposal Email") creates the session with a **`POST` to
+`https://api.stripe.com/v1/checkout/sessions`** via **Webhooks by Zapier** (Payload Type = **Form**),
+with a `Stripe-Account: acct_…` header (that's what makes it a direct charge on the builder's connected
+account) and `payment_intent_data[application_fee_amount]` = the USC fee. Add these **session-level**
+rows to that step's **Data** list (Stripe form syntax):
 
-| Field | Value (from the ShedPro trigger) |
+| Data key (left) | Value (from the ShedPro trigger) |
 |---|---|
-| `Client Reference ID` | ShedPro **Id** (the same value that becomes `projects.shedpro_project_id`) |
-| `Metadata` → `type` | the literal `shed_deposit` |
-| `Metadata` → `project_number` | ShedPro **Reference Order Num** |
-| `Metadata` → `customer_email` | **Billing Email** |
+| `client_reference_id` | ShedPro **Id** (the unique record id — the same field the projects-sync Zap maps to `id`; becomes `projects.shedpro_project_id`) |
+| `metadata[type]` | the literal `shed_deposit` |
+| `metadata[project_number]` | ShedPro **Reference Order Num** |
+| `metadata[customer_email]` | **Billing Email** |
+
+> **CRITICAL — session level, not payment_intent_data.** The webhook receives the **Checkout Session**,
+> so the tags must be top-level `client_reference_id` / `metadata[...]`. The Zap's pre-existing
+> `payment_intent_data[metadata][...]` rows land on the *PaymentIntent* and are **NOT** visible to the
+> function — don't put our tags there.
 
 `client_reference_id` is the primary match key; the metadata are fallbacks. **`type=shed_deposit`
 is what marks the checkout as a shed deposit** — the function IGNORES any `checkout.session.completed`
 that has none of these tags, so your other Stripe payments (see below) are never touched. Setting at
-least `client_reference_id` OR `type=shed_deposit` is required for the function to act.
+least `client_reference_id` OR `metadata[type]=shed_deposit` is required for the function to act.
 
-> If the deposit link is created some other way (a Payment Link, or code), just make sure the
-> resulting Checkout Session carries `client_reference_id = <ShedPro Id>` (and ideally the metadata).
+## Step 5 — Register the Stripe webhook (Connected accounts destination)
 
-## Step 5 — Register the Stripe webhook
+Stripe Dashboard → **Developers → Webhooks** (a.k.a. **Event destinations**) → **Add endpoint /
+destination**:
 
-Stripe Dashboard → **Developers → Webhooks → Add endpoint**:
-
+- **Events from:** **Connected accounts** ← REQUIRED (the deposit event fires on the builder's account,
+  not the platform — see the Connect note at the top).
 - **Endpoint URL:** `https://ywboyreznmuaddprkycm.supabase.co/functions/v1/stripe-deposit-paid`
-- **Events:** `checkout.session.completed`
-- After creating it, click **Reveal** on the signing secret → paste that `whsec_…` into
-  `STRIPE_WEBHOOK_SECRET` (Step 3).
+- **Events:** `checkout.session.completed` (search under "All events").
+- After creating it, **Reveal** the signing secret → paste that `whsec_…` into `STRIPE_WEBHOOK_SECRET`
+  (Step 3).
 
-Do this in **both** Stripe test mode and live mode (each has its own endpoint + signing secret) if you
-want to test with test-mode checkouts first.
+The live endpoint is named **`urban_supabase`** (destination id `we_…`). Note: because it's a
+Connected-accounts destination, Stripe's dashboard **"Send test event"** may not route to it — do the
+real end-to-end test below instead.
 
-## Step 6 — Test end-to-end
+## Step 6 — Test end-to-end (how it was verified)
 
-1. In **test mode**, complete a Checkout for a session tagged with a real project's ShedPro Id (use
-   Stripe's test card `4242 4242 4242 4242`).
-2. Stripe → Webhooks → your endpoint should show a **200**. Supabase → Edge Function logs show
+1. Create a ShedPro design with a **tiny total** so the 25% deposit is a couple dollars; let the Zap
+   email the checkout link; pay it with a real card (it's a live connected-account charge).
+2. The endpoint's **Event deliveries** shows a **200**; Supabase → Edge Function logs show
    `matched:true, marked_sold:true`.
 3. Open the project in the app: the milestone stepper shows **Sold**, and the **Deposit (paid)** line
    on the work order shows the amount.
 4. The builder (and CC'd admin) receive the "Deposit received" email.
-5. Re-send the same event from Stripe → the function returns `already_processed:true` and does nothing
-   (idempotency).
+5. **Refund** the test payment on the **connected account**. Re-delivering the same event returns
+   `already_processed:true` (idempotency) — it won't re-mark or double-count.
+
+> Verified 2026-07-01 with a $1 deposit on project #5888 (all five checks passed).
 
 ---
 

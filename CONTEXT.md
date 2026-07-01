@@ -645,8 +645,16 @@ Notes:
   (`RESEND_API_KEY`); no builder linked → admin only; **no project matched → admin alert** (payment never
   lost). Optional env: `MAIL_FROM`, `APP_URL`, `ADMIN_NOTIFY_EMAIL` (else admins from `profiles`). Needs the
   existing Zap that creates the deposit link to set `client_reference_id`=ShedPro Id (+ metadata). `?dry_run=1`
-  returns the computed match with no signature check / no write. Full setup + Stripe webhook registration +
-  the Zap change: `STRIPE_DEPOSIT.md`; schema: `MIGRATION_projects_stripe_deposit.sql`.
+  returns the computed match with no signature check / no write. **STRIPE CONNECT:** the deposit is a
+  **direct charge on the builder's connected account** (builder = merchant of record) with an
+  `application_fee_amount` to the platform, so the event fires on the connected account and the Stripe
+  webhook endpoint is a **Connected accounts** destination (`urban_supabase`); the event's extra
+  top-level `account` (`acct_…`) is ignored. The deposit Zap ("ShedPro to Proposal Email") creates the
+  session via a raw `POST` to the Stripe API (Webhooks by Zapier, Form) and sets the tags as
+  **session-level** `client_reference_id` + `metadata[type|project_number|customer_email]` (NOT under
+  `payment_intent_data`, which the session event can't see). **LIVE & verified 2026-07-01** end-to-end
+  ($1 deposit on project #5888 → sold + recorded + builder emailed). Full setup + Stripe webhook
+  registration + the Zap change: `STRIPE_DEPOSIT.md`; schema: `MIGRATION_projects_stripe_deposit.sql`.
 
 ## CRITICAL Supabase / React gotchas
 - **1000-row API cap — `.range()` does NOT bypass it.** Supabase's PostgREST `max-rows` (default 1000)
@@ -723,4 +731,11 @@ anytime a style grid looks empty/partial.
 5. Admin can delete users (removes profile row; auth account remains in Supabase dashboard).
 
 ## Custom Email
-Supabase Auth uses custom SMTP via Resend — magic links come from info@urban-sheds.com as "Urban Sheds Collective".
+- **Resend** is the email provider. The `urban-sheds.com` domain was **verified in Resend on
+  2026-07-01** (via Resend's Cloudflare auto-configure — SPF/DKIM on subdomains, root MX untouched).
+  The `stripe-deposit-paid` Edge Function sends the builder "deposit received" email through the Resend
+  API (`RESEND_API_KEY` secret), from `info@urban-sheds.com` as "Urban Sheds Collective".
+- **Supabase Auth custom SMTP via Resend is NOT actually configured yet** (an earlier note claimed it
+  was — that was aspirational). Now that the Resend domain is verified, Auth SMTP can be pointed at
+  Resend so magic links also come from `info@urban-sheds.com`; until then Auth uses Supabase's default
+  email. TODO if/when magic-link branding matters.
