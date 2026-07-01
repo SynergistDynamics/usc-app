@@ -445,13 +445,13 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
     optionPriceLines, monthlyPayment, deposit, pricing, changeOrders,
   };
 
-  // Per-project management tools (inline construction date + the notes/change-orders/
-  // attachments popups). On DESKTOP these sit above the tabs; on MOBILE they're moved
-  // BELOW the work order so the document itself leads (the phone's first screens
-  // shouldn't be a wall of editing cards).
+  // Per-project management tools (the notes/change-orders/attachments popups). On DESKTOP
+  // these sit above the tabs; on MOBILE they're moved BELOW the work order so the document
+  // itself leads (the phone's first screens shouldn't be a wall of editing cards). The
+  // construction date is NOT here — it's important glanceable logistics, so it stays up top
+  // (right under the stepper) on both breakpoints.
   const managementCards = (
     <>
-      <ConstructionDateCard project={project} onSaved={setProject} isMobile={isMobile} />
       <ProjectNotesCard project={project} onSaved={setProject} isMobile={isMobile} />
       <ChangeOrdersCard project={project} onSaved={setProject} isMobile={isMobile} />
       <AttachmentsCard projectId={project?.id} isMobile={isMobile} />
@@ -496,7 +496,11 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
         isMobile={isMobile}
       />
 
-      {/* Management tools — construction date + notes/change-orders/attachments.
+      {/* Construction date — important glanceable logistics, kept up top (just under the
+          stepper) on both desktop and mobile; a compact inline date you can add/edit. */}
+      <ConstructionDateCard project={project} onSaved={setProject} isMobile={isMobile} />
+
+      {/* Management tools — notes/change-orders/attachments popups.
           DESKTOP: above the tabs. MOBILE: moved below the work order (see below). */}
       {!isMobile && managementCards}
 
@@ -749,12 +753,12 @@ function ConstructionDateCard({ project, onSaved, isMobile }) {
   }
 
   return (
-    <Card style={{ marginBottom:20, padding: isMobile ? '14px 14px' : '14px 20px' }}>
-      <div style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
+    <Card style={{ marginBottom:20, padding: isMobile ? '10px 12px' : '14px 20px' }}>
+      <div style={{ display:'flex', alignItems:'center', gap: isMobile ? 10 : 14, flexWrap:'wrap' }}>
         <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand }}>
-          Construction date
+          {isMobile ? '📅 Install date' : 'Construction date'}
         </div>
-        <div style={{ flex:'0 1 200px', minWidth:160 }}>
+        <div style={{ flex:'1 1 150px', minWidth:150 }}>
           <Input type="date" value={value} onChange={change} />
         </div>
         {saving
