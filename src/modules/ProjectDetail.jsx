@@ -486,6 +486,10 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
           via its own popup, without opening the full Edit project modal. */}
       <ProjectNotesCard project={project} onSaved={setProject} isMobile={isMobile} />
 
+      {/* Change orders — one-click add/edit of post-sale change-order line items via
+          their own popup, without opening the full Edit project modal. */}
+      <ChangeOrdersCard project={project} onSaved={setProject} isMobile={isMobile} />
+
       {/* Tabs — two tabs, so on mobile they split the width evenly (no scrolling). */}
       <div style={{ display:'flex', gap:0, marginBottom:20, borderBottom:`2px solid ${C.linenDarker}`, flexWrap:'nowrap', overflowY:'hidden' }}>
         {TABS.map(([key, label]) => (
@@ -827,6 +831,152 @@ function ProjectNotesModal({ project, onClose, onSaved }) {
   );
 }
 
+// ── Change orders ─────────────────────────────────────────────────────────────
+// A one-click way to add/edit the project's post-sale CHANGE ORDERS (the
+// change_orders jsonb column) right from the work order page — a compact card that
+// summarizes the line items and opens a focused editor popup, instead of digging
+// through the full Edit modal.
+function ChangeOrdersCard({ project, onSaved, isMobile }) {
+  const [open, setOpen] = useState(false);
+  const orders = normalizeChangeOrders(project?.change_orders);
+  const subtotal = orders.reduce((s, r) => s + parsePriceNum(r.price), 0);
+  const has = orders.length > 0;
+
+  return (
+    <>
+      <Card style={{ marginBottom:20, padding: isMobile ? '14px 14px' : '14px 20px' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
+          <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand, flexShrink:0 }}>
+            Change orders
+          </div>
+          <div style={{ flex:'1 1 200px', minWidth:0, fontFamily:'DM Sans', fontSize:13, color: has ? C.charcoal : '#aaa' }}>
+            {has
+              ? `${orders.length} item${orders.length === 1 ? '' : 's'} · ${fmt(subtotal)}`
+              : 'No change orders yet'}
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => setOpen(true)} style={{ flexShrink:0 }}>
+            {has ? '✎ Edit change orders' : '+ Add change order'}
+          </Button>
+        </div>
+      </Card>
+      {open && (
+        <ChangeOrdersModal
+          project={project}
+          isMobile={isMobile}
+          onClose={() => setOpen(false)}
+          onSaved={(data) => { onSaved(data); setOpen(false); }}
+        />
+      )}
+    </>
+  );
+}
+
+// The change-orders editor popup: add/edit/remove line items, each stamped with the
+// create date + current user (existing rows keep their stamp). Saves the cleaned array
+// straight to change_orders via updateProject (RLS lets a builder edit their own project
+// / admins any). Opening with none seeds one blank row so you can type right away.
+function ChangeOrdersModal({ project, isMobile, onClose, onSaved }) {
+  const { profile } = useAuth();
+  const blankRow = () => ({
+    label:'', detail:'', price:'',
+    created_at: new Date().toISOString(),
+    created_by: profile?.id || null,
+    created_by_name: profile?.full_name || profile?.email || '',
+  });
+  const [orders, setOrders] = useState(() => {
+    const existing = normalizeChangeOrders(project?.change_orders);
+    return existing.length ? existing : [blankRow()];
+  });
+  const [saving, setSaving] = useState(false);
+  const [err,    setErr]    = useState('');
+
+  const setCO    = (i, k, v) => setOrders(rows => rows.map((r, idx) => idx === i ? { ...r, [k]: v } : r));
+  const addCO    = () => setOrders(rows => [...rows, blankRow()]);
+  const removeCO = (i) => setOrders(rows => rows.filter((_, idx) => idx !== i));
+
+  const subtotal = orders.reduce((s, r) => s + parsePriceNum(r.price), 0);
+
+  // Dirty tracking so Save stays disabled until something actually changes.
+  const baselineRef = useRef(null);
+  const snapshot = JSON.stringify(orders);
+  if (baselineRef.current === null) baselineRef.current = snapshot;
+  const dirty = baselineRef.current !== snapshot;
+
+  async function save() {
+    setSaving(true); setErr('');
+    // change_orders is jsonb NOT NULL DEFAULT '[]' — always send an array, drop blank
+    // rows, and keep/stamp each row's created_at + who added it.
+    const clean = orders
+      .map(r => ({
+        label:(r.label||'').trim(), detail:(r.detail||'').trim(), price:(r.price||'').trim(),
+        created_at: r.created_at || new Date().toISOString(),
+        created_by: r.created_by || profile?.id || null,
+        created_by_name: r.created_by_name || profile?.full_name || profile?.email || '',
+      }))
+      .filter(r => r.label || r.price);
+    const { data, error } = await updateProject(project.id, { change_orders: clean });
+    setSaving(false);
+    if (error) { setErr(error.message); return; }
+    onSaved(data);
+  }
+
+  const footer = (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+      <span style={{ fontFamily:'DM Sans', fontSize:12.5, color:C.error, flex:'1 1 auto', minWidth:0, overflow:'hidden', textOverflow:'ellipsis' }}>{err || ''}</span>
+      <div style={{ display:'flex', gap:10, flexShrink:0 }}>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button onClick={save} loading={saving} disabled={!dirty}>Save change orders</Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <Modal title="Change orders" onClose={onClose} width={640} footer={footer}>
+      <p style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#777', margin:'0 0 16px' }}>
+        Line items for any change after the shed is sold. Each is stamped with today’s date and your name, shows in the work order’s Change Orders section, and adds to the final total.
+      </p>
+
+      {/* Column headers (desktop) */}
+      {!isMobile && (
+        <div style={{ display:'flex', gap:8, padding:'0 0 6px', fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:C.sand }}>
+          <div style={{ flex:'2 1 150px' }}>Item</div>
+          <div style={{ flex:'2 1 150px' }}>Detail</div>
+          <div style={{ flex:'1 1 100px' }}>Price</div>
+          <div style={{ width:30, flexShrink:0 }} />
+        </div>
+      )}
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        {orders.map((r, i) => (
+          <div key={i} style={{ display:'flex', flexDirection:'column', gap:4 }}>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8, alignItems:'center' }}>
+              <div style={{ flex:'2 1 150px', minWidth:0 }}><Input value={r.label} onChange={v => setCO(i, 'label', v)} placeholder="Change order item" /></div>
+              <div style={{ flex:'2 1 150px', minWidth:0 }}><Input value={r.detail} onChange={v => setCO(i, 'detail', v)} placeholder="Detail (optional)" /></div>
+              <div style={{ flex:'1 1 100px', minWidth:0 }}><MoneyInput value={r.price} onChange={v => setCO(i, 'price', v)} align="right" /></div>
+              <button type="button" onClick={() => removeCO(i)} title="Remove change order"
+                style={{ flexShrink:0, width:30, height:30, borderRadius:4, border:`1px solid ${C.linenDarker}`, background:C.linen, color:C.error, cursor:'pointer', fontSize:16, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+            </div>
+            {(r.created_at || r.created_by_name) && (
+              <div style={{ fontFamily:'DM Sans', fontSize:11, color:'#999', paddingLeft:2 }}>
+                Added {fmtCoDate(r.created_at)}{r.created_by_name ? ` by ${r.created_by_name}` : ''}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Running subtotal — mirrors the work order's Final-total math. */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginTop:14, paddingTop:12, borderTop:`1px solid ${C.linenDarker}` }}>
+        <span style={{ fontFamily:'DM Sans', fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', color:C.sand }}>Change orders subtotal</span>
+        <span style={{ fontFamily:'DM Sans', fontSize:15, fontWeight:700, color:C.charcoal, fontVariantNumeric:'tabular-nums' }}>{fmt(subtotal)}</span>
+      </div>
+
+      <div style={{ marginTop:14 }}>
+        <Button variant="ghost" size="sm" onClick={addCO}>+ Add line item</Button>
+      </div>
+    </Modal>
+  );
+}
+
 // ── Edit project modal ────────────────────────────────────────────────────────
 // Edits a draft copy of the project fields + shed spec, and (for admins) the
 // assigned builder. On Save it persists everything and hands the fresh row back.
@@ -835,7 +985,6 @@ function ProjectNotesModal({ project, onClose, onSaved }) {
 // project ownership is derived from the contact, so this changes the builder for
 // ALL of that contact's projects, not just this one (flagged in the UI).
 function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, overrides, packages, pkgMaterials, pkgQuantities, styleMults, salesTax, isMobile, onClose, onSaved }) {
-  const { profile } = useAuth();
   const [status,    setStatus]    = useState(project.status || 'draft');
   const [salePrice, setSalePrice] = useState(project.sale_price != null ? String(project.sale_price) : '');
   const [deposit,   setDeposit]   = useState(project.deposit != null ? String(project.deposit) : '');
@@ -860,21 +1009,11 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
   });
   const setDetail = (k, v) => setDetails(p => ({ ...p, [k]: v }));
 
-  // Post-sale CHANGE ORDERS (projects.change_orders jsonb). Adding a row stamps it with
-  // today's date + the current user; editing an existing row keeps its original stamp.
-  const [changeOrders, setChangeOrders] = useState(() => normalizeChangeOrders(project.change_orders));
-  const setCO    = (i, k, v) => setChangeOrders(rows => rows.map((r, idx) => idx === i ? { ...r, [k]: v } : r));
-  const addCO    = () => setChangeOrders(rows => [...rows, {
-    label:'', detail:'', price:'',
-    created_at: new Date().toISOString(),
-    created_by: profile?.id || null,
-    created_by_name: profile?.full_name || profile?.email || '',
-  }]);
-  const removeCO = (i) => setChangeOrders(rows => rows.filter((_, idx) => idx !== i));
-
-  // The modal body is split into tabs (Details · Specification · Appearance · Change
-  // orders) — all fields stay in state regardless of the active tab, so switching never
-  // loses input and Save (in the footer) persists everything from any tab.
+  // The modal body is split into tabs (Details · Specification · Appearance) — all
+  // fields stay in state regardless of the active tab, so switching never loses input
+  // and Save (in the footer) persists everything from any tab. (Post-sale CHANGE ORDERS
+  // and the free-text project notes are edited via their own cards + popups on the work
+  // order page, not here.)
   const [tab, setTab] = useState('details');
 
   // The name is BUILT from the draft shed data (size + style + order #), not typed —
@@ -893,7 +1032,7 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
   // Dirty tracking so we can confirm before discarding edits. The first render's
   // snapshot is the baseline; any change to an editable field makes the modal dirty.
   const baselineRef = useRef(null);
-  const snapshot = JSON.stringify({ status, salePrice, deposit, contactId, builderId, cfg, details, changeOrders });
+  const snapshot = JSON.stringify({ status, salePrice, deposit, contactId, builderId, cfg, details });
   if (baselineRef.current === null) baselineRef.current = snapshot;
   const dirty = baselineRef.current !== snapshot;
   const [confirmingClose, setConfirmingClose] = useState(false);
@@ -913,16 +1052,6 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
 
     const willBeSold = isSoldStatus(status);
     const textOrNull = v => (v == null || String(v).trim() === '') ? null : String(v).trim();
-    // change_orders is jsonb NOT NULL DEFAULT '[]' — always send an array, drop blank
-    // rows, and keep/stamp each row's created_at + who added it.
-    const cleanChangeOrders = changeOrders
-      .map(r => ({
-        label:(r.label||'').trim(), detail:(r.detail||'').trim(), price:(r.price||'').trim(),
-        created_at: r.created_at || new Date().toISOString(),
-        created_by: r.created_by || profile?.id || null,
-        created_by_name: r.created_by_name || profile?.full_name || profile?.email || '',
-      }))
-      .filter(r => r.label || r.price);
 
     const payload = {
       contact_id: contactId || null,
@@ -937,7 +1066,6 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
       package_overrides: cfg.pkgOverrides || {},
       // ShedPro / work-order detail fields (colors, renderings, finishes, …)
       ...Object.fromEntries(DETAIL_TEXT_KEYS.map(k => [k, textOrNull(details[k])])),
-      change_orders: cleanChangeOrders,
     };
     if (willBeSold && !project.sold_at) payload.sold_at = new Date().toISOString();
 
@@ -969,7 +1097,6 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
     { id:'details',    label:'Details' },
     { id:'spec',       label:'Specification' },
     { id:'appearance', label:'Appearance' },
-    { id:'changes',    label:`Change orders${changeOrders.length ? ` (${changeOrders.length})` : ''}` },
   ];
   const tabStrip = (
     <div style={{ display:'flex', gap:0, borderBottom:`1px solid ${C.linenDarker}`, overflowX:'auto', overflowY:'hidden', padding:'0 28px' }}>
@@ -984,8 +1111,6 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
       })}
     </div>
   );
-
-  const coSubtotal = changeOrders.reduce((s, r) => s + parsePriceNum(r.price), 0);
 
   return (
     <Modal title="Edit project" onClose={requestClose} width={640} footer={footer} subheader={tabStrip}>
@@ -1096,60 +1221,6 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
         </div>
       )}
 
-      {/* ── Change orders ── */}
-      {tab === 'changes' && (
-        <div>
-          <p style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#777', margin:'0 0 16px' }}>
-            Line items for any change after the shed is sold. Each is stamped with today’s date and your name, shows in the work order’s Change Orders section, and adds to the final total.
-          </p>
-
-          {changeOrders.length === 0 ? (
-            <div style={{ border:`1px dashed ${C.linenDarker}`, borderRadius:6, padding:'18px 16px', textAlign:'center', fontFamily:'DM Sans', fontSize:13, color:'#999', marginBottom:14 }}>
-              No change orders yet.
-            </div>
-          ) : (
-            <>
-              {/* Column headers (desktop) */}
-              {!isMobile && (
-                <div style={{ display:'flex', gap:8, padding:'0 0 6px', fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:C.sand }}>
-                  <div style={{ flex:'2 1 150px' }}>Item</div>
-                  <div style={{ flex:'2 1 150px' }}>Detail</div>
-                  <div style={{ flex:'1 1 100px' }}>Price</div>
-                  <div style={{ width:30, flexShrink:0 }} />
-                </div>
-              )}
-              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                {changeOrders.map((r, i) => (
-                  <div key={i} style={{ display:'flex', flexDirection:'column', gap:4 }}>
-                    <div style={{ display:'flex', flexWrap:'wrap', gap:8, alignItems:'center' }}>
-                      <div style={{ flex:'2 1 150px', minWidth:0 }}><Input value={r.label} onChange={v => setCO(i, 'label', v)} placeholder="Change order item" /></div>
-                      <div style={{ flex:'2 1 150px', minWidth:0 }}><Input value={r.detail} onChange={v => setCO(i, 'detail', v)} placeholder="Detail (optional)" /></div>
-                      <div style={{ flex:'1 1 100px', minWidth:0 }}><MoneyInput value={r.price} onChange={v => setCO(i, 'price', v)} align="right" /></div>
-                      <button type="button" onClick={() => removeCO(i)} title="Remove change order"
-                        style={{ flexShrink:0, width:30, height:30, borderRadius:4, border:`1px solid ${C.linenDarker}`, background:C.linen, color:C.error, cursor:'pointer', fontSize:16, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
-                    </div>
-                    {(r.created_at || r.created_by_name) && (
-                      <div style={{ fontFamily:'DM Sans', fontSize:11, color:'#999', paddingLeft:2 }}>
-                        Added {fmtCoDate(r.created_at)}{r.created_by_name ? ` by ${r.created_by_name}` : ''}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Running subtotal — mirrors the work order's Final-total math. */}
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginTop:14, paddingTop:12, borderTop:`1px solid ${C.linenDarker}` }}>
-                <span style={{ fontFamily:'DM Sans', fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', color:C.sand }}>Change orders subtotal</span>
-                <span style={{ fontFamily:'DM Sans', fontSize:15, fontWeight:700, color:C.charcoal, fontVariantNumeric:'tabular-nums' }}>{fmt(coSubtotal)}</span>
-              </div>
-            </>
-          )}
-
-          <div style={{ marginTop:14 }}>
-            <Button variant="ghost" size="sm" onClick={addCO}>+ Add line item</Button>
-          </div>
-        </div>
-      )}
     </Modal>
   );
 }
