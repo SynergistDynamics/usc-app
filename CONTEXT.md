@@ -364,9 +364,13 @@ src/
     Blueprints.jsx           — Blueprints (idx 6)
     ConfiguratorPricing.jsx  — Configurator Pricing — 4 pricing tabs (Base/Siding/Fixed/Variable) PLUS the
                                "Material Prices" tab (everyone) and "Packages" tab (admin only), which embed
-                               MaterialPriceManager / PackageManager. The builder selector + Export CSV button
-                               only show on the four pricing tabs. Needs setOverrides passed from App.jsx so the
-                               embedded Material Prices tab can update the shared overrides state.
+                               MaterialPriceManager / PackageManager. The two management tabs (PRICING_TABS vs
+                               MANAGE_TABS) are visually set apart: pricing tabs are underline tabs, the manage
+                               tools render as sand-colored pill buttons pushed to the right of the tab bar (with
+                               ⚙/📦 icons) so it's obvious they're a different kind of action. The builder
+                               selector + Export CSV button only show on the four pricing tabs. Needs setOverrides
+                               passed from App.jsx so the embedded Material Prices tab can update the shared
+                               overrides state.
     Financing.jsx            — Financing (idx 9)
   lib/contacts.js            — Contacts data/service layer (fetch w/ 1000-row paging, get, create, update,
                                delete) + CONTACT_STATUSES / STATUS_LABELS / STATUS_COLORS constants.

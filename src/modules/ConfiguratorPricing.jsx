@@ -265,7 +265,6 @@ export default function ConfiguratorPricing({ materials, overrides, setOverrides
   // everyone, Packages for admins) that used to live in the sidebar submenu.
   const PRICING_TABS = [['base','Base Pricing'],['siding','Siding'],['fixed','Fixed Price Options'],['variable','Size-Variable Options']];
   const MANAGE_TABS  = canPackages ? [['materials','Material Prices'],['packages','Packages']] : [['materials','Material Prices']];
-  const TABS = [...PRICING_TABS, ...MANAGE_TABS];
   const isPricingTab = PRICING_TABS.some(([key]) => key === activeTab);
 
   return (
@@ -297,11 +296,25 @@ export default function ConfiguratorPricing({ materials, overrides, setOverrides
         </div>
       )}
 
-      {/* Tabs */}
-      <div style={{ display:'flex', gap:0, marginBottom:20, borderBottom:`2px solid ${C.linenDarker}`, flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: isMobile ? 'auto' : 'visible', overflowY:'hidden' }}>
-        {TABS.map(([key,label])=>(
+      {/* Tabs — pricing views are underline tabs; the management tools
+          (Material Prices / Packages) are styled as pill buttons and set apart
+          on the right so it's clear they're a different kind of thing. */}
+      <div style={{ display:'flex', alignItems:'flex-end', gap:0, marginBottom:20, borderBottom:`2px solid ${C.linenDarker}`, flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: isMobile ? 'auto' : 'visible', overflowY:'hidden' }}>
+        {PRICING_TABS.map(([key,label])=>(
           <button key={key} onClick={()=>setActiveTab(key)} style={{ fontFamily:'DM Sans', fontSize:13, fontWeight:600, padding: isMobile ? '10px 14px' : '10px 20px', border:'none', cursor:'pointer', background:'transparent', color:activeTab===key?C.sage:'#aaa', borderBottom:activeTab===key?`2px solid ${C.sage}`:'2px solid transparent', marginBottom:-2, transition:'all 0.15s', whiteSpace:'nowrap', flexShrink:0 }}>{label}</button>
         ))}
+        {/* Spacer pushes the management buttons to the right on desktop */}
+        <div style={{ flex: isMobile ? '0 0 auto' : '1 1 auto', minWidth: isMobile ? 12 : 20 }} />
+        <div style={{ display:'flex', gap:8, alignItems:'center', paddingBottom:6, flexShrink:0 }}>
+          {MANAGE_TABS.map(([key,label])=>{
+            const active = activeTab===key;
+            return (
+              <button key={key} onClick={()=>setActiveTab(key)} style={{ fontFamily:'DM Sans', fontSize:12, fontWeight:700, letterSpacing:'0.02em', padding:'7px 16px', borderRadius:20, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0, transition:'all 0.15s', border:`1.5px solid ${active?C.sand:C.linenDarker}`, background:active?C.sand:C.paper, color:active?'#fff':C.inkLight }}>
+                {key==='materials' ? '⚙ ' : '📦 '}{label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {activeTab==='base'     && BaseTab()}
