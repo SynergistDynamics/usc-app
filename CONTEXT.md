@@ -155,7 +155,14 @@ src/
                                steps dimmed (clicking one reactivates it to that stage). Directly below the stepper is
                                an **inline Construction date editor** (ConstructionDateCard) — a date input builders
                                use to add/update the install date without opening the Edit modal; it saves on change
-                               via updateProject and updates the page in place. Below the stepper are TWO TABS:
+                               via updateProject and updates the page in place. Below that is a **Project notes card**
+                               (ProjectNotesCard) — shows the project's free-text notes (the `additional_features`
+                               column) and an **"+ Add notes" / "✎ Edit notes" button** that opens a focused
+                               **ProjectNotesModal** popup (a single textarea) saving straight to
+                               `additional_features` via updateProject (blank clears it). This is the ONLY place notes
+                               are edited — the field was removed from the Edit modal's Specification tab (2026-07-01).
+                               On the work order the notes render as a "Project notes" line in Finishes (label renamed
+                               from "Additional features"). Below the stepper are TWO TABS:
                                • "Work Order" — a formatted, printable work-order document (rendered inside
                                  #work-order-print) showing every relevant detail: customer (name/company/full
                                  mailing address/phone/email, from the embedded contact), builder, shed spec
@@ -229,8 +236,9 @@ src/
                                  the ShedPro deposit, editable here too), **Work order #**
                                  (`project_number`, here since it completes the name), and — for **admins** — an
                                  **Assigned builder** dropdown.
-                               • **Specification** — PricingTool's ConfigPanel (size, style, siding, option packages) +
-                                 the one free-text **Additional features** field. ConfigPanel is rendered with
+                               • **Specification** — PricingTool's ConfigPanel (size, style, siding, option packages).
+                                 (The free-text notes field that used to live here — "Additional features" — moved out to
+                                 the Project notes card + popup on the page, 2026-07-01.) ConfigPanel is rendered with
                                  **`editPrices`** here (off in the Materials Calculator): a **$ price field** for the
                                  **Base price** (under Shed Style) and the **Siding price** (under Siding), plus one next to
                                  each SELECTED option, so a manually-added project can carry **ShedPro prices**. All write

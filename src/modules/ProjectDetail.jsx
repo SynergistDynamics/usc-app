@@ -51,8 +51,9 @@ const TABS = [['work-order', 'Work Order'], ['materials', 'Materials List']];
 // section. The other ShedPro option/finish columns (siding_type, overhang, doors,
 // windows, vents, roof, floor, transom, site_prep, building_permit, access) are NOT
 // edited in the modal — they're driven by the option checkboxes in the spec above —
-// so they're left out of the editable set and preserved as-is on save. The lone
-// exception is `additional_features`, kept as a free-text field for custom add-ons.
+// so they're left out of the editable set and preserved as-is on save. The free-text
+// `additional_features` column is the project's NOTES: it's edited on the work order
+// page via its own "Project notes" card + popup (ProjectNotesCard), not in the modal.
 const COLOR_FIELDS = [
   ['siding_color', 'Siding color'], ['trim_color', 'Trim color'],
   ['door_color', 'Door color'],     ['roof_color', 'Roof color'],
@@ -63,12 +64,13 @@ const RENDER_FIELDS = [
   ['rendering_url_3', 'Right URL'], ['rendering_url_4', 'Back URL'],
   ['layout_rendering_url', 'Layout / floor plan URL'],
 ];
-// Plain text columns edited in the modal. additional_features is the one free-text
-// option kept here. (construction_date is edited inline on the work order page,
-// monthly_payment isn't edited in-app, and options_summary / shedpro_options come from
-// ShedPro and aren't edited here — all left out of the modal.)
+// Plain text columns edited in the modal. (construction_date and the free-text
+// PROJECT NOTES [additional_features] are edited inline on the work order page — the
+// latter via its own "Project notes" card + popup, NOT this modal; monthly_payment
+// isn't edited in-app, and options_summary / shedpro_options come from ShedPro and
+// aren't edited here — all left out of the modal.)
 const DETAIL_TEXT_KEYS = [...COLOR_FIELDS, ...RENDER_FIELDS].map(([k]) => k)
-  .concat(['additional_features', 'project_number']);
+  .concat(['project_number']);
 
 // ShedPro's itemized options-with-prices (the "What's included" list on a ShedPro
 // quote), stored in projects.shedpro_options. Tolerant of however Zapier delivers
@@ -480,6 +482,10 @@ export default function ProjectDetail({ materials, overrides, packages, pkgMater
       {/* Construction date — builders set/update the install date inline here. */}
       <ConstructionDateCard project={project} onSaved={setProject} isMobile={isMobile} />
 
+      {/* Project notes — one-click add/edit of the free-text notes (additional_features)
+          via its own popup, without opening the full Edit project modal. */}
+      <ProjectNotesCard project={project} onSaved={setProject} isMobile={isMobile} />
+
       {/* Tabs — two tabs, so on mobile they split the width evenly (no scrolling). */}
       <div style={{ display:'flex', gap:0, marginBottom:20, borderBottom:`2px solid ${C.linenDarker}`, flexWrap:'nowrap', overflowY:'hidden' }}>
         {TABS.map(([key, label]) => (
@@ -737,6 +743,90 @@ function ConstructionDateCard({ project, onSaved, isMobile }) {
   );
 }
 
+// ── Project notes ─────────────────────────────────────────────────────────────
+// A one-click way to add/edit the project's free-text NOTES (the additional_features
+// column) right from the work order page — a compact card that shows the current
+// notes and opens a focused popup, instead of digging through the full Edit modal.
+function ProjectNotesCard({ project, onSaved, isMobile }) {
+  const [open, setOpen] = useState(false);
+  const value = (project?.additional_features || '').trim();
+
+  return (
+    <>
+      <Card style={{ marginBottom:20, padding: isMobile ? '14px 14px' : '14px 20px' }}>
+        <div style={{ display:'flex', alignItems: value ? 'flex-start' : 'center', gap:14, flexWrap:'wrap' }}>
+          <div style={{ fontFamily:'DM Sans', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', color:C.sand, flexShrink:0, paddingTop: value ? 3 : 0 }}>
+            Project notes
+          </div>
+          <div style={{ flex:'1 1 200px', minWidth:0, fontFamily:'DM Sans', fontSize:13, lineHeight:1.5, whiteSpace:'pre-wrap', color: value ? C.charcoal : '#aaa' }}>
+            {value || 'No notes yet'}
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => setOpen(true)} style={{ flexShrink:0 }}>
+            {value ? '✎ Edit notes' : '+ Add notes'}
+          </Button>
+        </div>
+      </Card>
+      {open && (
+        <ProjectNotesModal
+          project={project}
+          onClose={() => setOpen(false)}
+          onSaved={(data) => { onSaved(data); setOpen(false); }}
+        />
+      )}
+    </>
+  );
+}
+
+// The notes popup: a single free-text field saved straight to additional_features via
+// updateProject (RLS lets a builder edit their own project / admins any). Blank clears it.
+function ProjectNotesModal({ project, onClose, onSaved }) {
+  const [value,  setValue]  = useState(project?.additional_features || '');
+  const [saving, setSaving] = useState(false);
+  const [err,    setErr]    = useState('');
+  const dirty = value !== (project?.additional_features || '');
+
+  async function save() {
+    setSaving(true); setErr('');
+    const v = value.trim() === '' ? null : value.trim();
+    const { data, error } = await updateProject(project.id, { additional_features: v });
+    setSaving(false);
+    if (error) { setErr(error.message); return; }
+    onSaved(data);
+  }
+
+  const footer = (
+    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, width:'100%' }}>
+      <span style={{ fontFamily:'DM Sans', fontSize:12.5, color:C.error }}>{err}</span>
+      <div style={{ display:'flex', gap:10, flexShrink:0 }}>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button onClick={save} loading={saving} disabled={!dirty}>Save notes</Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <Modal title="Project notes" onClose={onClose} width={520} footer={footer}>
+      <p style={{ fontFamily:'DM Sans', fontSize:12.5, color:'#777', margin:'0 0 12px' }}>
+        Notes for this project — custom features, install details, anything not covered by
+        the options above. These show on the work order.
+      </p>
+      <textarea
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        placeholder="Add notes for this project…"
+        autoFocus
+        rows={8}
+        style={{
+          width:'100%', boxSizing:'border-box', fontFamily:'DM Sans, sans-serif',
+          fontSize:14, color:C.charcoal, padding:'10px 12px', lineHeight:1.5,
+          border:`1.5px solid ${C.linenDarker}`, borderRadius:4, background:'#FFFDF9',
+          resize:'vertical',
+        }}
+      />
+    </Modal>
+  );
+}
+
 // ── Edit project modal ────────────────────────────────────────────────────────
 // Edits a draft copy of the project fields + shed spec, and (for admins) the
 // assigned builder. On Save it persists everything and hands the fresh row back.
@@ -974,12 +1064,8 @@ function EditProjectModal({ project, isAdmin, builders, stylePkgs, materials, ov
           <div style={{ maxWidth: isMobile ? '100%' : 380 }}>
             <ConfigPanel cfg={cfg} setCfg={setCfg} packages={packages} editPrices />
           </div>
-          {/* Other options are set by the checkboxes above; this is the one free-text add. */}
-          <div style={{ marginTop:20 }}>
-            <FormField label="Additional features" style={{ marginBottom:0 }}>
-              <Input value={details.additional_features} onChange={v => setDetail('additional_features', v)} placeholder="Any custom features not covered by the options above" />
-            </FormField>
-          </div>
+          {/* Free-text notes live in the "Project notes" card + popup on the work order
+              page (not here) so they're a one-click edit; other options are the checkboxes. */}
         </div>
       )}
 
@@ -1269,7 +1355,7 @@ function WorkOrderDoc({ project, contact, title, status, salePrice, notes, cfg, 
     ['Site prep', project?.site_prep],
     ['Building permit', project?.building_permit],
     ['Access', project?.access],
-    ['Additional features', project?.additional_features],
+    ['Project notes', project?.additional_features],
   ].filter(([, v]) => v != null && String(v).trim() !== '');
 
   const salePriceNum = salePrice != null && String(salePrice).trim() !== '' ? parseFloat(salePrice) : null;
@@ -1584,7 +1670,7 @@ function MobileWorkOrder({ project, contact, status, salePrice, notes, cfg, size
     ['Site prep', project?.site_prep],
     ['Building permit', project?.building_permit],
     ['Access', project?.access],
-    ['Additional features', project?.additional_features],
+    ['Project notes', project?.additional_features],
   ].filter(([, v]) => v != null && String(v).trim() !== '');
 
   const salePriceNum = salePrice != null && String(salePrice).trim() !== '' ? parseFloat(salePrice) : null;
